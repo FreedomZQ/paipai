@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - Onboarding</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FAFAFA;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            height: 100vh;
+            display: flex;
+            transition: transform 0.5s ease;
+        }
+        
+        .slide {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        
+        .slide-content {
+            max-width: 320px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .icon {
+            font-size: 80px;
+            margin-bottom: 32px;
+        }
+        
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #333;
+        }
+        
+        p {
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 32px;
+            color: #666;
+        }
+        
+        .features {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin: 24px 0;
+        }
+        
+        .feature {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            text-align: left;
+        }
+        
+        .feature-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #333;
+        }
+        
+        .feature-desc {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .cta {
+            background: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            max-width: 240px;
+        }
+        
+        .cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .dots {
+            display: flex;
+            gap: 8px;
+            margin-top: 32px;
+        }
+        
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #E0E0E0;
+            transition: all 0.3s ease;
+        }
+        
+        .dot.active {
+            width: 24px;
+            border-radius: 4px;
+            background: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+            width: 100%;
+        }
+        
+        label {
+            display: block;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #E0E0E0;
+            border-radius: 12px;
+            font-size: 16px;
+            background: white;
+        }
+        
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 24px 0;
+        }
+        
+        .option-button {
+            padding: 14px 16px;
+            border: 1px solid #E0E0E0;
+            border-radius: 12px;
+            background: white;
+            color: #333;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .option-button:hover {
+            border-color: #4ECDC4;
+            background: #F0FFF9;
+        }
+        
+        .option-button.selected {
+            background: #F0FFF9;
+            border-color: #06D6A0;
+            font-weight: 600;
+            color: #06D6A0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="container">
+        <!-- 语言选择界面 -->
+        <div class="slide" style="background: linear-gradient(135deg, #F0F4F8 0%, #E9ECEF 100%);">
+            <div class="slide-content" style="max-width: 320px;">
+                <div style="font-size: 100px; margin-bottom: 40px;">🌍</div>
+                <h1 style="font-size: 24px; margin-bottom: 16px;">请选择界面语言</h1>
+                <p style="margin-bottom: 40px;">Please select your interface language</p>
+                <div class="options" style="gap: 12px;">
+                    <button class="option-button selected" data-lang="zh" onclick="selectLanguage('zh')">汉语</button>
+                    <button class="option-button" data-lang="en" onclick="selectLanguage('en')">English</button>
+                    <button class="option-button" data-lang="ko" onclick="selectLanguage('ko')">한국어</button>
+                    <button class="option-button" data-lang="ja" onclick="selectLanguage('ja')">日本語</button>
+                    <button class="option-button" data-lang="es" onclick="selectLanguage('es')">Español</button>
+                </div>
+            </div>
+            <div class="dots" style="margin-top: 40px;">
+                <div class="dot active"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+        <!-- 第1屏：产品价值 -->
+        <div class="slide">
+            <div class="slide-content">
+                <div class="icon">📚</div>
+                <h1>让纸上的一句话，变成你今天会读的一句话</h1>
+                <p>一拍一听，一记一复习</p>
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-title">拍一句</div>
+                        <div class="feature-desc">拍摄文本，智能识别</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-title">听一句</div>
+                        <div class="feature-desc">标准发音朗读，支持分句、变速练习</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-title">复习一句</div>
+                        <div class="feature-desc">每天自动复习，巩固记忆</div>
+                    </div>
+                </div>
+                <button class="cta" onclick="nextSlide()">开始</button>
+            </div>
+            <div class="dots">
+                    <div class="dot"></div>
+                    <div class="dot active"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+        </div>
+        
+        <!-- 第2屏：隐私与数据说明 -->
+        <div class="slide">
+            <div class="slide-content">
+                <div class="icon">🔒</div>
+                <h1>我们重视您和孩子的隐私</h1>
+                <p>遵循「最小必要」原则，保护您和孩子的个人信息。</p>
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-title">最小必要</div>
+                        <div class="feature-desc">仅收集核心功能（额度、进度、推荐）所必需的学习数据。</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-title">云端存储</div>
+                        <div class="feature-desc">您的学习内容经加密存储于云端，支持多设备同步。</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-title">第三方API</div>
+                        <div class="feature-desc">仅在您同意后，发送内容至合规第三方（如语音/文本/图像分析处理）。</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-title">自主可控</div>
+                        <div class="feature-desc">可随时查看、修改或删除数据；删除账户即清除云端数据。</div>
+                    </div>
+                </div>
+                <button class="cta" onclick="nextSlide()">我知道了</button>
+            </div>
+            <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot active"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+        
+        <!-- 第3屏：家长使用说明 -->
+        <div class="slide">
+            <div class="slide-content">
+                <div class="icon">👨‍👩‍👧‍👦</div>
+                <h1>请和孩子一起使用</h1>
+                <p>这是家长主导的陪读工具，共同参与效果更好</p>
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-title">家长主导</div>
+                        <div class="feature-desc">设置、购买、账号相关操作需要家长进入</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-title">孩子使用</div>
+                        <div class="feature-desc">孩子主要使用学习练习相关功能</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-title">亲子互动</div>
+                        <div class="feature-desc">家长可以参与孩子的学习过程</div>
+                    </div>
+                </div>
+                <button class="cta" onclick="nextSlide()">继续</button>
+            </div>
+            <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot active"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+        
+        <!-- 第4屏：登录方式选择 -->
+        <div class="slide">
+            <div class="slide-content">
+                <div class="icon">🔐</div>
+                <h1>登录您的账号</h1>
+                <p>选择您喜欢的登录方式</p>
+                
+                <!-- Apple ID 登录 -->
+                <div class="options">
+                    <button class="option-button" id="appleSignInButton" onclick="loginWithApple()">
+                        <svg style="width: 20px; height: 20px; margin-right: 12px; vertical-align: middle;" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.441 16.892c-.238.486-.894.808-1.512.808-.779 0-1.378-.419-1.679-1.016H10.84c.006.177.01.355.01.534 0 1.524-1.099 2.745-2.442 2.745-1.342 0-2.441-1.221-2.441-2.745 0-1.525 1.099-2.745 2.441-2.745.059 0 .119.004.177.012-1.132-1.387-1.774-3.218-1.774-5.235 0-2.937 2.38-5.316 5.316-5.316 2.937 0 5.316 2.38 5.316 5.316 0 1.022-.289 1.979-.792 2.767.071.06.14.12.211.181.559.479 1.342 1.648.88 2.872z"/>
+                        </svg>
+                        使用 Apple ID 登录
+                    </button>
+                </div>
+                
+                <div style="margin: 24px 0; display: flex; align-items: center; justify-content: center;">
+                    <div style="flex: 1; height: 1px; background: #E0E0E0;"></div>
+                    <div style="padding: 0 16px; font-size: 14px; color: #999;">或</div>
+                    <div style="flex: 1; height: 1px; background: #E0E0E0;"></div>
+                </div>
+                
+                <!-- 邮箱登录 -->
+                <div style="width: 100%;">
+                    <div class="form-group">
+                        <label>邮箱地址</label>
+                        <input type="email" id="emailInput" placeholder="请输入您的邮箱">
+                    </div>
+                    <div class="form-group">
+                        <div style="display: flex; gap: 12px; align-items: flex-end;">
+                            <div style="flex: 1;">
+                                <label>验证码</label>
+                                <input type="text" id="codeInput" placeholder="请输入验证码">
+                            </div>
+                            <button id="sendCodeButton" style="padding: 12px 16px; border: 1px solid #E0E0E0; border-radius: 12px; background: white; color: #06D6A0; font-size: 14px; font-weight: 600; cursor: pointer; height: 44px;">
+                                发送验证码
+                            </button>
+                        </div>
+                    </div>
+                    <button class="cta" style="margin-top: 16px;" onclick="loginWithEmail()">
+                        登录
+                    </button>
+                </div>
+                
+                <div style="margin-top: 16px; font-size: 14px; color: #666; text-align: center; white-space: pre-line;">
+                    需要登录以记录你的每月免费额度
+                    详见 <a href="privacy-policy.html" style="color: #06D6A0; text-decoration: none;">《隐私政策》</a>
+                </div>
+            </div>
+            <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot active"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentSlide = 0;
+        const container = document.getElementById('container');
+        const slides = document.querySelectorAll('.slide');
+        
+        // 初始化检查语言设置
+        window.onload = function() {
+            // 暂时禁用自动跳转，让用户每次都能看到语言选择页面
+            // 后续可以根据需求恢复自动跳转功能
+            currentSlide = 0;
+            updateSlide();
+        };
+        
+        function selectLanguage(lang) {
+            // 保存语言设置
+            localStorage.setItem('appLanguage', lang);
+            
+            // 更新语言按钮的选中状态
+            document.querySelectorAll('.option-button[data-lang]').forEach((btn) => {
+                btn.classList.remove('selected');
+                if (btn.getAttribute('data-lang') === lang) {
+                    btn.classList.add('selected');
+                }
+            });
+            
+            // 进入下一页
+            currentSlide = 1;
+            updateSlide();
+        }
+        
+        function nextSlide() {
+            if (currentSlide < slides.length - 1) {
+                currentSlide++;
+                updateSlide();
+            }
+        }
+        
+        function updateSlide() {
+            container.style.transform = `translateX(-${currentSlide * 100}vw)`;
+            
+            // 更新 dots
+            document.querySelectorAll('.dot').forEach((dot, index) => {
+                dot.classList.toggle('active', index === currentSlide);
+            });
+        }
+        
+        function loginWithApple() {
+            // 模拟使用Apple登录
+            // 实际实现中，这里应该调用Apple官方登录SDK
+            console.log('开始Apple登录流程');
+            
+            // 模拟登录成功
+            setTimeout(() => {
+                alert('Apple登录成功');
+                // 登录成功后跳转到首页
+                window.location.href = '03-home.html';
+            }, 1000);
+        }
+        
+        function loginWithEmail() {
+            const email = document.getElementById('emailInput').value;
+            const code = document.getElementById('codeInput').value;
+            
+            if (!email) {
+                alert('请输入邮箱地址');
+                return;
+            }
+            
+            if (!code) {
+                alert('请输入验证码');
+                return;
+            }
+            
+            // 模拟邮箱登录
+            console.log('开始邮箱登录', { email, code });
+            
+            // 模拟登录成功
+            setTimeout(() => {
+                alert('邮箱登录成功');
+                // 登录成功后跳转到首页
+                window.location.href = '03-home.html';
+            }, 1000);
+        }
+        
+        // 发送验证码功能
+        document.getElementById('sendCodeButton').addEventListener('click', function() {
+            const email = document.getElementById('emailInput').value;
+            
+            if (!email) {
+                alert('请先输入邮箱地址');
+                return;
+            }
+            
+            // 验证邮箱格式
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('请输入有效的邮箱地址');
+                return;
+            }
+            
+            // 模拟发送验证码
+            console.log('发送验证码到邮箱:', email);
+            
+            // 禁用按钮并开始倒计时
+            const button = this;
+            button.disabled = true;
+            let countdown = 60;
+            button.textContent = `${countdown}秒后重发`;
+            
+            const timer = setInterval(() => {
+                countdown--;
+                button.textContent = `${countdown}秒后重发`;
+                
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    button.disabled = false;
+                    button.textContent = '发送验证码';
+                }
+            }, 1000);
+            
+            // 模拟发送成功
+            setTimeout(() => {
+                alert('验证码已发送到您的邮箱');
+            }, 500);
+        });
+        
+        // 支持滑动切换
+        let startX, moveX;
+        
+        document.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+        });
+        
+        document.addEventListener('touchmove', (e) => {
+            moveX = e.touches[0].clientX;
+        });
+        
+        document.addEventListener('touchend', () => {
+            if (startX - moveX > 50 && currentSlide < slides.length - 1) {
+                nextSlide();
+            } else if (moveX - startX > 50 && currentSlide > 0) {
+                currentSlide--;
+                updateSlide();
+            }
+        });
+    </script>
+</body>
+</html>

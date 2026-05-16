@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - 拍照</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: black;
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            height: 100vh;
+            position: relative;
+        }
+        
+        .camera-preview {
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><rect width="100%" height="100%" fill="%23333"/><text x="50%" y="50%" font-size="24" text-anchor="middle" fill="%23666">相机预览区域</text></svg>') center/cover;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+        
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle, transparent 60%, rgba(0,0,0,0.7) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 40px 20px;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .back-button {
+            background: rgba(255,255,255,0.2);
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+        
+        .flash-toggle {
+            background: rgba(255,255,255,0.2);
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+        }
+        
+        .guide {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+        
+        .取景框 {
+            width: 80%;
+            height: 320px;
+            border: 3px solid white;
+            border-radius: 16px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .guide-text {
+            position: absolute;
+            top: -40px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .guide-subtext {
+            text-align: center;
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 0;
+        }
+        
+        .controls {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .capture-button {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 72px;
+            height: 72px;
+            border: 4px solid white;
+            border-radius: 36px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .capture-button:active {
+            transform: translateX(-50%) scale(0.95);
+        }
+
+        .gallery-button {
+            position: absolute;
+            right: calc(50% + 100px);
+            transform: translateX(0);
+            width: 56px;
+            height: 56px;
+            border: 2px solid white;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.2);
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .gallery-button:active {
+            transform: scale(0.95);
+        }
+        
+        .tip {
+            text-align: center;
+            font-size: 14px;
+            opacity: 0.8;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="camera-preview">
+            <div class="overlay">
+                <div class="header">
+                    <div class="back-button" onclick="goBack()">
+                        <span>←</span>
+                    </div>
+                    <div class="flash-toggle" onclick="toggleFlash()">
+                        <span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 18h6"/>
+                                <path d="M10 22h4"/>
+                                <path d="M12 2a7 7 0 0 0-4 12.9V17h8v-2.1A7 7 0 0 0 12 2z"/>
+                            </svg>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="guide">
+                    <div class="guide-text">尽量只拍一行或一句</div>
+                    <div class="取景框"></div>
+                    <div class="guide-subtext">请把文字放进中间区域</div>
+                    <div class="tip">
+                        建议拍摄单行文字，识别效果更好
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <div class="gallery-button" onclick="openGallery()">
+                        <span>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <circle cx="8.5" cy="8.5" r="1.5"/>
+                                <polyline points="21 15 16 10 5 21"/>
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="capture-button" onclick="capturePhoto()"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function goBack() {
+            window.location.href = '05-ocr-confirm.html';
+        }
+        
+        function toggleFlash() {
+            alert('切换闪光灯');
+        }
+        
+        function capturePhoto() {
+            alert('拍摄照片');
+        }
+        
+        function openGallery() {
+            alert('打开相册');
+        }
+        
+        function switchCamera() {
+            alert('切换相机');
+        }
+    </script>
+</body>
+</html>

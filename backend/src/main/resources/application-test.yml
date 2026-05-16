@@ -1,0 +1,30 @@
+# ==============================
+# 测试环境配置
+# ==============================
+# 说明：
+# 1. 该 profile 主要用于自动化测试。
+# 2. 数据源和 Redis 仍可通过环境变量覆盖，便于 CI 使用隔离资源。
+
+spring:
+  datasource:
+    # 自动化测试默认数据库
+    url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/apphub_test}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3s
+  flyway:
+    # 测试环境默认关闭应用启动自动迁移；测试库需在启动应用前用初始化 SQL 准备好。
+    enabled: ${FLYWAY_ENABLED:false}
+    locations: classpath:db/first_version
+    validate-on-migrate: true
+    baseline-on-migrate: true
+
+backend:
+  # 明确标记当前为测试环境
+  environment: test

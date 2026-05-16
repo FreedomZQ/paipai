@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - 孩子管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FAFAFA;
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            padding: 20px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .back-button {
+            background: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .spacer {
+            width: 44px;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #F0F0F0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .child-card {
+            padding: 20px;
+            border-bottom: 1px solid #F0F0F0;
+        }
+        
+        .child-card:last-child {
+            border-bottom: none;
+        }
+        
+        .child-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        
+        .child-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .child-avatar {
+            font-size: 32px;
+        }
+        
+        .child-name {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .child-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .icon-button {
+            width: 36px;
+            height: 36px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            font-size: 16px;
+        }
+        
+        .edit-button {
+            background: #E8F5FF;
+        }
+        
+        .delete-button {
+            background: #FFE8E8;
+        }
+        
+        .language-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #F9F9F9;
+            border-radius: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .language-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .language-flag {
+            font-size: 24px;
+        }
+        
+        .language-name {
+            font-size: 15px;
+            font-weight: 500;
+        }
+        
+        .language-level {
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .add-child, .add-language {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px;
+            color: #4ECDC4;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .add-child:hover, .add-language:hover {
+            background: #F0FFF9;
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 24px;
+            width: 85%;
+            max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #666;
+        }
+        
+        .form-input, .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #E0E0E0;
+            border-radius: 12px;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus, .form-select:focus {
+            border-color: #4ECDC4;
+        }
+        
+        .modal-message {
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        
+        .button-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .button {
+            padding: 14px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        
+        .primary-button {
+            background: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+            color: white;
+        }
+        
+        .secondary-button {
+            background: #F0F0F0;
+            color: #333;
+        }
+        
+        .danger-button {
+            background: #FF6B6B;
+            color: white;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .age-options {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .age-option {
+            padding: 8px 16px;
+            border: 1px solid #E0E0E0;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+        
+        .age-option.selected {
+            background: #4ECDC4;
+            color: white;
+            border-color: #4ECDC4;
+        }
+        
+        .level-options {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .level-option {
+            padding: 8px 16px;
+            border: 1px solid #E0E0E0;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+        
+        .level-option.selected {
+            background: #4ECDC4;
+            color: white;
+            border-color: #4ECDC4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="back-button" onclick="goBack()">
+                <span>←</span>
+            </div>
+            <div class="title">孩子管理</div>
+            <div class="spacer"></div>
+        </header>
+        
+        <div id="children-container" class="section">
+            <div class="section-header">我的孩子</div>
+            <div id="children-list"></div>
+            <div class="add-child" onclick="showAddChildModal()">
+                <span>➕</span>
+                <span>添加孩子</span>
+            </div>
+        </div>
+    </div>
+    
+    <div id="add-child-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-title" id="child-modal-title">添加孩子</div>
+            <div class="form-group">
+                <label class="form-label">孩子昵称</label>
+                <input type="text" class="form-input" id="child-name-input" placeholder="请输入孩子昵称">
+            </div>
+
+            <div class="button-container">
+                <button class="button primary-button" onclick="saveChild()">保存</button>
+                <button class="button secondary-button" onclick="closeAddChildModal()">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="add-language-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-title">添加语种</div>
+            <div class="form-group">
+                <label class="form-label">选择语种</label>
+                <select class="form-select" id="language-select" disabled>
+                    <option value="汉语">🇨🇳 汉语</option>
+                    <option value="英语">🇺🇸 英语</option>
+                    <option value="韩语">🇰🇷 韩语</option>
+                    <option value="日语">🇯🇵 日语</option>
+                    <option value="西班牙语">🇪🇸 西班牙语</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">学习阶段</label>
+                <div class="level-options" id="level-options">
+                    <div class="level-option" data-level="入门启蒙">入门启蒙</div>
+                    <div class="level-option" data-level="基础起步">基础起步</div>
+                    <div class="level-option" data-level="稳步提升">稳步提升</div>
+                    <div class="level-option" data-level="进阶巩固">进阶巩固</div>
+                    <div class="level-option" data-level="高阶拓展">高阶拓展</div>
+                </div>
+            </div>
+            <div class="button-container">
+                <button class="button primary-button" onclick="saveLanguage()">添加</button>
+                <button class="button secondary-button" onclick="closeAddLanguageModal()">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="premium-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-message" id="premium-message">免费用户只能使用一个孩子，新增孩子需购买权益</div>
+            <div class="button-container">
+                <button class="button primary-button" onclick="goToPaywall()">订阅权益</button>
+                <button class="button secondary-button" onclick="closePremiumModal()">返回</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="delete-confirm-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-message">确定要删除这个孩子吗？此操作不可恢复。</div>
+            <div class="button-container">
+                <button class="button danger-button" onclick="confirmDelete()">删除</button>
+                <button class="button secondary-button" onclick="closeDeleteConfirmModal()">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const languageFlags = {
+            '汉语': '🇨🇳',
+            '英语': '🇺🇸',
+            '韩语': '🇰🇷',
+            '日语': '🇯🇵',
+            '西班牙语': '🇪🇸'
+        };
+        
+        let children = [];
+        let editingChildId = null;
+        let currentChildId = null;
+        let selectedLevel = null;
+        let deleteChildId = null;
+        const isFreeUser = true;
+        
+        function init() {
+            loadFromStorage();
+            if (children.length === 0) {
+                children = [
+                    {
+                        id: '1',
+                        name: '小明',
+                        avatar: '👨‍🎓',
+                        languages: [
+                            { name: '英语', level: '基础起步' }
+                        ]
+                    }
+                ];
+                saveToStorage();
+            }
+            renderChildren();
+        }
+        
+        function saveToStorage() {
+            localStorage.setItem('childrenData', JSON.stringify(children));
+        }
+        
+        function loadFromStorage() {
+            const saved = localStorage.getItem('childrenData');
+            if (saved) {
+                children = JSON.parse(saved);
+            }
+        }
+        
+        function renderChildren() {
+            const container = document.getElementById('children-list');
+            container.innerHTML = '';
+            
+            children.forEach(child => {
+                const card = document.createElement('div');
+                card.className = 'child-card';
+                card.innerHTML = `
+                    <div class="child-header">
+                        <div class="child-info">
+                            <div class="child-avatar">${child.avatar}</div>
+                                    <div>
+                                        <div class="child-name">${child.name}</div>
+                                    </div>
+                        </div>
+                        <div class="child-actions">
+                            <button class="icon-button edit-button" onclick="editChild('${child.id}')">✏️</button>
+                            <button class="icon-button delete-button" onclick="showDeleteConfirm('${child.id}')">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="languages-container">
+                        ${child.languages.map(lang => `
+                            <div class="language-item">
+                                <div class="language-info">
+                                    <div class="language-flag">${languageFlags[lang.name] || '🌐'}</div>
+                                    <div>
+                                        <div class="language-name">${lang.name}</div>
+                                        <div class="language-level">${lang.level}</div>
+                                    </div>
+                                </div>
+                                <div class="child-actions">
+                                    <button class="icon-button edit-button" onclick="editLanguage('${child.id}', '${lang.name}')">✏️</button>
+                                    <button class="icon-button delete-button" onclick="deleteLanguage('${child.id}', '${lang.name}')">🗑️</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                        <div class="add-language" onclick="showAddLanguageModal('${child.id}')">
+                            <span>➕</span>
+                            <span>添加新语种</span>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        function showAddChildModal() {
+            if (isFreeUser && children.length >= 1) {
+                showPremiumModal('免费用户只能使用一个孩子，新增孩子需购买权益');
+                return;
+            }
+            
+            editingChildId = null;
+            document.getElementById('child-modal-title').textContent = '添加孩子';
+            document.getElementById('child-name-input').value = '';
+            document.getElementById('add-child-modal').classList.remove('hidden');
+        }
+        
+        function closeAddChildModal() {
+            document.getElementById('add-child-modal').classList.add('hidden');
+            editingChildId = null;
+        }
+        
+        function editChild(id) {
+            editingChildId = id;
+            const child = children.find(c => c.id === id);
+            document.getElementById('child-modal-title').textContent = '编辑孩子';
+            document.getElementById('child-name-input').value = child.name;
+            document.getElementById('add-child-modal').classList.remove('hidden');
+        }
+        
+
+        
+        function saveChild() {
+            const name = document.getElementById('child-name-input').value.trim();
+            
+            if (!name) {
+                alert('请输入孩子昵称');
+                return;
+            }
+            
+            if (editingChildId) {
+                const index = children.findIndex(c => c.id === editingChildId);
+                children[index].name = name;
+            } else {
+                const avatars = ['👨‍🎓', '👨‍🎓', '👨‍🎓', '👨‍🎓'];
+                const newChild = {
+                    id: Date.now().toString(),
+                    name: name,
+                    avatar: avatars[Math.floor(Math.random() * avatars.length)],
+                    languages: []
+                };
+                children.push(newChild);
+            }
+            
+            saveToStorage();
+            renderChildren();
+            closeAddChildModal();
+        }
+        
+        function showDeleteConfirm(id) {
+            deleteChildId = id;
+            document.getElementById('delete-confirm-modal').classList.remove('hidden');
+        }
+        
+        function closeDeleteConfirmModal() {
+            document.getElementById('delete-confirm-modal').classList.add('hidden');
+            deleteChildId = null;
+        }
+        
+        function confirmDelete() {
+            if (deleteChildId) {
+                children = children.filter(c => c.id !== deleteChildId);
+                saveToStorage();
+                renderChildren();
+            }
+            closeDeleteConfirmModal();
+        }
+        
+        function showAddLanguageModal(childId) {
+            const child = children.find(c => c.id === childId);
+            if (isFreeUser && child.languages.length >= 1) {
+                showPremiumModal('免费用户只能选择一个语种，新增语种需购买权益');
+                return;
+            }
+            
+            if (!isFreeUser && child.languages.length >= 3) {
+                alert('每个孩子最多可添加3个语种');
+                return;
+            }
+            
+            currentChildId = childId;
+            selectedLevel = null;
+            resetLevelOptions();
+            const select = document.getElementById('language-select');
+            select.disabled = false;
+            select.selectedIndex = 0;
+            document.getElementById('add-language-modal').classList.remove('hidden');
+        }
+        
+        function closeAddLanguageModal() {
+            document.getElementById('add-language-modal').classList.add('hidden');
+            currentChildId = null;
+        }
+        
+        function resetLevelOptions() {
+            document.querySelectorAll('.level-option').forEach(opt => {
+                opt.classList.remove('selected');
+                if (opt.dataset.level === selectedLevel) {
+                    opt.classList.add('selected');
+                }
+            });
+        }
+        
+        document.querySelectorAll('.level-option').forEach(opt => {
+            opt.addEventListener('click', function() {
+                selectedLevel = this.dataset.level;
+                resetLevelOptions();
+            });
+        });
+        
+        function saveLanguage() {
+            const languageName = document.getElementById('language-select').value;
+            
+            if (!selectedLevel) {
+                alert('请选择学习阶段');
+                return;
+            }
+            
+            const child = children.find(c => c.id === currentChildId);
+            const existingLang = child.languages.find(l => l.name === languageName);
+            
+            if (existingLang) {
+                existingLang.level = selectedLevel;
+            } else {
+                child.languages.push({
+                    name: languageName,
+                    level: selectedLevel
+                });
+            }
+            
+            saveToStorage();
+            renderChildren();
+            closeAddLanguageModal();
+        }
+        
+        function editLanguage(childId, languageName) {
+            const child = children.find(c => c.id === childId);
+            const lang = child.languages.find(l => l.name === languageName);
+            
+            currentChildId = childId;
+            selectedLevel = lang.level;
+            
+            const select = document.getElementById('language-select');
+            for (let i = 0; i < select.options.length; i++) {
+                if (select.options[i].value === languageName) {
+                    select.selectedIndex = i;
+                    break;
+                }
+            }
+            select.disabled = true;
+            
+            resetLevelOptions();
+            document.getElementById('add-language-modal').classList.remove('hidden');
+        }
+        
+        function deleteLanguage(childId, languageName) {
+            if (confirm('确定要删除这个语种吗？')) {
+                const child = children.find(c => c.id === childId);
+                child.languages = child.languages.filter(l => l.name !== languageName);
+                saveToStorage();
+                renderChildren();
+            }
+        }
+        
+        function showPremiumModal(message) {
+            document.getElementById('premium-message').textContent = message;
+            document.getElementById('premium-modal').classList.remove('hidden');
+        }
+        
+        function closePremiumModal() {
+            document.getElementById('premium-modal').classList.add('hidden');
+        }
+        
+        function goToPaywall() {
+            window.location.href = '10-paywall.html';
+        }
+        
+        function goBack() {
+            window.location.href = '09-parent-area.html';
+        }
+        
+        init();
+    </script>
+</body>
+</html>

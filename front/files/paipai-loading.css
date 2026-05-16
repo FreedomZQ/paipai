@@ -1,0 +1,240 @@
+/*
+ * Paipai loading animation
+ * Reuses the app icon colors: navy canvas, cyan scan corners, warm gold ring,
+ * soft white center character and book-like blue accents.
+ */
+
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background:
+        radial-gradient(circle at 50% 42%, rgba(6, 214, 160, 0.18), transparent 38%),
+        rgba(2, 19, 51, 0.56);
+    backdrop-filter: blur(5px);
+}
+
+.loading-content {
+    width: min(82vw, 280px);
+    padding: 28px 24px 24px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.96);
+    text-align: center;
+    box-shadow: 0 18px 44px rgba(0, 32, 88, 0.22);
+}
+
+.paipai-wait {
+    --paipai-size: 112px;
+    --paipai-speed: 2.6s;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.paipai-loader {
+    position: relative;
+    width: var(--paipai-size);
+    height: var(--paipai-size);
+    margin: 0 auto 16px;
+    contain: layout paint;
+}
+
+.paipai-loader::before {
+    content: "";
+    position: absolute;
+    inset: 17%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(6, 214, 160, 0.34), rgba(17, 138, 178, 0));
+    filter: blur(2px);
+    animation: paipai-breathe 1.8s ease-in-out infinite;
+}
+
+.paipai-loader__ring,
+.paipai-loader__scan {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    transform-origin: 50% 50%;
+    animation: paipai-spin var(--paipai-speed) linear infinite;
+    will-change: transform;
+}
+
+.paipai-loader__ring {
+    inset: 7%;
+    background:
+        conic-gradient(
+            from -30deg,
+            #FFD166 0deg,
+            #FFE891 72deg,
+            #06D6A0 128deg,
+            #42DFF4 190deg,
+            #118AB2 248deg,
+            #FFD166 360deg
+        );
+    box-shadow:
+        0 0 0 4px rgba(255, 209, 102, 0.14),
+        0 8px 20px rgba(6, 214, 160, 0.18);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
+}
+
+.paipai-loader__scan {
+    animation-duration: calc(var(--paipai-speed) + 0.35s);
+}
+
+.paipai-loader__corner {
+    position: absolute;
+    width: 28%;
+    height: 28%;
+    border: 5px solid #42DFF4;
+    filter: drop-shadow(0 2px 4px rgba(6, 214, 160, 0.26));
+}
+
+.paipai-loader__corner--tl {
+    top: 1%;
+    left: 1%;
+    border-right: 0;
+    border-bottom: 0;
+    border-radius: 15px 0 0 0;
+}
+
+.paipai-loader__corner--tr {
+    top: 1%;
+    right: 1%;
+    border-left: 0;
+    border-bottom: 0;
+    border-radius: 0 15px 0 0;
+}
+
+.paipai-loader__corner--br {
+    right: 1%;
+    bottom: 1%;
+    border-left: 0;
+    border-top: 0;
+    border-radius: 0 0 15px 0;
+}
+
+.paipai-loader__corner--bl {
+    bottom: 1%;
+    left: 1%;
+    border-right: 0;
+    border-top: 0;
+    border-radius: 0 0 0 15px;
+}
+
+.paipai-loader__spark {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #FFD166;
+    box-shadow: 0 0 12px rgba(255, 209, 102, 0.72);
+}
+
+.paipai-loader__spark--one {
+    top: 3%;
+    left: 48%;
+}
+
+.paipai-loader__spark--two {
+    right: 7%;
+    top: 58%;
+    width: 8px;
+    height: 8px;
+    background: #FF8E8E;
+}
+
+.paipai-loader__badge {
+    position: absolute;
+    inset: 22%;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 28%;
+    background: #06265A;
+    box-shadow:
+        0 8px 18px rgba(0, 42, 106, 0.22),
+        inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+}
+
+.paipai-loader__badge img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.04);
+}
+
+.loading-text,
+.paipai-wait__caption {
+    color: #16345E;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.paipai-wait__subcaption {
+    margin-top: 6px;
+    color: #5F7188;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+.paipai-wait--small {
+    --paipai-size: 72px;
+}
+
+.paipai-wait--small .paipai-loader {
+    margin-bottom: 10px;
+}
+
+.paipai-wait--small .paipai-loader__corner {
+    border-width: 4px;
+}
+
+.paipai-wait--small .paipai-loader__spark {
+    width: 7px;
+    height: 7px;
+}
+
+.paipai-wait--small .loading-text,
+.paipai-wait--small .paipai-wait__caption {
+    font-size: 14px;
+}
+
+.paipai-wait--small .paipai-wait__subcaption {
+    font-size: 12px;
+}
+
+@keyframes paipai-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes paipai-breathe {
+    0%, 100% {
+        transform: scale(0.86);
+        opacity: 0.65;
+    }
+    50% {
+        transform: scale(1.08);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .paipai-loader__ring,
+    .paipai-loader__scan {
+        animation-duration: 5.2s;
+    }
+
+    .paipai-loader::before {
+        animation: none;
+    }
+}

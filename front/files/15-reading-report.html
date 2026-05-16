@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - 阅读周报</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-bg: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+            --primary-color: #4ECDC4;
+            --secondary-color: #06D6A0;
+            --info-color: #118AB2;
+            --warning-color: #FFD166;
+            --error-color: #EF476F;
+            --background-color: #FAFAFA;
+            --surface-color: #FFFFFF;
+            --soft-surface: #FFF9E6;
+            --mint-surface: #F0FFF9;
+            --blue-surface: #E8F5FF;
+            --text-color: #333333;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --border-color: #E0E0E0;
+            --divider-color: #F0F0F0;
+            --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--background-color);
+            color: var(--text-color);
+            min-height: 100vh;
+        }
+
+        button,
+        select {
+            font: inherit;
+        }
+
+        button {
+            border: none;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 920px;
+            margin: 0 auto;
+            padding: clamp(16px, 4vw, 24px);
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+
+        .back-button {
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            background: var(--surface-color);
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+            font-size: 20px;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .header-action {
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            background: var(--surface-color);
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+            font-size: 18px;
+        }
+
+        .report-hero {
+            background: var(--primary-bg);
+            color: white;
+            border-radius: 24px;
+            padding: 22px;
+            box-shadow: var(--shadow-md);
+            margin-bottom: 16px;
+        }
+
+        .hero-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 18px;
+        }
+
+        .hero-eyebrow {
+            font-size: 12px;
+            font-weight: 700;
+            opacity: 0.9;
+            margin-bottom: 6px;
+        }
+
+        .hero-title {
+            font-size: clamp(22px, 6vw, 32px);
+            line-height: 1.15;
+            font-weight: 800;
+            letter-spacing: 0;
+        }
+
+        .hero-subtitle {
+            margin-top: 8px;
+            font-size: 13px;
+            line-height: 1.45;
+            opacity: 0.94;
+        }
+
+        .hero-avatar {
+            width: 58px;
+            height: 58px;
+            flex: 0 0 auto;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.22);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 34px;
+        }
+
+        .hero-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .hero-metric {
+            min-height: 68px;
+            padding: 10px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.16);
+        }
+
+        .hero-metric-label {
+            font-size: 11px;
+            opacity: 0.88;
+            margin-bottom: 4px;
+        }
+
+        .hero-metric-value {
+            font-size: 18px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .control-panel {
+            background: var(--surface-color);
+            border-radius: 20px;
+            box-shadow: var(--shadow-sm);
+            padding: 14px;
+            margin-bottom: 16px;
+        }
+
+        .control-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .field-label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 7px;
+            font-weight: 600;
+        }
+
+        .select-wrap {
+            position: relative;
+        }
+
+        select {
+            width: 100%;
+            min-height: 44px;
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            background: var(--surface-color);
+            color: var(--text-color);
+            padding: 0 36px 0 12px;
+            appearance: none;
+            outline: none;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .select-wrap::after {
+            content: "⌄";
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-56%);
+            color: var(--text-tertiary);
+            pointer-events: none;
+            font-size: 16px;
+        }
+
+        .child-tabs {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+            scrollbar-width: none;
+        }
+
+        .child-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .child-tab {
+            min-width: max-content;
+            min-height: 40px;
+            padding: 8px 12px;
+            border-radius: 20px;
+            background: #F5F5F5;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .child-tab.active {
+            background: var(--mint-surface);
+            color: var(--primary-color);
+            box-shadow: inset 0 0 0 1px rgba(78, 205, 196, 0.24);
+        }
+
+        .section {
+            background: var(--surface-color);
+            border-radius: 20px;
+            box-shadow: var(--shadow-sm);
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .section-title {
+            font-size: 17px;
+            font-weight: 800;
+        }
+
+        .section-note {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+        }
+
+        .summary-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.55;
+            padding: 12px;
+            border-radius: 14px;
+            background: var(--soft-surface);
+            margin-bottom: 14px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .stat-card {
+            min-height: 96px;
+            padding: 14px;
+            border-radius: 16px;
+            background: #F9F9F9;
+            border: 1px solid #F2F2F2;
+        }
+
+        .stat-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 700;
+        }
+
+        .stat-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            background: var(--mint-surface);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 850;
+            line-height: 1.1;
+            color: var(--text-color);
+        }
+
+        .stat-unit {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 700;
+            margin-left: 2px;
+        }
+
+        .stat-desc {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            line-height: 1.35;
+            margin-top: 6px;
+        }
+
+        .chart-card {
+            padding: 14px;
+            border-radius: 16px;
+            background: #F9F9F9;
+            border: 1px solid #F2F2F2;
+        }
+
+        .echart-box {
+            width: 100%;
+            height: 220px;
+        }
+
+        .bar-chart {
+            height: 180px;
+            display: none;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            align-items: end;
+            padding: 10px 0 2px;
+        }
+
+        .bar-item {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 7px;
+            min-width: 0;
+        }
+
+        .bar-track {
+            width: 100%;
+            max-width: 34px;
+            height: 122px;
+            border-radius: 12px;
+            background: #ECECEC;
+            display: flex;
+            align-items: end;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            width: 100%;
+            min-height: 4px;
+            border-radius: 12px 12px 0 0;
+            background: linear-gradient(180deg, #06D6A0 0%, #118AB2 100%);
+            transition: height 0.35s ease;
+        }
+
+        .bar-value {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 700;
+            min-height: 14px;
+        }
+
+        .bar-label {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            font-weight: 700;
+        }
+
+        .chart-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--secondary-color);
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .analysis-card {
+            padding: 14px;
+            border-radius: 16px;
+            background: #F9F9F9;
+            border: 1px solid #F2F2F2;
+        }
+
+        .analysis-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .analysis-value {
+            font-size: 22px;
+            font-weight: 850;
+            color: var(--text-color);
+            line-height: 1.1;
+            margin-bottom: 6px;
+        }
+
+        .analysis-text {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.45;
+        }
+
+        .delta-up {
+            color: var(--secondary-color);
+        }
+
+        .delta-down {
+            color: var(--error-color);
+        }
+
+        .suggestion-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .suggestion-item {
+            display: grid;
+            grid-template-columns: 32px 1fr;
+            gap: 10px;
+            align-items: start;
+            padding: 12px;
+            border-radius: 16px;
+            background: #F9F9F9;
+            border: 1px solid #F2F2F2;
+        }
+
+        .suggestion-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 12px;
+            background: var(--mint-surface);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .suggestion-title {
+            font-size: 14px;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .suggestion-text {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.45;
+        }
+
+        .loading-mask {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(250, 250, 250, 0.72);
+            backdrop-filter: blur(4px);
+        }
+
+        .loading-mask.show {
+            display: flex;
+        }
+
+        .loading-card {
+            min-width: 180px;
+            padding: 18px;
+            border-radius: 20px;
+            background: var(--surface-color);
+            box-shadow: var(--shadow-md);
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .spinner {
+            width: 34px;
+            height: 34px;
+            margin: 0 auto 10px;
+            border-radius: 50%;
+            border: 4px solid #EAF8FF;
+            border-top-color: var(--secondary-color);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (min-width: 700px) {
+            .container {
+                padding-top: 28px;
+                padding-bottom: 28px;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+
+            .analysis-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+        }
+
+        @media (max-width: 430px) {
+            .container {
+                padding: 16px;
+            }
+
+            .report-hero {
+                padding: 18px;
+                border-radius: 22px;
+            }
+
+            .hero-metrics {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-metric {
+                min-height: 58px;
+            }
+
+            .control-row {
+                grid-template-columns: 1fr;
+            }
+
+            .section {
+                padding: 16px;
+            }
+
+            .section-header {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .section-note {
+                white-space: normal;
+            }
+
+            .stat-value {
+                font-size: 22px;
+            }
+
+            .bar-chart {
+                height: 168px;
+                gap: 6px;
+            }
+
+            .bar-track {
+                height: 112px;
+            }
+
+            .echart-box {
+                height: 200px;
+            }
+        }
+
+        @media (max-width: 340px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <button class="back-button" type="button" aria-label="返回" onclick="history.back()">‹</button>
+            <div class="title">阅读周报</div>
+            <button class="header-action" type="button" aria-label="分享周报" onclick="shareReport()">↗</button>
+        </header>
+
+        <section class="report-hero" aria-labelledby="report-title">
+            <div class="hero-top">
+                <div>
+                    <div class="hero-eyebrow" id="hero-week">2026.05.04 - 2026.05.10</div>
+                    <h1 class="hero-title" id="report-title">安安的本周伴读回顾</h1>
+                    <p class="hero-subtitle" id="hero-summary">本周阅读节奏稳定，睡前时段最集中，复习完成度较上周提升明显。</p>
+                </div>
+                <div class="hero-avatar" id="hero-avatar" aria-hidden="true">🌟</div>
+            </div>
+            <div class="hero-metrics">
+                <div class="hero-metric">
+                    <div class="hero-metric-label">本周伴读时长</div>
+                    <div class="hero-metric-value" id="hero-duration">3小时28分</div>
+                </div>
+                <div class="hero-metric">
+                    <div class="hero-metric-label">活跃天数</div>
+                    <div class="hero-metric-value" id="hero-active-days">5天</div>
+                </div>
+                <div class="hero-metric">
+                    <div class="hero-metric-label">连续习惯</div>
+                    <div class="hero-metric-value" id="hero-streak">4天</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="control-panel" aria-label="周报筛选">
+            <div class="control-row">
+                <div>
+                    <label class="field-label">孩子</label>
+                    <div class="child-tabs" id="child-tabs"></div>
+                </div>
+                <div>
+                    <label class="field-label" for="week-select">历史周报</label>
+                    <div class="select-wrap">
+                        <select id="week-select" onchange="selectWeek(this.value)"></select>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" aria-labelledby="overview-title">
+            <div class="section-header">
+                <h2 class="section-title" id="overview-title">报告概览</h2>
+                <div class="section-note" id="generated-at">已生成</div>
+            </div>
+            <p class="summary-text" id="summary-text"></p>
+            <div class="stats-grid" id="stats-grid"></div>
+        </section>
+
+        <section class="section" aria-labelledby="trend-title">
+            <div class="section-header">
+                <h2 class="section-title" id="trend-title">阅读趋势</h2>
+                <div class="section-note">按本地周统计展示</div>
+            </div>
+            <div class="chart-card">
+                <div class="echart-box" id="trend-echart" aria-label="每日伴读时长图表"></div>
+                <div class="bar-chart" id="duration-chart" aria-label="每日伴读时长柱状图"></div>
+                <div class="chart-legend">
+                    <span class="legend-item"><span class="legend-dot"></span>每日伴读时长</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#FFD166;"></span>建议保持 20 分钟以上</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" aria-labelledby="analysis-title">
+            <div class="section-header">
+                <h2 class="section-title" id="analysis-title">数据解读</h2>
+            </div>
+            <div class="analysis-grid" id="analysis-grid"></div>
+        </section>
+
+        <section class="section" aria-labelledby="suggest-title">
+            <div class="section-header">
+                <h2 class="section-title" id="suggest-title">下周重点建议</h2>
+                <div class="section-note">按本周数据规则生成</div>
+            </div>
+            <div class="suggestion-list" id="suggestion-list"></div>
+        </section>
+    </div>
+
+    <div class="loading-mask" id="loading-mask" aria-live="polite">
+        <div class="loading-card">
+            <div class="spinner"></div>
+            正在生成周报
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script>
+
+        const TEXT_RULES = {
+            cadence(report) {
+                if (report.activeDays >= 5 && report.durationMinutes >= 180) return '本周伴读频率较稳定，总时长达到持续陪读的参考区间。';
+                if (report.activeDays >= 3) return '本周已形成基础伴读频率，适合继续用短时、固定的方式巩固节奏。';
+                return '本周伴读次数较少，建议先降低任务门槛，把重点放在重新启动固定流程。';
+            },
+            review(report) {
+                if (report.dueCount >= 10) return '待复习句卡偏多，下周应优先处理复习，再新增识图内容。';
+                if (report.reviews >= 12) return '复习次数保持良好，说明保存的句卡正在被持续回看。';
+                return '复习次数仍有提升空间，可以把每次陪读结束前的 3 分钟留给句卡回顾。';
+            },
+            usage(report) {
+                const top = usagePreferences(report)[0];
+                if (!top || top[1] === 0) return '本周使用数据较少，建议先完成几次轻量伴读后再观察使用偏好。';
+                return `本周功能触发占比最高的是「${top[0]}」，占比约 ${top[1]}%，可围绕这一使用方式安排后续陪读。`;
+            },
+            summary(child, report) {
+                return `${child.name}${this.cadence(report)}${this.review(report)}${this.usage(report)}`;
+            },
+            focus(report) {
+                if (report.dueCount >= 10) return '当前重点是减少待复习积压，建议采用“复习在前、新内容在后”的陪读结构。';
+                if (report.streak >= 3) return '当前重点是保持连续陪读节奏，用固定时段帮助孩子形成稳定预期。';
+                return '当前重点是恢复参与感，先从短片段识图和语音朗读开始。';
+            },
+            nextActions(report) {
+                if (report.activeDays <= 2) {
+                    return [
+                        ['先恢复节奏', '下周先安排 3 次轻量陪读，每次 10 到 15 分钟。', '🕘'],
+                        ['降低任务门槛', '每次只完成 1 个短片段和 1 张句卡，先让孩子重新熟悉流程。', '📖'],
+                        ['观察参与方式', '记录孩子更愿意听、读还是复习，连续 2 周后再增加任务量。', '💬']
+                    ];
+                }
+                if (report.dueCount >= 10) {
+                    return [
+                        ['复习优先', '前 3 天每天优先复习 3 张待复习句卡，再新增识图内容。', '✅'],
+                        ['控制新增', '每次复习完成后最多新增 1 个短片段，避免句卡继续积压。', '📖'],
+                        ['周末回顾', '周末只做本周保存句卡回顾，不额外增加大量新内容。', '🔖']
+                    ];
+                }
+                const top = usagePreferences(report)[0];
+                const topName = top ? top[0] : '语音朗读';
+                return [
+                    ['保持节奏', '安排 4 到 5 天陪读，每次控制在 15 到 25 分钟。', '🕘'],
+                    ['复习收尾', '每次结束前复习 2 到 3 张句卡，让新内容及时沉淀。', '✅'],
+                    ['平衡使用', `本周「${topName}」使用最多，下周可搭配识图、朗读和复习交替进行。`, '📖']
+                ];
+            }
+        };
+
+        const children = [
+            {
+                id: 'anan',
+                name: '安安',
+                avatar: '🌟',
+                weeks: [
+                    {
+                        id: '2026-05-04',
+                        weekStart: '2026.05.04',
+                        weekEnd: '2026.05.10',
+                        generatedAt: '2026.05.10 21:20',
+                        durationMinutes: 208,
+                        activeDays: 5,
+                        reviews: 18,
+                        savedCards: 12,
+                        streak: 4,
+                        dueCount: 7,
+                        completedTasks: 5,
+                        captures: 26,
+                        speech: 34,
+                        daily: [18, 26, 34, 22, 45, 38, 25]
+                    },
+                    {
+                        id: '2026-04-27',
+                        weekStart: '2026.04.27',
+                        weekEnd: '2026.05.03',
+                        generatedAt: '2026.05.03 20:56',
+                        durationMinutes: 174,
+                        activeDays: 4,
+                        reviews: 12,
+                        savedCards: 15,
+                        streak: 2,
+                        dueCount: 10,
+                        completedTasks: 4,
+                        captures: 21,
+                        speech: 25,
+                        daily: [0, 24, 18, 0, 35, 52, 45]
+                    },
+                    {
+                        id: '2026-04-20',
+                        weekStart: '2026.04.20',
+                        weekEnd: '2026.04.26',
+                        generatedAt: '2026.04.26 21:05',
+                        durationMinutes: 142,
+                        activeDays: 5,
+                        reviews: 10,
+                        savedCards: 9,
+                        streak: 3,
+                        dueCount: 12,
+                        completedTasks: 3,
+                        captures: 18,
+                        speech: 31,
+                        daily: [15, 22, 16, 20, 18, 34, 17]
+                    }
+                ]
+            },
+            {
+                id: 'xiaoyu',
+                name: '小宇',
+                avatar: '🚀',
+                weeks: [
+                    {
+                        id: '2026-05-04',
+                        weekStart: '2026.05.04',
+                        weekEnd: '2026.05.10',
+                        generatedAt: '2026.05.10 21:18',
+                        durationMinutes: 186,
+                        activeDays: 5,
+                        reviews: 14,
+                        savedCards: 10,
+                        streak: 3,
+                        dueCount: 9,
+                        completedTasks: 4,
+                        captures: 24,
+                        speech: 22,
+                        daily: [20, 18, 42, 24, 0, 48, 34]
+                    },
+                    {
+                        id: '2026-04-27',
+                        weekStart: '2026.04.27',
+                        weekEnd: '2026.05.03',
+                        generatedAt: '2026.05.03 20:40',
+                        durationMinutes: 131,
+                        activeDays: 3,
+                        reviews: 9,
+                        savedCards: 8,
+                        streak: 1,
+                        dueCount: 13,
+                        completedTasks: 3,
+                        captures: 17,
+                        speech: 19,
+                        daily: [32, 44, 28, 0, 0, 27, 0]
+                    }
+                ]
+            },
+            {
+                id: 'nuonuo',
+                name: '诺诺',
+                avatar: '🎈',
+                weeks: [
+                    {
+                        id: '2026-05-04',
+                        weekStart: '2026.05.04',
+                        weekEnd: '2026.05.10',
+                        generatedAt: '2026.05.10 21:22',
+                        durationMinutes: 96,
+                        activeDays: 3,
+                        reviews: 7,
+                        savedCards: 11,
+                        streak: 1,
+                        dueCount: 8,
+                        completedTasks: 2,
+                        captures: 15,
+                        speech: 18,
+                        daily: [0, 15, 0, 22, 0, 36, 23]
+                    },
+                    {
+                        id: '2026-04-27',
+                        weekStart: '2026.04.27',
+                        weekEnd: '2026.05.03',
+                        generatedAt: '2026.05.03 20:35',
+                        durationMinutes: 72,
+                        activeDays: 2,
+                        reviews: 4,
+                        savedCards: 6,
+                        streak: 1,
+                        dueCount: 6,
+                        completedTasks: 1,
+                        captures: 10,
+                        speech: 14,
+                        daily: [0, 0, 18, 0, 0, 30, 24]
+                    }
+                ]
+            }
+        ];
+
+        const dayLabels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+        let selectedChildId = children[0].id;
+        let selectedWeekId = children[0].weeks[0].id;
+
+        function currentChild() {
+            return children.find(child => child.id === selectedChildId) || children[0];
+        }
+
+        function currentReport() {
+            const child = currentChild();
+            return child.weeks.find(week => week.id === selectedWeekId) || child.weeks[0];
+        }
+
+        function previousReport(child, report) {
+            const index = child.weeks.findIndex(week => week.id === report.id);
+            return index >= 0 ? child.weeks[index + 1] : null;
+        }
+
+        function signedDelta(current, previous, unit) {
+            if (!previous && previous !== 0) return '暂无上周数据';
+            const delta = current - previous;
+            if (delta === 0) return `与上周持平`;
+            return `${delta > 0 ? '+' : ''}${delta}${unit}`;
+        }
+
+        function rhythmObservation(report) {
+            if (report.activeDays >= 5 && report.streak >= 3) {
+                return {
+                    value: '节奏连续',
+                    text: '本周多天有伴读记录，且连续陪读保持较好，适合继续沿用当前固定时段。'
+                };
+            }
+            if (report.activeDays >= 3) {
+                return {
+                    value: '节奏形成中',
+                    text: '本周已有基础伴读频率，建议先稳定固定天数，再逐步增加时长。'
+                };
+            }
+            return {
+                value: '需要重启节奏',
+                text: '本周伴读天数偏少，建议先安排短时、低压力的陪读任务。'
+            };
+        }
+
+        function formatMinutes(minutes) {
+            const hours = Math.floor(minutes / 60);
+            const rest = minutes % 60;
+            if (hours === 0) return `${rest}分钟`;
+            if (rest === 0) return `${hours}小时`;
+            return `${hours}小时${rest}分`;
+        }
+
+        function usagePreferences(report) {
+            const items = [
+                ['拍照识图', report.captures],
+                ['语音朗读', report.speech],
+                ['句卡复习', report.reviews],
+                ['保存句卡', report.savedCards]
+            ];
+            const total = items.reduce((sum, item) => sum + item[1], 0);
+            if (total <= 0) return items.map(item => [item[0], 0, item[1]]);
+            return items
+                .map(item => [item[0], Math.round((item[1] / total) * 100), item[1]])
+                .sort((a, b) => b[1] - a[1]);
+        }
+
+        function showLoading(callback) {
+            const mask = document.getElementById('loading-mask');
+            mask.classList.add('show');
+            window.setTimeout(() => {
+                callback();
+                mask.classList.remove('show');
+            }, 260);
+        }
+
+        function renderChildTabs() {
+            const tabs = document.getElementById('child-tabs');
+            tabs.innerHTML = children.map(child => `
+                <button class="child-tab ${child.id === selectedChildId ? 'active' : ''}" type="button" onclick="selectChild('${child.id}')">
+                    <span>${child.avatar}</span>
+                    <span>${child.name}</span>
+                </button>
+            `).join('');
+        }
+
+        function renderWeekSelect() {
+            const child = currentChild();
+            const select = document.getElementById('week-select');
+            select.innerHTML = child.weeks.map(week => `
+                <option value="${week.id}" ${week.id === selectedWeekId ? 'selected' : ''}>${week.weekStart} - ${week.weekEnd}</option>
+            `).join('');
+        }
+
+        function renderHero(child, report) {
+            document.getElementById('hero-week').textContent = `${report.weekStart} - ${report.weekEnd}`;
+            document.getElementById('report-title').textContent = `${child.name}的本周伴读回顾`;
+            document.getElementById('hero-summary').textContent = TEXT_RULES.focus(report);
+            document.getElementById('hero-avatar').textContent = child.avatar;
+            document.getElementById('hero-duration').textContent = formatMinutes(report.durationMinutes);
+            document.getElementById('hero-active-days').textContent = `${report.activeDays}天`;
+            document.getElementById('hero-streak').textContent = `${report.streak}天`;
+        }
+
+        function renderOverview(child, report) {
+            document.getElementById('generated-at').textContent = `生成于 ${report.generatedAt}`;
+            document.getElementById('summary-text').textContent = TEXT_RULES.summary(child, report);
+            const stats = [
+                ['伴读时长', formatMinutes(report.durationMinutes), '', '本周有效陪读累计时间', '⏱'],
+                ['阅读频率', report.activeDays, '天', '本周有伴读记录的天数', '📅'],
+                ['本周复习', report.reviews, '次', '句卡与阅读内容复习次数', '✨'],
+                ['新增句卡', report.savedCards, '张', '拍照识图后保存的重点句卡', '🔖'],
+                ['拍照识图', report.captures, '次', '设备端与云端 OCR 使用合计', '📷'],
+                ['语音朗读', report.speech, '次', '设备端与云端语音播放合计', '🔊'],
+                ['待复习', report.dueCount, '张', '建议下周优先处理的句卡', '✅']
+            ];
+            document.getElementById('stats-grid').innerHTML = stats.map(item => `
+                <div class="stat-card">
+                    <div class="stat-top">
+                        <div class="stat-label">${item[0]}</div>
+                        <div class="stat-icon">${item[4]}</div>
+                    </div>
+                    <div><span class="stat-value">${item[1]}</span><span class="stat-unit">${item[2]}</span></div>
+                    <div class="stat-desc">${item[3]}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderTrend(report) {
+            const maxValue = Math.max(...report.daily, 20);
+            const fallbackChart = document.getElementById('duration-chart');
+            fallbackChart.innerHTML = report.daily.map((value, index) => {
+                const height = Math.max(4, Math.round((value / maxValue) * 100));
+                const marker = value >= 20 ? '#06D6A0' : '#FFD166';
+                return `
+                    <div class="bar-item">
+                        <div class="bar-value">${value ? value + '分' : '-'}</div>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="height:${height}%; background:linear-gradient(180deg, ${marker} 0%, #118AB2 100%);"></div>
+                        </div>
+                        <div class="bar-label">${dayLabels[index]}</div>
+                    </div>
+                `;
+            }).join('');
+            renderTrendWithECharts(report);
+        }
+
+        function renderTrendWithECharts(report) {
+            const chartNode = document.getElementById('trend-echart');
+            const fallbackChart = document.getElementById('duration-chart');
+            if (!window.echarts || !chartNode) {
+                chartNode.style.display = 'none';
+                fallbackChart.style.display = 'grid';
+                return;
+            }
+            chartNode.style.display = 'block';
+            fallbackChart.style.display = 'none';
+            const chart = echarts.getInstanceByDom(chartNode) || echarts.init(chartNode, null, { renderer: 'canvas' });
+            chart.setOption({
+                animationDuration: 260,
+                grid: { left: 8, right: 8, top: 20, bottom: 26, containLabel: true },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter: params => {
+                        const item = params[0];
+                        return `${item.axisValue}<br/>伴读时长：${item.data} 分钟`;
+                    }
+                },
+                xAxis: {
+                    type: 'category',
+                    data: dayLabels,
+                    axisTick: { show: false },
+                    axisLine: { lineStyle: { color: '#E0E0E0' } },
+                    axisLabel: { color: '#666666', fontSize: 11 }
+                },
+                yAxis: {
+                    type: 'value',
+                    minInterval: 10,
+                    splitLine: { lineStyle: { color: '#F0F0F0' } },
+                    axisLabel: { color: '#999999', fontSize: 11, formatter: '{value}分' }
+                },
+                series: [{
+                    name: '伴读时长',
+                    type: 'bar',
+                    data: report.daily,
+                    barMaxWidth: 28,
+                    label: {
+                        show: true,
+                        position: 'top',
+                        color: '#666666',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        formatter: params => params.value ? `${params.value}分` : ''
+                    },
+                    itemStyle: {
+                        borderRadius: [8, 8, 0, 0],
+                        color: params => params.value >= 20 ? '#06D6A0' : '#FFD166'
+                    },
+                    markLine: {
+                        symbol: 'none',
+                        label: { color: '#999999', fontSize: 11, formatter: '20 分钟建议线' },
+                        lineStyle: { color: '#FFD166', type: 'dashed' },
+                        data: [{ yAxis: 20 }]
+                    }
+                }]
+            });
+        }
+
+        function renderAnalysis(child, report) {
+            const previous = previousReport(child, report);
+            const durationDelta = signedDelta(report.durationMinutes, previous && previous.durationMinutes, '分');
+            const reviewDelta = signedDelta(report.reviews, previous && previous.reviews, '次');
+            const rhythm = rhythmObservation(report);
+            const durationClass = durationDelta.startsWith('+') ? 'delta-up' : (durationDelta.startsWith('-') ? 'delta-down' : '');
+            const reviewClass = reviewDelta.startsWith('+') ? 'delta-up' : (reviewDelta.startsWith('-') ? 'delta-down' : '');
+            document.getElementById('analysis-grid').innerHTML = `
+                <div class="analysis-card">
+                    <div class="analysis-label">较上周时长</div>
+                    <div class="analysis-value ${durationClass}">${durationDelta}</div>
+                    <div class="analysis-text">用于判断本周陪读总量变化，避免只看单日高峰。</div>
+                </div>
+                <div class="analysis-card">
+                    <div class="analysis-label">复习变化</div>
+                    <div class="analysis-value ${reviewClass}">${reviewDelta}</div>
+                    <div class="analysis-text">复习次数反映句卡是否被持续回看，是沉淀效果的重要参考。</div>
+                </div>
+                <div class="analysis-card">
+                    <div class="analysis-label">节奏稳定度</div>
+                    <div class="analysis-value">${rhythm.value}</div>
+                    <div class="analysis-text">${rhythm.text}</div>
+                </div>
+            `;
+        }
+
+        function renderSuggestions(report) {
+            const items = TEXT_RULES.nextActions(report);
+            document.getElementById('suggestion-list').innerHTML = items.map(item => `
+                <div class="suggestion-item">
+                    <div class="suggestion-icon">${item[2]}</div>
+                    <div>
+                        <div class="suggestion-title">${item[0]}</div>
+                        <div class="suggestion-text">${item[1]}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderAll() {
+            const child = currentChild();
+            const report = currentReport();
+            selectedWeekId = report.id;
+            renderChildTabs();
+            renderWeekSelect();
+            renderHero(child, report);
+            renderOverview(child, report);
+            renderTrend(report);
+            renderAnalysis(child, report);
+            renderSuggestions(report);
+        }
+
+        function selectChild(childId) {
+            selectedChildId = childId;
+            selectedWeekId = currentChild().weeks[0].id;
+            showLoading(renderAll);
+        }
+
+        function selectWeek(weekId) {
+            selectedWeekId = weekId;
+            showLoading(renderAll);
+        }
+
+        function shareReport() {
+            const child = currentChild();
+            const report = currentReport();
+            const firstAction = TEXT_RULES.nextActions(report)[0][1];
+            const text = `拍拍伴读阅读周报\n${child.name}｜${report.weekStart} - ${report.weekEnd}\n本周伴读 ${formatMinutes(report.durationMinutes)}，活跃 ${report.activeDays} 天，复习 ${report.reviews} 次。\n${firstAction}`;
+            if (navigator.share) {
+                navigator.share({ title: '拍拍伴读阅读周报', text }).catch(() => {});
+                return;
+            }
+            alert(text);
+        }
+
+        renderAll();
+        window.addEventListener('resize', () => {
+            const chartNode = document.getElementById('trend-echart');
+            if (window.echarts && chartNode) {
+                const chart = echarts.getInstanceByDom(chartNode);
+                if (chart) chart.resize();
+            }
+        });
+    </script>
+</body>
+</html>

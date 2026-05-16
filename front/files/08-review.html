@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - 复习</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FAFAFA;
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            padding: 20px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .back-button {
+            background: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .spacer {
+            width: 44px;
+        }
+        
+        .section {
+            display: none;
+        }
+        
+        .section.active {
+            display: block;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 16px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+            text-align: center;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .summary-card h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 2px;
+            margin-top: 0;
+        }
+        
+        .summary-card p {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 0;
+            margin-top: 2px;
+        }
+        
+        .card-list {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+        
+        .card-item {
+            padding: 16px;
+            border-radius: 12px;
+            background: #F5F5F5;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .card-item:hover {
+            background: #F0FFF9;
+        }
+        
+        .card-text {
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        
+        .card-hint {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .start-button {
+            background: #E8F5E8;
+            border: 2px solid #4CAF50;
+            color: #4CAF50;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .start-button:hover {
+            background: #C8E6C9;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+        
+        .progress {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .progress-text {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #F5F5F5;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #06D6A0 0%, #118AB2 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .review-card {
+            background: white;
+            padding: 32px 20px;
+            border-radius: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 32px;
+            text-align: center;
+        }
+        
+        .review-sentence {
+            font-size: 20px;
+            font-weight: 600;
+            line-height: 1.4;
+            margin-bottom: 16px;
+        }
+        
+        .review-translation {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 24px;
+        }
+        
+        .review-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .play-button {
+            background: #06D6A0;
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .play-button:hover {
+            background: #118AB2;
+        }
+        
+        .result-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .result-button {
+            flex: 1;
+            padding: 16px;
+            border: 2px solid #E0E0E0;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .result-button.known {
+            background: #E8F5E8;
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+        
+        .result-button.unknown {
+            background: #FFF3E0;
+            border-color: #FF9800;
+            color: #FF9800;
+        }
+
+        .fixed-save-button {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 16px 20px;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .save-button {
+            background: #E3F2FD;
+            border: 2px solid #2196F3;
+            color: #2196F3;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .save-button:hover {
+            background: #BBDEFB;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
+
+        .complete-card {
+            background: white;
+            padding: 32px 20px;
+            border-radius: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 32px;
+            text-align: center;
+        }
+        
+        .complete-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+        
+        .complete-card h2 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        
+        .complete-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 24px;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #4ECDC4;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .complete-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .action-button {
+            padding: 16px;
+            border: 2px solid #E0E0E0;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .action-button.primary {
+            background: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+            color: white;
+            border: none;
+        }
+        
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 复习开始页 -->
+        <div class="section active" id="review-start">
+            <header>
+                <div class="back-button" onclick="goBack()">
+                    <span>←</span>
+                </div>
+                <div class="title">开始复习</div>
+                <div class="spacer"></div>
+            </header>
+            
+            <div class="summary-card">
+                <h2>今天待复习 3 句</h2>
+                <p>预计用时 2 分钟</p>
+            </div>
+            
+            <div class="card-list">
+                <div class="card-item">
+                    <div class="card-text">The cat is sleeping on the sofa.</div>
+                    <div class="card-hint">猫正在沙发上睡觉</div>
+                </div>
+                <div class="card-item">
+                    <div class="card-text">I love reading books.</div>
+                    <div class="card-hint">我喜欢读书</div>
+                </div>
+                <div class="card-item">
+                    <div class="card-text">The sun is shining brightly.</div>
+                    <div class="card-hint">太阳明亮地照耀着</div>
+                </div>
+            </div>
+            
+            <button class="start-button" onclick="startReview()">
+                开始复习
+            </button>
+        </div>
+        
+        <!-- 复习进行页 -->
+        <div class="section" id="review-progress">
+            <header>
+                <div class="back-button" onclick="goBack()">
+                    <span>←</span>
+                </div>
+                <div class="title">复习中</div>
+                <div class="spacer"></div>
+            </header>
+            
+            <div class="progress">
+                <div class="progress-text">第 1 / 3 张</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 33%"></div>
+                </div>
+            </div>
+            
+            <div class="review-card">
+                <div class="review-sentence">The cat is sleeping on the sofa.</div>
+                <div class="review-translation">猫正在沙发上睡觉</div>
+            </div>
+            
+            <div class="review-controls">
+                <button class="play-button" onclick="playAudio()">
+                    <span>▶️</span>
+                    播放
+                </button>
+            </div>
+            
+            <div class="fixed-save-button">
+                <button class="save-button" onclick="saveAsCard()">
+                    <span>📝</span>
+                    保存为句卡
+                </button>
+            </div>
+        </div>
+        
+        <!-- 复习完成页 -->
+        <div class="section" id="review-complete">
+            <header>
+                <div class="back-button" onclick="goBack()">
+                    <span>←</span>
+                </div>
+                <div class="title">复习完成</div>
+                <div class="spacer"></div>
+            </header>
+            
+            <div class="complete-card">
+                <div class="complete-icon">🎉</div>
+                <h2>今天复习完成啦！</h2>
+                <div class="complete-stats">
+                    <div class="stat">
+                        <div class="stat-value">3</div>
+                        <div class="stat-label">完成张数</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">2</div>
+                        <div class="stat-label">连续天数</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="complete-actions">
+                <button class="action-button primary" onclick="backToHome()">
+                    回首页
+                </button>
+                <button class="action-button" onclick="takeAnotherPhoto()">
+                    再拍一句
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function goBack() {
+            window.location.href = '13-reading-park.html';
+        }
+        
+        function startReview() {
+            window.location.href = '11-review-detail.html';
+        }
+        
+        function playAudio() {
+            alert('播放音频');
+        }
+        
+        function markKnown() {
+            // 模拟进入下一张或完成
+            document.getElementById('review-progress').classList.remove('active');
+            document.getElementById('review-complete').classList.add('active');
+        }
+        
+        function markUnknown() {
+            alert('标记为需要再练一次');
+        }
+
+        function saveAsCard() {
+            var sentence = document.querySelector('.review-sentence').innerText;
+            var translation = document.querySelector('.review-translation').innerText;
+            
+            var cardData = {
+                originalText: sentence,
+                translation: translation,
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('保存为句卡:', cardData);
+            alert('句卡保存成功！\n原句: ' + sentence + '\n翻译: ' + translation);
+        }
+        
+        function backToHome() {
+            alert('返回首页');
+        }
+        
+        function takeAnotherPhoto() {
+            alert('开始拍照');
+        }
+    </script>
+</body>
+</html>

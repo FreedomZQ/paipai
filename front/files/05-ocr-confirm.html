@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - 图片上传确认</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FAFAFA;
+            color: #333;
+            min-height: 100vh;
+            padding-bottom: 140px;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .back-button {
+            background: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .spacer {
+            width: 44px;
+        }
+
+        .reading-park-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 40px;
+            padding: 0 14px;
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%);
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(255,107,107,0.28);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .reading-park-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(255,107,107,0.35);
+        }
+
+        .reading-park-button:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 8px rgba(255,107,107,0.24);
+        }
+
+        .reading-park-button .icon {
+            font-size: 15px;
+        }
+
+        .preview-section {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+
+        .preview-header {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 12px;
+            color: #666;
+        }
+
+        .image-preview {
+            width: 100%;
+            height: 180px;
+            background: #F5F5F5;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .image-preview:hover {
+            transform: scale(1.02);
+        }
+
+        .image-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .image-placeholder {
+            font-size: 64px;
+            color: #999;
+        }
+
+        .image-viewer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+        }
+
+        .image-viewer img {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+
+        .image-viewer-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 32px;
+            cursor: pointer;
+        }
+
+        .action-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .action-button {
+            flex: 1;
+            background: white;
+            border: 1px solid #E0E0E0;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .action-button:hover {
+            border-color: #06D6A0;
+            background: #F0FFF9;
+        }
+
+        .action-button:active {
+            transform: scale(0.98);
+        }
+
+        .sentences-section {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+
+        .section-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .section-header {
+            font-size: 15px;
+            font-weight: 500;
+            color: #666;
+        }
+
+        .source-lang-badge {
+            padding: 4px 12px;
+            background: #E8F5FF;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #118AB2;
+            font-weight: 500;
+        }
+
+        .sentence-card {
+            background: #F9F9F9;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .sentence-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .sentence-number {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            width: 24px;
+            height: 24px;
+            background: #06D6A0;
+            color: white;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .sentence-textarea {
+            width: 100%;
+            height: 80px;
+            padding: 12px;
+            padding-top: 24px;
+            border: 1px solid #E0E0E0;
+            border-radius: 8px;
+            font-size: 16px;
+            line-height: 1.5;
+            resize: none;
+            font-family: inherit;
+            background: white;
+            overflow-y: auto;
+        }
+
+        .sentence-textarea:focus {
+            outline: none;
+            border-color: #06D6A0;
+        }
+
+        .char-count {
+            position: absolute;
+            bottom: 8px;
+            right: 12px;
+            font-size: 12px;
+            color: #999;
+            height: 11px;
+        }
+
+        #sentencesContainer > .sentence-card:nth-child(1) > .char-count,
+        #sentencesContainer > .sentence-card:nth-child(2) > .char-count,
+        #sentencesContainer > .sentence-card:nth-child(3) > .char-count {
+            height: 11px;
+        }
+
+        .char-count.warning {
+            color: #FF6B6B;
+        }
+
+        .language-section {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+
+        .language-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .language-label {
+            font-size: 15px;
+            font-weight: 500;
+            color: #333;
+            flex-shrink: 0;
+        }
+
+        .language-select {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #E0E0E0;
+            border-radius: 12px;
+            font-size: 15px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            text-align-last: center;
+        }
+
+        .action-buttons {
+            margin-top: 16px;
+            margin-bottom: 16px;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .secondary-button {
+            flex: 1;
+            background: #F0F0F0;
+            color: #333;
+            border: none;
+            padding: 14px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .secondary-button:hover {
+            background: #E0E0E0;
+        }
+
+        .primary-button {
+            flex: 1;
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .primary-button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(255,107,107,0.3);
+        }
+
+        .hint {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-top: 12px;
+            margin-bottom: 24px;
+        }
+
+        .permission-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .modal-message {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #666;
+            margin-bottom: 24px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .modal-button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .modal-button.secondary {
+            background: #F0F0F0;
+            color: #333;
+        }
+
+        .modal-button.secondary:hover {
+            background: #E0E0E0;
+        }
+
+        .modal-button.primary {
+            background: linear-gradient(135deg, #06D6A0 0%, #06D6A0 100%);
+            color: white;
+        }
+
+        .modal-button.primary:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(6,214,160,0.3);
+        }
+
+        .fixed-bottom-buttons {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 16px 20px;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .secondary-button {
+            flex: 1;
+            background: #F0F0F0;
+            color: #333;
+            border: none;
+            padding: 14px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .secondary-button:hover {
+            background: #E0E0E0;
+        }
+
+        .secondary-button:active {
+            transform: scale(0.98);
+        }
+
+        .primary-button {
+            flex: 2;
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .primary-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .primary-button:active {
+            transform: translateY(0);
+        }
+
+        .primary-button:disabled {
+            background: #CCC;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                max-width: 500px;
+                margin: 0 auto;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="paipai-loading.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="back-button" onclick="goBack()">
+                <span>←</span>
+            </div>
+            <div class="title">图片上传确认</div>
+            <button type="button" class="reading-park-button" onclick="backToReadingPark()">
+                <span class="icon">🎪</span>
+                <span>返回伴读乐园</span>
+            </button>
+        </header>
+
+        <div class="preview-section">
+            <div class="preview-header">识别图片</div>
+            <div class="image-preview" id="imagePreview" onclick="showImageViewer()">
+                <div class="image-placeholder">📷</div>
+            </div>
+            <div class="action-row">
+                <button class="action-button" onclick="reUpload()">
+                    上传图片
+                </button>
+                <button class="action-button" onclick="reRecognize()">
+                    重新识别
+                </button>
+            </div>
+        </div>
+
+        <div class="image-viewer hidden" id="imageViewer">
+            <div class="image-viewer-close" onclick="closeImageViewer()">×</div>
+            <img id="viewerImage" src="" alt="放大图片" />
+        </div>
+
+        <div class="sentences-section">
+            <div class="section-header-row">
+                <div class="section-header">识别结果：<span id="sentenceCount">0</span>句</div>
+                <div class="source-lang-badge" id="sourceLangBadge">英语</div>
+            </div>
+            <div id="sentencesContainer">
+            </div>
+        </div>
+
+        <div class="language-section">
+            <div class="language-row">
+                <div class="language-label">目标语种</div>
+                <select class="language-select" id="targetLanguage">
+                </select>
+            </div>
+        </div>
+
+        <div class="action-buttons">
+            <div class="button-row">
+                <button class="secondary-button" onclick="cancel()">
+                    <span>✕</span>
+                    取消
+                </button>
+                <button class="primary-button" id="confirmButton" onclick="confirmLearning()">
+                    <span>✓</span>
+                    确认进入学习
+                </button>
+            </div>
+        </div>
+
+        <div class="hint">
+            请确保文本正确，以便获得更好的翻译和朗读效果
+        </div>
+    </div>
+
+    <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="paipai-wait" role="status" aria-live="polite">
+                <div class="paipai-loader" aria-hidden="true">
+                    <div class="paipai-loader__ring"></div>
+                    <div class="paipai-loader__scan">
+                        <span class="paipai-loader__corner paipai-loader__corner--tl"></span>
+                        <span class="paipai-loader__corner paipai-loader__corner--tr"></span>
+                        <span class="paipai-loader__corner paipai-loader__corner--br"></span>
+                        <span class="paipai-loader__corner paipai-loader__corner--bl"></span>
+                        <span class="paipai-loader__spark paipai-loader__spark--one"></span>
+                        <span class="paipai-loader__spark paipai-loader__spark--two"></span>
+                    </div>
+                    <div class="paipai-loader__badge">
+                        <img src="paipai_icon.png" alt="">
+                    </div>
+                </div>
+                <div class="loading-text" id="loadingText">正在努力识别中...</div>
+                <div class="paipai-wait__subcaption" id="loadingSubtext">小兔正在帮你找句子</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="permission-modal hidden" id="permissionModal">
+        <div class="modal-content">
+            <div class="modal-title">权限授权</div>
+            <div class="modal-message">
+                为提供拍照、图库、文本识别、语音播放、翻译等服务，需授权使用设备相关功能。同意后可按需调用外部服务接口以提升体验；不同意则仅使用设备本地基础功能。授权仅首次确认，后续不再重复提示。可前往权限设置页面修改。
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-button secondary" onclick="declinePermission()">仅使用本地功能</button>
+                <button class="modal-button primary" onclick="acceptPermission()">同意并继续</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MAX_SENTENCES = 5;
+        const MAX_CHARS_PER_SENTENCE = 300;
+
+        const AVAILABLE_LANGUAGES = {
+            'en': '英语',
+            'zh-CN': '中文',
+            'es': '西班牙语',
+
+            'ja': '日语',
+            'ko': '韩语'
+
+        };
+
+        const SOURCE_LANGUAGES = ['en', 'zh-CN', 'es', 'ja', 'ko'];
+        const TARGET_LANGUAGES = ['zh-CN', 'en', 'ja', 'ko', 'es'];
+
+        let currentData = {
+            imageData: null,
+            sentences: [],
+            sourceLang: 'en',
+            targetLang: 'zh-CN'
+        };
+
+        function initPage() {
+            loadDataFromStorage();
+            renderSentences();
+            updateLanguageSelect();
+            loadImage();
+        }
+
+        function loadDataFromStorage() {
+            const stored = sessionStorage.getItem('ocrConfirmData');
+            if (stored) {
+                try {
+                    currentData = JSON.parse(stored);
+                } catch (e) {
+                    console.error('Failed to parse stored data:', e);
+                    initializeDefaultData();
+                }
+            } else {
+                initializeDefaultData();
+            }
+        }
+
+        function initializeDefaultData() {
+            currentData = {
+                imageData: sessionStorage.getItem('capturedImage') || null,
+                sentences: [
+                    { id: 1, text: 'The cat is sleeping on the sofa.', editable: true },
+                    { id: 2, text: 'It looks very comfortable.', editable: true },
+                    { id: 3, text: 'The sun is shining through the window.', editable: true }
+                ],
+                sourceLang: 'en',
+                targetLang: 'zh-CN'
+            };
+        }
+
+        function saveDataToStorage() {
+            sessionStorage.setItem('ocrConfirmData', JSON.stringify(currentData));
+        }
+
+        function loadImage() {
+            const imagePreview = document.getElementById('imagePreview');
+            if (currentData.imageData) {
+                imagePreview.innerHTML = `<img src="${currentData.imageData}" alt="识别图片" />`;
+            }
+        }
+
+        function showImageViewer() {
+            if (currentData.imageData) {
+                const viewer = document.getElementById('imageViewer');
+                const viewerImage = document.getElementById('viewerImage');
+                viewerImage.src = currentData.imageData;
+                viewer.classList.remove('hidden');
+            }
+        }
+
+        function closeImageViewer() {
+            const viewer = document.getElementById('imageViewer');
+            viewer.classList.add('hidden');
+        }
+
+        function renderSentences() {
+            const container = document.getElementById('sentencesContainer');
+            const countEl = document.getElementById('sentenceCount');
+            const sourceLangBadge = document.getElementById('sourceLangBadge');
+
+            countEl.textContent = currentData.sentences.length;
+            sourceLangBadge.textContent = AVAILABLE_LANGUAGES[currentData.sourceLang] || currentData.sourceLang;
+
+            container.innerHTML = '';
+
+            currentData.sentences.forEach((sentence, index) => {
+                const card = document.createElement('div');
+                card.className = 'sentence-card';
+                card.dataset.id = sentence.id;
+
+                const charCount = sentence.text.length;
+                const isWarning = charCount >= MAX_CHARS_PER_SENTENCE;
+
+                card.innerHTML = `
+                    <div class="sentence-number">${index + 1}</div>
+                    <textarea
+                        class="sentence-textarea"
+                        id="sentence-${sentence.id}"
+                        maxlength="${MAX_CHARS_PER_SENTENCE}"
+                        placeholder="请输入句子内容..."
+                        oninput="updateSentence(${sentence.id}, this.value)"
+                    >${sentence.text}</textarea>
+                    <div class="char-count ${isWarning ? 'warning' : ''}">${charCount}/${MAX_CHARS_PER_SENTENCE}</div>
+                `;
+
+                container.appendChild(card);
+            });
+
+            if (currentData.sentences.length === 0) {
+                container.innerHTML = `
+                    <div class="sentence-card">
+                        <div style="text-align: center; padding: 20px; color: #999;">
+                            未能识别到文字，请尝试再次上传或识别
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function updateSentence(id, value) {
+            const sentence = currentData.sentences.find(s => s.id === id);
+            if (sentence) {
+                sentence.text = value;
+                saveDataToStorage();
+
+                const textarea = document.getElementById(`sentence-${id}`);
+                const charCount = textarea.nextElementSibling;
+                charCount.textContent = `${value.length}/${MAX_CHARS_PER_SENTENCE}`;
+
+                if (value.length >= MAX_CHARS_PER_SENTENCE) {
+                    charCount.classList.add('warning');
+                } else {
+                    charCount.classList.remove('warning');
+                }
+            }
+        }
+
+        function updateLanguageSelect() {
+            const select = document.getElementById('targetLanguage');
+            const interfaceLang = localStorage.getItem('appLanguage') || 'zh-CN';
+
+            const interfaceLangName = AVAILABLE_LANGUAGES[interfaceLang] || interfaceLang;
+            const childLang = sessionStorage.getItem('selectedChildLanguage') || interfaceLang;
+
+            select.innerHTML = '';
+
+            const excludeLangs = [currentData.sourceLang];
+
+            let optionsHtml = '';
+
+            const uniqueLangs = [...new Set([interfaceLang, childLang, ...TARGET_LANGUAGES])];
+
+            uniqueLangs.forEach(lang => {
+                if (!excludeLangs.includes(lang) && AVAILABLE_LANGUAGES[lang]) {
+                    const isSelected = lang === currentData.targetLang ? 'selected' : '';
+                    let label = AVAILABLE_LANGUAGES[lang];
+                    if (lang === interfaceLang) {
+                        label += ' (界面语言)';
+                    } else if (lang === childLang) {
+                        label += ' (学习语种)';
+                    }
+                    optionsHtml += `<option value="${lang}" ${isSelected}>${label}</option>`;
+                }
+            });
+
+            select.innerHTML = optionsHtml;
+
+            select.onchange = function() {
+                currentData.targetLang = this.value;
+                saveDataToStorage();
+            };
+        }
+
+        async function reRecognize() {
+            if (!currentData.imageData) {
+                alert('请先上传图片');
+                return;
+            }
+
+            showLoading('正在努力识别中...');
+
+            try {
+                const result = await callOcrApi(currentData.imageData);
+
+                currentData.sentences = result.sentences || [];
+                currentData.sourceLang = result.sourceLang || 'en';
+                currentData.targetLang = getDefaultTargetLang(currentData.sourceLang);
+
+                saveDataToStorage();
+                renderSentences();
+                updateLanguageSelect();
+
+                hideLoading();
+            } catch (error) {
+                hideLoading();
+                alert('识别失败，请重试');
+                console.error('OCR error:', error);
+            }
+        }
+
+        function callOcrApi(imageData) {
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const mockSentences = [
+                        { id: Date.now(), text: 'This is a sample recognized sentence.', editable: true },
+                        { id: Date.now() + 1, text: 'Here is another sentence for testing.', editable: true }
+                    ];
+
+                    resolve({
+                        sentences: mockSentences,
+                        sourceLang: 'en'
+                    });
+                }, 1500);
+            });
+        }
+
+        function getDefaultTargetLang(sourceLang) {
+            if (sourceLang === 'en') return 'zh-CN';
+            if (sourceLang === 'zh-CN') return 'en';
+            return 'zh-CN';
+        }
+
+        function reUpload() {
+            console.log('reUpload() called');
+            console.log('hasPermission():', hasPermission());
+            console.log('localStorage.apiPermission:', localStorage.getItem('apiPermission'));
+            console.log('localStorage.localPermission:', localStorage.getItem('localPermission'));
+            
+            // 检查本地使用权限
+            const localPermission = localStorage.getItem('localPermission');
+            if (localPermission === 'declined') {
+                alert('本地使用权限已关闭，功能使用受限');
+                return;
+            }
+            
+            if (!hasPermission()) {
+                console.log('Showing permission modal');
+                showPermissionModal();
+                return;
+            }
+            console.log('Permission granted, redirecting');
+            sessionStorage.removeItem('ocrConfirmData');
+            window.location.href = '04-capture.html';
+        }
+
+        function hasPermission() {
+            const apiPermission = localStorage.getItem('apiPermission');
+            console.log('hasPermission() called, apiPermission:', apiPermission);
+            return apiPermission !== null;
+        }
+
+        function showPermissionModal() {
+            const modal = document.getElementById('permissionModal');
+            modal.classList.remove('hidden');
+        }
+
+        function acceptPermission() {
+            localStorage.setItem('apiPermission', 'accepted');
+            const modal = document.getElementById('permissionModal');
+            modal.classList.add('hidden');
+            reUpload();
+        }
+
+        function declinePermission() {
+            localStorage.setItem('apiPermission', 'declined');
+            const modal = document.getElementById('permissionModal');
+            modal.classList.add('hidden');
+            reUpload();
+        }
+
+        function goBack() {
+            sessionStorage.removeItem('ocrConfirmData');
+            window.location.href = '13-reading-park.html';
+        }
+
+        function backToReadingPark() {
+            // 对齐 iOS 端 readingParkReturnButton 行为：
+            // appState.selectedTab = .readingPark; dismiss()
+            try {
+                sessionStorage.setItem('selectedTab', 'readingPark');
+            } catch (e) {
+                console.warn('Failed to set selectedTab:', e);
+            }
+            sessionStorage.removeItem('ocrConfirmData');
+            window.location.href = '13-reading-park.html';
+        }
+
+        // 点击输入框外部区域自动收回软键盘
+        function setupDismissKeyboardOnOutsideTap() {
+            const isEditable = (el) => {
+                if (!el) return false;
+                const tag = el.tagName;
+                if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return true;
+                if (el.isContentEditable) return true;
+                return false;
+            };
+
+            const dismissIfOutside = (event) => {
+                const active = document.activeElement;
+                if (!isEditable(active)) return;
+                // 若点击目标本身或其祖先是当前聚焦的可编辑控件，则不处理
+                if (event.target === active || (active.contains && active.contains(event.target))) return;
+                // 若点击目标是另一个可编辑控件，交由浏览器自行切换焦点
+                if (isEditable(event.target)) return;
+                active.blur();
+            };
+
+            // 使用 pointerdown/touchstart 以覆盖 iOS Safari 的交互
+            document.addEventListener('pointerdown', dismissIfOutside, true);
+            document.addEventListener('touchstart', dismissIfOutside, { capture: true, passive: true });
+        }
+
+        function cancel() {
+            sessionStorage.removeItem('ocrConfirmData');
+            window.location.href = '13-reading-park.html';
+        }
+
+        function confirmLearning() {
+            console.log('confirmLearning() function called');
+            const validSentences = currentData.sentences.filter(s => s.text.trim().length > 0);
+            console.log('Valid sentences:', validSentences);
+
+            if (validSentences.length === 0) {
+                alert('请至少保留一个非空句子');
+                console.log('No valid sentences, returning early');
+                return;
+            }
+
+            currentData.sentences = validSentences;
+            console.log('Updated currentData:', currentData);
+
+            try {
+                sessionStorage.setItem('learningDetailData', JSON.stringify({
+                    sentences: currentData.sentences,
+                    sourceLang: currentData.sourceLang,
+                    targetLang: currentData.targetLang,
+                    imageData: currentData.imageData
+                }));
+                console.log('Data saved to sessionStorage');
+            } catch (e) {
+                console.error('Failed to save data:', e);
+            }
+
+            console.log('Redirecting to 06-learning-detail.html');
+            window.location.href = '06-learning-detail.html';
+        }
+
+        function showLoading(text) {
+            const overlay = document.getElementById('loadingOverlay');
+            const textEl = document.getElementById('loadingText');
+            const subtextEl = document.getElementById('loadingSubtext');
+            const loadingText = text || '马上就好啦...';
+            textEl.textContent = loadingText;
+            subtextEl.textContent = getLoadingSubtext(loadingText);
+            overlay.classList.remove('hidden');
+        }
+
+        function getLoadingSubtext(text) {
+            if (text.includes('识别')) return '小兔正在帮你找句子';
+            if (text.includes('同步')) return '正在整理学习进度';
+            if (text.includes('加载')) return '准备好一起读一读';
+            return '请稍等一下，很快就好';
+        }
+
+        function hideLoading() {
+            setTimeout(function() {
+                const overlay = document.getElementById('loadingOverlay');
+                overlay.classList.add('hidden');
+            }, 1000);
+        }
+
+        window.onload = function() {
+            initPage();
+            setupDismissKeyboardOnOutsideTap();
+        };
+    </script>
+</body>
+</html>

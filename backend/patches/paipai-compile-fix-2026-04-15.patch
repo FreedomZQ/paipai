@@ -1,0 +1,35 @@
+--- /home/admin/code/app/paipai/backend/src/main/java/com/paipai/readalong/billing/application/AppStoreBillingService.java	2026-04-13 23:19:17.611850588 +0800
++++ /home/admin/code/app/backend/sandboxes/paipai-backend-compile-fix/src/main/java/com/paipai/readalong/billing/application/AppStoreBillingService.java	2026-04-15 19:40:11.833019146 +0800
+@@ -698,6 +698,12 @@
+         return value != null && !value.isBlank();
+     }
+ 
++    private AppProperties.Billing.AppStore currentAppStoreConfig() {
++        return appRuntimeConfigService != null
++            ? appRuntimeConfigService.billingAppStore()
++            : appProperties.getBilling().getAppStore();
++    }
++
+     private VerificationReadiness buildVerificationReadiness() {
+         AppProperties.Billing.AppStore appStore = currentAppStoreConfig();
+         return new VerificationReadiness(
+--- /home/admin/code/app/paipai/backend/src/main/java/com/paipai/readalong/ops/application/ApplePlatformReadinessService.java	2026-04-13 23:06:49.590106389 +0800
++++ /home/admin/code/app/backend/sandboxes/paipai-backend-compile-fix/src/main/java/com/paipai/readalong/ops/application/ApplePlatformReadinessService.java	2026-04-15 19:39:03.815860437 +0800
+@@ -18,10 +18,16 @@
+ 
+     private final AppProperties appProperties;
+     private final PublicSurfaceConfigService publicSurfaceConfigService;
++    private final com.paipai.readalong.shared.config.AppRuntimeConfigService appRuntimeConfigService;
+ 
+-    public ApplePlatformReadinessService(AppProperties appProperties, PublicSurfaceConfigService publicSurfaceConfigService) {
++    public ApplePlatformReadinessService(
++        AppProperties appProperties,
++        PublicSurfaceConfigService publicSurfaceConfigService,
++        com.paipai.readalong.shared.config.AppRuntimeConfigService appRuntimeConfigService
++    ) {
+         this.appProperties = appProperties;
+         this.publicSurfaceConfigService = publicSurfaceConfigService;
++        this.appRuntimeConfigService = appRuntimeConfigService;
+     }
+ 
+     public AppleReadinessView currentReadiness() {

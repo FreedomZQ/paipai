@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Apple Sign In: 首发账号体系只保留 Apple 登录，避免 guest/demo 账号带来审核和删除账号风险。 -->
+    <key>com.apple.developer.applesignin</key>
+    <array>
+        <string>Default</string>
+    </array>
+
+    <!-- In-App Purchase: 用于标准版/家庭版购买和恢复购买。 -->
+    <key>com.apple.developer.in-app-purchase</key>
+    <true/>
+</dict>
+</plist>

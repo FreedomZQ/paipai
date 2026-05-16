@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - 订阅</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            padding: 40px 20px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+        
+        .back-button {
+            background: rgba(255,255,255,0.2);
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            color: white;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .spacer {
+            width: 44px;
+        }
+        
+        .content {
+            background: white;
+            border-radius: 24px;
+            padding: 32px 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        }
+        
+        .hero {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .hero-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+        
+        .hero-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        
+        .hero-subtitle {
+            font-size: 16px;
+            color: #666;
+            line-height: 1.4;
+        }
+        
+        .plans {
+            margin-bottom: 32px;
+        }
+        
+        .plan {
+            border: 2px solid #E0E0E0;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .plan.free {
+            background: #F9F9F9;
+        }
+        
+        .plan.premium {
+            border-color: #4ECDC4;
+            background: #F0FFF9;
+            position: relative;
+        }
+        
+        .plan.premium::before {
+            content: "推荐";
+            position: absolute;
+            top: -10px;
+            right: 16px;
+            background: #4ECDC4;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 12px;
+        }
+        
+        .plan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .plan-name {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .plan-price {
+            font-size: 18px;
+            font-weight: 600;
+            color: #4ECDC4;
+        }
+        
+        .plan-features {
+            list-style: none;
+        }
+        
+        .feature {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        
+        .feature-content {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        
+        .feature-icon {
+            font-size: 16px;
+            margin-right: 8px;
+            color: #4ECDC4;
+            margin-top: 2px;
+        }
+        
+        .feature-details {
+            flex: 1;
+        }
+        
+        .feature-text {
+            color: #666;
+            margin-bottom: 4px;
+            display: block;
+        }
+        
+        .cta-button {
+            background: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+            color: white;
+            border: none;
+            padding: 20px;
+            border-radius: 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+        
+        .restore-button {
+            background: white;
+            color: #333;
+            border: 2px solid #E0E0E0;
+            padding: 16px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 24px;
+        }
+        
+        .restore-button:hover {
+            border-color: #4ECDC4;
+            background: #F0FFF9;
+        }
+        
+        .addon-section {
+            margin: 32px 0;
+        }
+        
+        .addon-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #333;
+        }
+        
+        .addons {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .addon {
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .addon:first-child {
+            padding: 24px;
+        }
+        
+        .addon-header {
+            margin-bottom: 0;
+            margin-right: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .addon-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #333;
+        }
+        
+        .addon-price {
+            font-size: 18px;
+            font-weight: 600;
+            color: #4ECDC4;
+        }
+        
+        .addon-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .addon-validity {
+            font-size: 12px;
+            color: #999;
+            margin: 8px 0;
+        }
+        
+        .addon-button {
+            background: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+            align-self: center;
+        }
+        
+        .addon-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .plan {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .plan .addon-button {
+            align-self: center;
+            margin-top: 20px;
+        }
+        
+        .terms {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            line-height: 1.4;
+        }
+        
+        .terms a {
+            color: #06D6A0;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="back-button" onclick="goBack()">
+                <span>←</span>
+            </div>
+            <div class="title">订阅</div>
+            <div class="spacer"></div>
+        </header>
+        
+        <div class="content">
+            <div class="hero">
+                <div class="hero-icon">📚</div>
+                <div class="hero-title">让孩子把今天拍过的一句，变成明天会读的一句</div>
+                <div class="hero-subtitle">解锁完整的陪读体验，帮助孩子养成阅读习惯</div>
+            </div>
+            
+            <div class="plans">
+                <div class="plan free">
+                    <div class="plan-header">
+                        <div class="plan-name">免费版</div>
+                        <div class="plan-price">¥0</div>
+                    </div>
+                    <ul class="plan-features">
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">仅支持1个孩子档案使用</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">每日账号可享：</span>
+                                    <span class="feature-text">- 文字识别 5次</span>
+                                    <span class="feature-text">- 语音朗读 10次</span>
+                                    <span class="feature-text" style="font-size: 12px; color: #666;">功能基于设备系统原生能力实现，不调用外部接口</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">本地复习卡上限 20 张</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">标准系统音色</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">支持云同步</span>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="plan premium">
+                    <div class="plan-header">
+                        <div class="plan-name">标准会员</div>
+                        <div class="plan-price">¥18/30天</div>
+                    </div>
+                    <ul class="plan-features">
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">支持最多2个孩子档案使用</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">计费周期内账号可享：</span>
+                                    <span class="feature-text">- 文字识别 300次</span>
+                                    <span class="feature-text">- 语音朗读 600次</span>
+                                    <span class="feature-text" style="font-size: 12px; color: #666;">额度账号共享、多孩共用。<br>支持设备本地与外部 API 双模式，次数统一核算。</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">可调朗读语速、复习卡累计上限1000张</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">支持云同步</span>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                    <button class="addon-button" onclick="purchase('standard')">立即购买</button>
+                </div>
+                
+                <div class="plan premium">
+                    <div class="plan-header">
+                        <div class="plan-name">高级会员</div>
+                        <div class="plan-price">¥38/30天</div>
+                    </div>
+                    <ul class="plan-features">
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">支持最多3个孩子档案使用</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">计费周期内账号可享：</span>
+                                    <span class="feature-text">- 文字识别 600次</span>
+                                    <span class="feature-text">- 语音朗读 1200次</span>
+                                    <span class="feature-text" style="font-size: 12px; color: #666;">额度账号共享、多孩共用。<br>支持设备本地与外部 API 双模式，次数统一核算。</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">可调朗读语速、复习卡累计上限3000张</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">支持云同步</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="feature">
+                            <div class="feature-content">
+                                <span class="feature-icon">✅</span>
+                                <div class="feature-details">
+                                    <span class="feature-text">复习指引与成长报告</span>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                    <button class="addon-button" onclick="purchase('premium')">立即购买</button>
+                </div>
+            </div>
+            
+            <!-- 功能增量包 -->
+            <div class="addon-section">
+                <div class="addon-title">功能增量包</div>
+                <div class="addons">
+                    <div class="addon">
+                        <div class="addon-header">
+                            <div class="addon-name">文字识别增量包</div>
+                            <div class="addon-price">¥5</div>
+                        </div>
+                        <div class="addon-content">
+                            <div class="addon-validity">服务有效期：当前计费周期内</div>
+                            <button class="addon-button" onclick="purchaseAddon('ocr')">立即购买</button>
+                        </div>
+                    </div>
+                    <div class="addon">
+                        <div class="addon-header">
+                            <div class="addon-name">语音朗读增量包</div>
+                            <div class="addon-price">¥5</div>
+                        </div>
+                        <div class="addon-content">
+                            <div class="addon-validity">服务有效期：当前计费周期内</div>
+                            <button class="addon-button" onclick="purchaseAddon('tts')">立即购买</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="restore-button" onclick="restorePurchase()">
+                恢复购买
+            </button>
+            
+            <div class="terms">
+                订阅将自动续费，您可以随时在 App Store 设置中取消订阅。
+                <br>
+                查看 <a href="terms-of-service.html">服务条款</a> 和 <a href="privacy-policy.html">隐私政策</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function goBack() {
+            window.location.href = '09-parent-area.html';
+        }
+        
+        function purchase() {
+            alert('购买订阅');
+        }
+        
+        function restorePurchase() {
+            alert('恢复购买');
+        }
+        
+        function purchaseAddon(type) {
+            if (type === 'ocr') {
+                alert('购买文字识别增量包');
+            } else if (type === 'tts') {
+                alert('购买语音朗读增量包');
+            }
+        }
+    </script>
+</body>
+</html>

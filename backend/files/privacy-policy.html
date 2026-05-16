@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - 隐私政策</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FAFAFA;
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #E0E0E0;
+        }
+        
+        .back-button {
+            background: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .spacer {
+            width: 44px;
+        }
+        
+        .content {
+            background: white;
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+        
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        
+        h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            color: #06D6A0;
+        }
+        
+        p {
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+            color: #666;
+        }
+        
+        ul {
+            margin-left: 20px;
+            margin-bottom: 16px;
+        }
+        
+        li {
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 8px;
+            color: #666;
+        }
+        
+        .last-updated {
+            font-size: 14px;
+            color: #999;
+            text-align: center;
+            margin-top: 32px;
+            padding-top: 16px;
+            border-top: 1px solid #E0E0E0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="back-button" onclick="goBack()">
+                <span>←</span>
+            </div>
+            <div class="title">隐私政策</div>
+            <div class="spacer"></div>
+        </header>
+        
+        <div class="content">
+            <h1>拍拍伴读隐私政策</h1>
+            
+            <p>拍拍伴读（以下简称“我们”）致力于以低打扰、低收集的方式保护家长和孩子的信息。本政策说明我们在提供本地识别、朗读、句卡复习、云同步、Apple 登录、App 内购买、账号删除、可选云端 OCR/TTS 时如何处理数据。</p>
+            
+            <h2>1. 我们收集的信息</h2>
+            <p>我们只收集实现功能所需的信息，主要包括：</p>
+            <ul>
+                <li>账号信息：Apple 登录返回的用户标识、邮箱（用于登录、客服反馈、删除账号二次确认）。</li>
+                <li>孩子资料：昵称、年龄段、学习方向、头像表情等由家长提供的基础资料。</li>
+                <li>学习数据：家长确认保存的句卡、复习记录、学习偏好和同步状态。</li>
+                <li>使用记录：学习页、复习页、拍读页的使用时长，用于家长区统计；首发版本按 30 天留存策略设计并在上线前验收。</li>
+                <li>设备与诊断信息：设备类型、系统版本、App 版本、请求追踪编号，用于兼容性适配和问题排查。</li>
+                <li>购买信息：App Store 交易标识、商品 ID、权益状态，用于验证购买、恢复购买和处理订阅/权益。</li>
+            </ul>
+            
+            <h2>2. 本地处理与云端能力</h2>
+            <ul>
+                <li>默认拍读流程优先使用设备端 OCR 和设备端朗读，尽量减少云端依赖。</li>
+                <li>当您主动选择云端 OCR 时，图片会发送到我们的后端进行次数校验，并转发给云端模型完成文字识别。</li>
+                <li>当您主动选择云端 TTS 时，待朗读文本会发送到我们的后端进行次数校验，并转发给云端模型生成语音。</li>
+                <li>开启云同步后，孩子资料、句卡、复习记录、使用时长和偏好会通过统一后端同步，以便多设备使用。</li>
+            </ul>
+            
+            <h2>3. 信息使用目的</h2>
+            <ul>
+                <li>提供拍照识字、翻译、朗读、保存句卡、复习和家长区统计。</li>
+                <li>校验 Apple 登录、App 内购买、恢复购买、权益和云端服务次数。</li>
+                <li>处理账号删除、客服反馈、故障排查和安全审计。</li>
+                <li>改进稳定性和基础体验，但我们不做广告跟踪或跨 App 跟踪。</li>
+            </ul>
+            
+            <h2>4. 信息存储与保护</h2>
+            <ul>
+                <li>本地数据存储在应用沙盒中；账号凭证等敏感凭据优先使用系统安全存储能力。</li>
+                <li>网络传输使用 HTTPS/WSS 等安全传输方式。</li>
+                <li>云端 OCR 不以长期保存原始图片为目的；服务端主要记录低敏诊断状态、模型、时间和次数信息。</li>
+                <li>我们会按功能需要和法律要求保留必要数据；账号删除完成后，将按产品流程停用或删除相关账号数据。</li>
+            </ul>
+            
+            <h2>5. 信息分享</h2>
+            <p>我们不会出售您或孩子的个人信息，也不会用于广告跟踪。为实现功能，以下服务可能处理必要数据：</p>
+            <ul>
+                <li>Apple：用于 Sign in with Apple、App 内购买、恢复购买和交易验证。</li>
+                <li>云端模型服务商：仅在您主动使用云端 OCR/TTS 时处理对应图片或文本。</li>
+                <li>基础云服务：用于账号、同步、配置、日志和安全审计。</li>
+            </ul>
+            
+            <h2>6. 家长控制</h2>
+            <p>作为家长，您可以：</p>
+            <ul>
+                <li>查看、修改或删除孩子资料和学习数据。</li>
+                <li>选择是否开启云同步和云端 OCR/TTS。</li>
+                <li>在 App 内发起账号删除流程。</li>
+                <li>通过客服邮箱联系我们查询或处理隐私相关请求。</li>
+            </ul>
+            
+            <h2>7. 儿童隐私</h2>
+            <p>本应用面向家长辅助孩子阅读使用。孩子相关资料应由家长创建和管理。我们尽量避免收集真实姓名、身份证号、精确位置等与伴读无关的信息，并通过家长区保护关键设置。</p>
+            
+            <h2>8. 隐私政策更新</h2>
+            <p>我们可能会不时更新本隐私政策。当涉及重要数据处理变化时，我们会通过应用内提示或其他合理方式告知您。</p>
+            
+            <h2>9. 联系我们</h2>
+            <p>如果您对本隐私政策有任何疑问或建议，请通过以下方式联系我们：</p>
+            <p>电子邮件：support@paipai.app</p>
+            
+            <div class="last-updated">
+                最后更新：2026年4月24日
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function goBack() {
+            window.history.back();
+        }
+    </script>
+</body>
+</html>

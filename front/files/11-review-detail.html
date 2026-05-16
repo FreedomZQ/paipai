@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - 复习句子</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FAFAFA;
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            padding: 20px;
+        }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .back-button {
+            background: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .spacer {
+            width: 44px;
+        }
+        
+        .review-detail-section {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+        
+        .section-header {
+            font-size: 15px;
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 12px;
+        }
+        
+        .sentence-display {
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.5;
+            text-align: center;
+            padding: 16px;
+            background: #F9F9F9;
+            border-radius: 12px;
+            min-height: 60px;
+            word-wrap: break-word;
+            white-space: normal;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        
+        .translation-display {
+            font-size: 16px;
+            line-height: 1.5;
+            text-align: center;
+            padding: 16px;
+            background: #F5F5F5;
+            border-radius: 12px;
+            min-height: 60px;
+            word-wrap: break-word;
+            white-space: normal;
+            margin-bottom: 16px;
+            display: none;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .translation-display.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .play-icon {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .play-icon:hover {
+            background: rgba(0,0,0,0.2);
+            transform: scale(1.1);
+        }
+        
+        .play-icon:active {
+            transform: scale(0.95);
+        }
+        
+        .eye-icon {
+            width: 24px;
+            height: 24px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .translation-display .eye-icon,
+        .translation-hint .eye-icon {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+        }
+        
+        .eye-icon:hover {
+            background: rgba(0,0,0,0.2);
+            transform: scale(1.1);
+        }
+        
+        .eye-icon:active {
+            transform: scale(0.95);
+        }
+        
+        /* 更明显的眼睛图标 */
+        .eye-icon::before {
+            content: '👀';
+            font-size: 16px;
+            position: relative;
+        }
+        
+        /* 闭着眼睛的图标 */
+        .eye-icon.closed::before {
+            content: '👀';
+        }
+        
+        .translation-hint {
+            font-size: 14px;
+            line-height: 1.5;
+            text-align: center;
+            padding: 16px;
+            background: #F5F5F5;
+            border-radius: 12px;
+            min-height: 60px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .translation-hint.hidden {
+            position: absolute;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .translation-container {
+            position: relative;
+            min-height: 60px;
+            margin-bottom: 16px;
+        }
+        
+        .translation-container .translation-hint,
+        .translation-container .translation-display {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            margin-bottom: 0;
+        }
+        
+        .hint-text {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .read-aloud-controls {
+            display: flex;
+            justify-content: center;
+            margin: 16px 0;
+        }
+        
+        .speed-selector {
+            width: 200px;
+            position: relative;
+        }
+        
+        .speed-select {
+            width: 100%;
+            padding: 14px 20px;
+            border: 2px solid #E0E0E0;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 500;
+            background: white;
+            cursor: pointer;
+            appearance: none;
+            text-align: center;
+            text-align-last: center;
+        }
+        
+        .speed-select:focus {
+            outline: none;
+            border-color: #06D6A0;
+        }
+        
+        .speed-select:disabled {
+            background: #F5F5F5;
+            color: #999;
+            cursor: not-allowed;
+        }
+        
+        .hint {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-top: 12px;
+            margin-bottom: 24px;
+        }
+        
+        .progress {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .progress-text {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #F5F5F5;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #06D6A0 0%, #118AB2 100%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .result-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        .result-button {
+            flex: 1;
+            padding: 16px;
+            border: 2px solid #E0E0E0;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .result-button.known {
+            background: #E8F5E8;
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+        
+        .result-button.unknown {
+            background: #FFF3E0;
+            border-color: #FF9800;
+            color: #FF9800;
+        }
+        
+        .pagination-controls {
+            display: flex;
+            justify-content: space-between;
+            margin: 16px 0;
+        }
+        
+        .pagination-button {
+            padding: 12px 20px;
+            border: 2px solid #E0E0E0;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+            color: #333;
+        }
+        
+        .pagination-button:hover:not(:disabled) {
+            border-color: #06D6A0;
+            color: #06D6A0;
+            transform: translateY(-2px);
+        }
+        
+        .pagination-button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        .pagination-button:disabled {
+            background: #F5F5F5;
+            color: #999;
+            cursor: not-allowed;
+            border-color: #E0E0E0;
+        }
+        
+        /* 响应式设计 */
+        @media (min-width: 768px) {
+            .container {
+                max-width: 500px;
+                margin: 0 auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="back-button" onclick="goBack()">
+                <span>←</span>
+            </div>
+            <div class="title">复习</div>
+            <div class="spacer"></div>
+        </header>
+        
+        <div class="progress">
+            <div class="progress-text">第 1 / 3 句</div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 33%"></div>
+            </div>
+        </div>
+        
+        <div class="pagination-controls">
+            <button class="pagination-button" id="prevButton" onclick="goToPreviousCard()" disabled>
+                ← 上一句
+            </button>
+            <button class="pagination-button" id="nextButton" onclick="goToNextCard()">
+                下一句 →
+            </button>
+        </div>
+        
+        <div class="review-detail-section">
+            <div class="section-header">原文</div>
+            <div class="sentence-display" id="sentenceDisplay">
+                <div class="play-icon" onclick="playAudio()">▶</div>
+                The cat is sleeping on the sofa.
+            </div>
+            
+            <div class="section-header">翻译</div>
+            <div class="translation-container">
+                <div class="translation-hint" id="translationHint">
+                    <div class="eye-icon" onclick="toggleTranslation()"></div>
+                    <div class="hint-text">点击眼睛图标查看翻译</div>
+                </div>
+                <div class="translation-display" id="translationDisplay">
+                    <div class="eye-icon" onclick="toggleTranslation()"></div>
+                    <div class="play-icon" onclick="playAudio('translation')">▶</div>
+                    猫正在沙发上睡觉
+                </div>
+            </div>
+            
+            <div class="read-aloud-controls">
+                <div class="speed-selector">
+                    <select class="speed-select" id="speedSelect" onchange="changeSpeed()">
+                        <option value="0.75">慢速 (0.75x)</option>
+                        <option value="1.0" selected>正常速度 (1.0x)</option>
+                        <option value="1.25">快速 (1.25x)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="hint">
+                点击句子旁的播放图标，跟着朗读练习
+            </div>
+        </div>
+        
+        <div class="result-buttons">
+            <button class="result-button known" onclick="markKnown()">
+                会了
+            </button>
+            <button class="result-button unknown" onclick="markUnknown()">
+                还要复习
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // 复习句子数据
+        var reviewCards = [
+            {
+                id: 1,
+                originalText: "The cat is sleeping on the sofa.",
+                translation: "猫正在沙发上睡觉"
+            },
+            {
+                id: 2,
+                originalText: "I love reading books.",
+                translation: "我喜欢读书"
+            },
+            {
+                id: 3,
+                originalText: "The sun is shining brightly.",
+                translation: "太阳明亮地照耀着"
+            }
+        ];
+        
+        var currentCardIndex = 0;
+        var startX = 0;
+        var startY = 0;
+        
+        // 模拟用户权限检查
+        function checkUserPermission() {
+            // 这里应该是实际的权限检查逻辑
+            // 暂时返回免费用户
+            return { isPremium: false };
+        }
+        
+        // 初始化页面
+        function initPage() {
+            // 检查用户权限并设置速度选择器
+            var user = checkUserPermission();
+            var speedSelect = document.getElementById('speedSelect');
+            
+            if (!user.isPremium) {
+                // 免费用户只能选择正常速度
+                var options = speedSelect.options;
+                for (var i = 0; i < options.length; i++) {
+                    if (options[i].value !== '1.0') {
+                        options[i].disabled = true;
+                    }
+                }
+            }
+            
+            // 加载当前卡片
+            loadCard(currentCardIndex);
+            
+            // 添加触摸事件监听
+            var container = document.querySelector('.container');
+            container.addEventListener('touchstart', handleTouchStart, false);
+            container.addEventListener('touchmove', handleTouchMove, false);
+            container.addEventListener('touchend', handleTouchEnd, false);
+        }
+        
+        // 加载卡片
+        function loadCard(index) {
+            var card = reviewCards[index];
+            document.getElementById('sentenceDisplay').innerHTML = '<div class="play-icon" onclick="playAudio()">▶</div>' + card.originalText;
+            document.getElementById('translationDisplay').innerHTML = '<div class="eye-icon" onclick="toggleTranslation()"></div><div class="play-icon" onclick="playAudio(\'translation\')">▶</div>' + card.translation;
+            
+            // 重置翻译显示状态
+            var translationDisplay = document.getElementById('translationDisplay');
+            var translationHint = document.getElementById('translationHint');
+            var eyeIcons = document.querySelectorAll('.eye-icon');
+            translationDisplay.classList.remove('show');
+            translationHint.classList.remove('hidden');
+            // 重置眼睛图标为睁着状态
+            eyeIcons.forEach(function(icon) {
+                icon.classList.remove('closed');
+            });
+            
+            // 更新进度
+            var progressText = document.querySelector('.progress-text');
+            var progressFill = document.querySelector('.progress-fill');
+            progressText.innerText = '第 ' + (index + 1) + ' / ' + reviewCards.length + ' 句';
+            progressFill.style.width = ((index + 1) / reviewCards.length) * 100 + '%';
+            
+            // 更新分页按钮状态
+            updatePaginationButtons();
+        }
+        
+        // 切换翻译显示/隐藏
+        function toggleTranslation() {
+            var translationDisplay = document.getElementById('translationDisplay');
+            var translationHint = document.getElementById('translationHint');
+            
+            if (translationDisplay.classList.contains('show')) {
+                // 隐藏翻译，显示提示
+                translationDisplay.classList.remove('show');
+                translationHint.classList.remove('hidden');
+                // 显示睁着眼睛的图标
+                var eyeIcons = document.querySelectorAll('.eye-icon');
+                eyeIcons.forEach(function(icon) {
+                    icon.classList.remove('closed');
+                });
+            } else {
+                // 显示翻译，隐藏提示
+                translationDisplay.classList.add('show');
+                translationHint.classList.add('hidden');
+                // 显示闭着眼睛的图标
+                var eyeIcons = document.querySelectorAll('.eye-icon');
+                eyeIcons.forEach(function(icon) {
+                    icon.classList.add('closed');
+                });
+            }
+        }
+        
+        // 处理触摸开始
+        function handleTouchStart(e) {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        }
+        
+        // 处理触摸移动
+        function handleTouchMove(e) {
+            if (!startX || !startY) return;
+            
+            var currentX = e.touches[0].clientX;
+            var currentY = e.touches[0].clientY;
+            
+            var diffX = startX - currentX;
+            var diffY = startY - currentY;
+            
+            // 只处理水平滑动
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                e.preventDefault();
+                
+                var container = document.querySelector('.review-detail-section');
+                var translateX = -diffX;
+                
+                // 添加滑动效果
+                container.style.transform = 'translateX(' + translateX + 'px)';
+                container.style.transition = 'none';
+            }
+        }
+        
+        // 处理触摸结束
+        function handleTouchEnd(e) {
+            if (!startX) return;
+            
+            var currentX = e.changedTouches[0].clientX;
+            var diffX = startX - currentX;
+            
+            // 定义滑动阈值
+            var threshold = 50;
+            
+            // 重置容器样式
+            var container = document.querySelector('.review-detail-section');
+            container.style.transform = 'translateX(0)';
+            container.style.transition = 'transform 0.3s ease';
+            
+            // 处理滑动
+            if (Math.abs(diffX) > threshold) {
+                if (diffX > 0) {
+                    // 向左滑动，下一张
+                    if (currentCardIndex < reviewCards.length - 1) {
+                        currentCardIndex++;
+                        loadCard(currentCardIndex);
+                    }
+                } else {
+                    // 向右滑动，上一张
+                    if (currentCardIndex > 0) {
+                        currentCardIndex--;
+                        loadCard(currentCardIndex);
+                    }
+                }
+            }
+            
+            // 重置起始位置
+            startX = 0;
+            startY = 0;
+        }
+        
+        // 页面加载完成后初始化
+        window.onload = initPage;
+        
+        function goBack() {
+            window.location.href = '13-reading-park.html';
+        }
+        
+        function playAudio(contentType) {
+            var text;
+            if (contentType === 'translation') {
+                text = document.getElementById('translationDisplay').innerText;
+            } else {
+                text = document.getElementById('sentenceDisplay').innerText;
+            }
+            var speed = document.getElementById('speedSelect').value;
+            alert('正在朗读: ' + text + ' (速度: ' + speed + 'x)');
+        }
+        
+        function changeSpeed() {
+            var speed = document.getElementById('speedSelect').value;
+            alert('速度已设置为: ' + speed + 'x');
+        }
+        
+        function markKnown() {
+            alert('标记为已掌握');
+            // 跳转到下一张
+            if (currentCardIndex < reviewCards.length - 1) {
+                currentCardIndex++;
+                loadCard(currentCardIndex);
+            } else {
+                alert('复习完成！');
+            }
+        }
+        
+        function markUnknown() {
+            alert('标记为需要再练一次');
+        }
+        
+        // 导航到上一句
+        function goToPreviousCard() {
+            if (currentCardIndex > 0) {
+                currentCardIndex--;
+                loadCard(currentCardIndex);
+                updatePaginationButtons();
+            }
+        }
+        
+        // 导航到下一句
+        function goToNextCard() {
+            if (currentCardIndex < reviewCards.length - 1) {
+                currentCardIndex++;
+                loadCard(currentCardIndex);
+                updatePaginationButtons();
+            }
+        }
+        
+        // 更新分页按钮状态
+        function updatePaginationButtons() {
+            var prevButton = document.getElementById('prevButton');
+            var nextButton = document.getElementById('nextButton');
+            
+            // 第一页时禁用上一页按钮
+            if (currentCardIndex === 0) {
+                prevButton.disabled = true;
+            } else {
+                prevButton.disabled = false;
+            }
+            
+            // 最后一页时禁用下一页按钮
+            if (currentCardIndex === reviewCards.length - 1) {
+                nextButton.disabled = true;
+            } else {
+                nextButton.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

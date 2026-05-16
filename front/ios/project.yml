@@ -1,0 +1,66 @@
+name: PaipaiReadAlong
+options:
+  minimumXcodeGenVersion: 2.38.0
+  bundleIdPrefix: com.paipai
+settings:
+  base:
+    # RELEASE GATE: bundle identifier must be injected from backend PostgreSQL sys_remote_config
+    # namespace=`release_ios`, key=`bundle_identifier` and stay aligned with backend Apple auth/billing config.
+    PRODUCT_BUNDLE_IDENTIFIER: 'com.paipai.readalong.dev'
+    IPHONEOS_DEPLOYMENT_TARGET: '18.0'
+    SWIFT_VERSION: '5.10'
+    # RELEASE GATE: this value must be injected from backend PostgreSQL sys_remote_config
+    # namespace=`release_ios`, key=`development_team` before xcodegen / Archive.
+    # Placeholder values are forbidden in release branches and must fail preflight.
+    DEVELOPMENT_TEAM: '棋 张(Personal Team)'
+    # RELEASE GATE: these two values must be injected from backend PostgreSQL sys_remote_config
+    # namespace=`release_ios`, keys=`marketing_version` / `current_project_version`.
+    # They must match Xcode Organizer / TestFlight / SQL build_number exactly.
+    MARKETING_VERSION: '1.0.0'
+    CURRENT_PROJECT_VERSION: '1'
+packages:
+  PowerSync:
+    url: https://github.com/powersync-ja/powersync-swift.git
+    from: 1.0.0
+targets:
+  PaipaiReadAlong:
+    type: application
+    # P0 release scope: first launch targets iOS/iPadOS 18.0+ only.
+    # macOS/Catalyst should be re-enabled only after a dedicated compile and UX pass.
+    platform: iOS
+    sources:
+      - path: PaipaiReadAlong
+    dependencies:
+      - package: PowerSync
+        product: PowerSync
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: PaipaiReadAlong/Resources/Info.plist
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES
+        CODE_SIGN_ENTITLEMENTS: PaipaiReadAlong/Resources/PaipaiReadAlongDebug.entitlements
+        PAIPAI_API_BASE_URL: http://192.168.1.27:8080
+#        PAIPAI_API_BASE_URL: http://192.168.50.125:8080
+        # RELEASE GATE: API base URL should be injected from backend PostgreSQL sys_remote_config
+        # namespace=`release_ios`, key=`paipai_api_base_url`
+        # For local development, use http://127.0.0.1:8080
+        # For release builds, this must be a valid HTTPS URL for Apple compliance.
+        # PAIPAI_API_BASE_URL: __FILL_FROM_DB_release_ios.paipai_api_base_url__
+      configs:
+        Release:
+          CODE_SIGN_ENTITLEMENTS: PaipaiReadAlong/Resources/PaipaiReadAlong.entitlements
+    scheme:
+      testTargets:
+        - PaipaiReadAlongTests
+  PaipaiReadAlongTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PaipaiReadAlongTests
+    dependencies:
+      - target: PaipaiReadAlong
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.paipai.readalong.tests

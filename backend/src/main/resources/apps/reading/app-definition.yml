@@ -1,0 +1,82 @@
+# ==============================
+# paipai_readingcompanion（拍拍伴读）应用定义
+# ==============================
+# 说明：
+# 1. 该文件描述 paipai_readingcompanion app 在统一后端中的能力开关、Apple 配置与计费策略。
+# 2. 其中空字符串字段表示“结构已就位，但生产值尚需环境覆盖”。
+
+app:
+  # 应用唯一编码，需与 backend.apps.supported 中的值一致
+  code: paipai_readingcompanion
+  # 应用展示名称，用于 system 接口、日志与运维视图
+  name: 拍拍伴读
+  # 应用兼容层 API 前缀
+  apiPrefix: /api/v1
+  # 应用业务表前缀
+  tablePrefix: reading_
+  support:
+    # 是否涉及法律/合规材料
+    legalRequired: "true"
+    # 是否启用 Sign in with Apple
+    appleSignInRequired: "true"
+    # 是否启用 App Store 计费能力
+    billingRequired: "true"
+
+  release:
+    # 当前发布波次是否必须纳入 release-gate。
+    # 首发策略：为降低个人开发者首个 App 的审核风险与适配成本，拍拍伴读先按 iOS/iPadOS 18.0+ 提审。
+    # 注意：这是当前 App 的发布策略，不是统一后端的全局限制；后续新增 App 应在自己的 app-definition 与 release_ios namespace 独立声明。
+    requiredForCurrentWave: "true"
+    minimumIosVersion: "18.0"
+    minimumIpadosVersion: "18.0"
+
+  auth:
+    # Paipai reading 已收口为 Apple-only；禁止任何 demo/guest 会话入口。
+    demoSessionEnabled: "false"
+    apple:
+      # Apple 登录客户端 ID（通常是 iOS bundle / service ID）
+      clientId: com.paipai.readalong
+      # 下面这些值需要在真实环境中通过环境变量或覆盖配置补齐
+      teamId: ""
+      keyId: ""
+      privateKey: ""
+      # identity token 预期受众
+      audience: https://appleid.apple.com
+      # Apple 登录回调地址
+      redirectUri: ""
+      # Apple auth 运行环境标识
+      environment: production
+      # Apple 授权码换 token 接口
+      tokenEndpoint: https://appleid.apple.com/auth/token
+      # Apple 公钥 JWKS 地址
+      jwksUrl: https://appleid.apple.com/auth/keys
+      # Apple token revoke 接口
+      revokeEndpoint: https://appleid.apple.com/auth/revoke
+      # 是否允许走远端 authorization-code exchange
+      remoteExchangeEnabled: "true"
+  billing:
+    appstore:
+      # App Store bundleId，用于签名校验、Server API 及路由归属判断
+      bundleId: com.paipai.readalong
+      # App Store 运行环境
+      environment: production
+      # App Store 下载页 URL。生产环境拿到真实 App Apple ID 后配置，例如 https://apps.apple.com/app/id1234567890；
+      # 前端设置页只能消费后端返回的该配置，不允许在 App 代码里硬编码下载页。
+      appStoreUrl: ""
+      # 是否允许在当前环境接受 sandbox 数据；prod 应为 false
+      allowSandbox: "true"
+      # 以下为 App Store Server API 正式凭证位
+      appAppleId: ""
+      issuerId: ""
+      keyId: ""
+      privateKey: ""
+    entitlements:
+      productMappings:
+        com.paipai.readalong.family.yearly: family_access
+        com.paipai.readalong.family.monthly: family_access
+        com.paipai.readalong.family.multi_child.lifetime: family_multi_child
+      refreshPolicy:
+        # 单次 entitlement refresh 最多挑选多少候选交易进行回源
+        candidateLimit: "20"
+        # 相同 user + originalTransactionId 的 refresh 冷却分钟数
+        cooldownMinutes: "5"

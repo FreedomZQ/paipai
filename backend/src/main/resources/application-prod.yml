@@ -1,0 +1,50 @@
+# ==============================
+# 生产环境配置
+# ==============================
+# 说明：
+# 1. 生产环境不提供数据库等敏感参数默认值，必须通过环境变量注入。
+# 2. 这里同时收紧 actuator / swagger 暴露面，配合 release-gate 与启动守卫使用。
+
+spring:
+  datasource:
+    # 生产数据库地址必须显式注入
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      # 生产 Redis 地址必须显式注入
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3s
+  flyway:
+    # 生产环境默认关闭应用启动自动迁移；请在发布前手动执行数据库初始化/迁移脚本。
+    enabled: ${FLYWAY_ENABLED:false}
+    locations: classpath:db/first_version
+    validate-on-migrate: true
+    baseline-on-migrate: true
+
+springdoc:
+  api-docs:
+    # 生产环境关闭 OpenAPI 文档
+    enabled: false
+  swagger-ui:
+    # 生产环境关闭 Swagger UI
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 生产环境只暴露 health，避免 info/metrics 默认公网暴露
+        include: health
+  endpoint:
+    health:
+      # 生产环境不返回详细健康信息
+      show-details: never
+
+backend:
+  # 明确标记当前为生产环境，供启动守卫与 release-gate 判断
+  environment: prod

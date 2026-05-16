@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>拍拍伴读 - 保存成功</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FAFAFA;
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 320px;
+            text-align: center;
+        }
+        
+        .success-icon {
+            font-size: 80px;
+            margin-bottom: 32px;
+            animation: bounce 1s ease;
+        }
+        
+        @keyframes bounce {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.2);
+            }
+        }
+        
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .success-message {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 32px;
+        }
+        
+        .stats {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 32px;
+        }
+        
+        .stat-item {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            color: #4ECDC4;
+        }
+        
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+        }
+        
+        .primary-button {
+            background: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+            color: white;
+            border: none;
+            padding: 18px;
+            border-radius: 24px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .primary-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+        
+        .secondary-button {
+            background: white;
+            color: #333;
+            border: 2px solid #E0E0E0;
+            padding: 16px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .secondary-button:hover {
+            border-color: #4ECDC4;
+            background: #F0FFF9;
+        }
+        
+        .hint {
+            font-size: 14px;
+            color: #666;
+            margin-top: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">🎉</div>
+        <h1>保存成功！</h1>
+        <div class="success-message">已保存到今天的句卡</div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                今天已保存 <span class="stat-value">2</span> 句
+            </div>
+            <div class="stat-item">
+                待复习 <span class="stat-value">3</span> 句
+            </div>
+            <div class="stat-item">
+                连续学习 <span class="stat-value">7</span> 天
+            </div>
+        </div>
+        
+        <div class="actions">
+            <button class="primary-button" onclick="continueCapture()">
+                继续拍
+            </button>
+            <button class="secondary-button" onclick="goToReview()">
+                去复习
+            </button>
+        </div>
+        
+        <div class="hint">
+            明天再来复习，巩固今天的学习成果
+        </div>
+    </div>
+    
+    <script>
+        function continueCapture() {
+            window.location.href = '05-ocr-confirm.html';
+        }
+        
+        function goToReview() {
+            window.location.href = '13-reading-park.html';
+        }
+    </script>
+</body>
+</html>

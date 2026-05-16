@@ -1,0 +1,185 @@
+package com.apphub.backend.sys.app.service;
+
+import com.apphub.backend.sys.app.model.AppAppleReadinessView;
+import com.apphub.backend.sys.app.model.AppDefinition;
+import com.apphub.backend.sys.auth.service.PublicAuthAccessPolicyService;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
+
+/**
+ * 针对 `SystemProductionConfigurationGuard` 的测试类。
+ * 用于验证核心业务逻辑、配置约束或关键边界条件。
+ */
+
+@ExtendWith(MockitoExtension.class)
+class SystemProductionConfigurationGuardTest {
+
+    @Mock
+    private AppDefinitionService appDefinitionService;
+
+    @Mock
+    private AppAppleReadinessService appAppleReadinessService;
+
+    @Mock
+    private PublicAuthAccessPolicyService publicAuthAccessPolicyService;
+
+    @Test
+    void shouldDoNothingOutsideProd() {
+        SystemProductionConfigurationGuard guard = new SystemProductionConfigurationGuard(
+            appDefinitionService,
+            appAppleReadinessService,
+            publicAuthAccessPolicyService,
+            "dev",
+            "",
+            "health,info,metrics",
+            true,
+            true
+        );
+
+        assertThatCode(guard::validateOrThrow).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldFailWhenProdConfigurationIsUnsafe() {
+        AppDefinition reading = readingDefinition();
+        when(appDefinitionService.list()).thenReturn(List.of(reading));
+        when(appAppleReadinessService.inspect(reading)).thenReturn(blockedReadiness(true));
+
+        SystemProductionConfigurationGuard guard = new SystemProductionConfigurationGuard(
+            appDefinitionService,
+            appAppleReadinessService,
+            publicAuthAccessPolicyService,
+            "prod",
+            "",
+            "health,info",
+            true,
+            true
+        );
+
+        assertThatThrownBy(guard::validateOrThrow)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("system.ops.token missing in prod")
+            .hasMessageContaining("management.endpoints.web.exposure.include must be health in prod")
+            .hasMessageContaining("springdoc api-docs/swagger-ui must be disabled in prod")
+            .hasMessageContaining("paipai_readingcompanion: auth.apple.teamId missing")
+            .hasMessageContaining("paipai_readingcompanion: billing.appstore.allowSandbox must be false in production");
+    }
+
+    @Test
+    void shouldPassWhenProdConfigurationIsSafe() {
+        AppDefinition reading = readingDefinition();
+        AppDefinition saving = savingDefinition();
+        when(appDefinitionService.list()).thenReturn(List.of(reading, saving));
+        when(appAppleReadinessService.inspect(reading)).thenReturn(readyReadiness(false));
+        when(appAppleReadinessService.inspect(saving)).thenReturn(notRequiredReadiness());
+        when(publicAuthAccessPolicyService.bootstrapSessionsEnabled(saving)).thenReturn(true);
+
+        SystemProductionConfigurationGuard guard = new SystemProductionConfigurationGuard(
+            appDefinitionService,
+            appAppleReadinessService,
+            publicAuthAccessPolicyService,
+            "prod",
+            "ops-token",
+            "health",
+            false,
+            false
+        );
+
+        assertThatCode(guard::validateOrThrow).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldAllowAppleOnlySavingWithBootstrapDisabledInProd() {
+        AppDefinition saving = savingAppleOnlyDefinition();
+        when(appDefinitionService.list()).thenReturn(List.of(saving));
+        when(appAppleReadinessService.inspect(saving)).thenReturn(readyReadiness(false));
+
+        SystemProductionConfigurationGuard guard = new SystemProductionConfigurationGuard(
+            appDefinitionService,
+            appAppleReadinessService,
+            publicAuthAccessPolicyService,
+            "prod",
+            "ops-token",
+            "health",
+            false,
+            false
+        );
+
+        assertThatCode(guard::validateOrThrow).doesNotThrowAnyException();
+    }
+
+    private AppDefinition readingDefinition() {
+        return new AppDefinition(
+            "paipai_readingcompanion",
+            "拍拍伴读",
+            "/api/v1",
+            "reading_",
+            new AppDefinition.Support(true, true, true),
+            Map.of()
+        );
+    }
+
+    private AppDefinition savingDefinition() {
+        return new AppDefinition(
+            "saving",
+            "省钱项目",
+            "/v1",
+            "saving_",
+            new AppDefinition.Support(true, false, true),
+            Map.of()
+        );
+    }
+
+    private AppDefinition savingAppleOnlyDefinition() {
+        return new AppDefinition(
+            "saving",
+            "省省星球",
+            "/v1",
+            "saving_",
+            new AppDefinition.Support(true, true, true),
+            Map.of()
+        );
+    }
+
+    private AppAppleReadinessView blockedReadiness(boolean allowSandbox) {
+        return new AppAppleReadinessView(
+            "paipai_readingcompanion",
+            "blocked",
+            new AppAppleReadinessView.AppleAuthReadiness("blocked", true, false, true, true, false, false, false, false, true, true, false, false, true),
+            new AppAppleReadinessView.AppStoreReadiness("blocked", true, true, true, allowSandbox, false, false, false, false, !allowSandbox),
+            List.of("auth.apple.teamId missing"),
+            List.of()
+        );
+    }
+
+    private AppAppleReadinessView readyReadiness(boolean allowSandbox) {
+        return new AppAppleReadinessView(
+            "paipai_readingcompanion",
+            "ready",
+            new AppAppleReadinessView.AppleAuthReadiness("ready", true, true, true, true, true, true, true, true, true, true, true, true, true),
+            new AppAppleReadinessView.AppStoreReadiness("ready", true, true, true, allowSandbox, true, true, true, true, !allowSandbox),
+            List.of(),
+            List.of()
+        );
+    }
+
+    private AppAppleReadinessView notRequiredReadiness() {
+        return new AppAppleReadinessView(
+            "saving",
+            "ready",
+            new AppAppleReadinessView.AppleAuthReadiness("not_required", false, false, false, false, false, false, false, false, false, false, false, false, false),
+            new AppAppleReadinessView.AppStoreReadiness("ready", true, true, true, false, true, true, true, true, true),
+            List.of(),
+            List.of()
+        );
+    }
+}

@@ -1,0 +1,76 @@
+# ==============================
+# 通用基础配置（所有环境共享）
+# ==============================
+# 说明：
+# 1. 该文件定义 dev/test/prod 共用的默认配置。
+# 2. 真正的数据库、Redis 等敏感参数建议放在环境变量或 profile 文件中覆盖。
+# 3. backend.apps.* 用于声明当前统一后端支持的应用清单与 app-definition 位置。
+
+spring:
+  application:
+    # Spring Boot 应用名，会出现在日志、监控与健康检查响应中
+    name: apphub-backend
+  profiles:
+    # 默认启用 dev，可通过 SPRING_PROFILES_ACTIVE 切换到 test / prod
+    active: dev
+  jackson:
+    # 统一使用 UTC，避免不同环境出现时区不一致问题
+    time-zone: UTC
+    serialization:
+      # 日期默认输出 ISO-8601 字符串，避免前后端对时间戳含义理解不一致
+      write-dates-as-timestamps: false
+  mvc:
+    problemdetails:
+      # 当前统一使用自定义 ApiResponse 响应结构，因此关闭 Spring Problem Details
+      enabled: false
+
+mybatis-plus:
+  configuration:
+    # 数据库下划线字段自动映射到 Java 驼峰属性，例如 app_code -> appCode
+    map-underscore-to-camel-case: true
+  global-config:
+    # 关闭 MyBatis Plus banner，减少启动日志噪音
+    banner: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 非 prod 默认暴露 health/info/metrics，便于开发期排查
+        include: health,info,metrics
+  endpoint:
+    health:
+      # 非 prod 允许显示更多健康细节，prod 会在 profile 中收紧
+      show-details: always
+
+springdoc:
+  api-docs:
+    # 非 prod 默认开启 OpenAPI 文档，prod 会在 profile 中关闭
+    enabled: true
+  swagger-ui:
+    enabled: true
+    # 固定 Swagger UI 路径，方便本地调试  http://localhost:8080/swagger-ui.html
+    path: /swagger-ui.html
+
+backend:
+  # 统一后端运行环境标识，供门禁、日志和健康检查使用
+  environment: dev
+  ops:
+    # system 运维接口鉴权 token；prod 必须配置
+    token: ${BACKEND_OPS_TOKEN:}
+  apps:
+    # 当前统一后端支持的 appCode 列表
+    supported:
+      - paipai_readingcompanion
+      - saving
+      - fitmystery
+    definitions:
+      # 每个 appCode 对应的 app-definition 配置文件位置
+      paipai_readingcompanion: classpath:apps/reading/app-definition.yml
+      saving: classpath:apps/saving/app-definition.yml
+      # FitMystery 默认以 development scaffold 进入清单；正式上线前用环境变量开启 Apple/IAP required，避免影响既有 App 生产启动。
+      fitmystery: classpath:apps/fitmystery/app-definition.yml
+    paipai_readingcompanion:
+      admin:
+        # 拍拍伴读低运维管理接口 token；为空时管理接口拒绝访问。
+        configToken: 7106e1405a154d068a166442dc773ad1ad10886a76144bc8ad6f4cbaa26354be
