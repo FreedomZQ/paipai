@@ -47,7 +47,7 @@ public class SysAppStoreController {
     @PostMapping("/apps/{appCode}/notifications")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ApiResponse<AppStoreNotificationAcceptedView> notifications(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Valid @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "接口请求体，字段中文说明和示例见 DTO Schema；未特别说明时由当前登录用户上下文补齐 userId。", required = true) @RequestBody AppStoreNotificationIngestRequest request
     ) {
         ensureAppExists(appCode);
@@ -56,7 +56,7 @@ public class SysAppStoreController {
 
     @Operation(summary = "查询 App Store 通知观测", description = "查询指定应用 App Store 通知处理和去重观测信息。")
     @GetMapping("/apps/{appCode}/notifications/observability")
-    public ApiResponse<AppStoreNotificationObservabilityView> notificationObservability(@Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode) {
+    public ApiResponse<AppStoreNotificationObservabilityView> notificationObservability(@Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode) {
         ensureAppExists(appCode);
         return ApiResponse.success(currentRequestId(), sysAppStoreNotificationService.describeObservability(appCode));
     }

@@ -65,8 +65,8 @@ public class ReadingDailyQuotaConfigService {
     private String normalizeFeatureCode(String featureCode) {
         String normalized = blankToDefault(featureCode, FEATURE_CAPTURE);
         return switch (normalized) {
-            case "ocr", "capture", "image_ocr", "picture_ocr", "photo_ocr" -> FEATURE_CAPTURE;
-            case "speech", "tts", "voice_reading", "text_to_speech", "speech_synthesis" -> FEATURE_SPEECH;
+            case "ocr", "capture", "image_text_recognition", "image_ocr", "picture_ocr", "photo_ocr" -> FEATURE_CAPTURE;
+            case "speech", "tts", "read_aloud", "voice_reading", "text_to_speech", "speech_synthesis" -> FEATURE_SPEECH;
             default -> normalized;
         };
     }

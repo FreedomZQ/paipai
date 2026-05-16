@@ -17,6 +17,6 @@ public record AppleExchangeRequest(
     @Schema(description = "客户端发起登录时保存的期望 state。", example = "login-state-001") String expectedState,
     @Schema(description = "客户端收到或生成的 nonce。", example = "nonce-001") String nonce,
     @Schema(description = "客户端发起登录时保存的期望 nonce。", example = "nonce-001") String expectedNonce,
-    @Schema(description = "Apple 登录回调地址。", example = "https://api.example.com/api/v1/system/auth/apps/saving/apple/exchange") String redirectUri
+    @Schema(description = "Apple 登录回调地址。", example = "https://api.example.com/api/v1/system/auth/apps/paipai_readingcompanion/apple/exchange") String redirectUri
 ) {
 }

@@ -137,12 +137,12 @@ class ReadingAnnouncementCompatControllerWebMvcTest {
     @Test
     void announcementsShouldForwardAppCodeForSharedBackendEndpoint() throws Exception {
         when(readingAuthenticatedUserResolver.require(any())).thenReturn(readingUser());
-        when(readingAnnouncementService.listRecent("fitmystery", 7, "app_launch", null, null, null, true))
+        when(readingAnnouncementService.listRecent("paipai_readingcompanion", 7, "app_launch", null, null, null, true))
             .thenReturn(List.of(
                 new ReadingAnnouncementService.AnnouncementView(
-                    "fit-notice",
-                    "FitMystery 通知",
-                    "通用后端按 appCode 返回对应 App 的通知。",
+                    "reading-notice",
+                    "拍拍伴读通知",
+                    "后端按 appCode 返回拍拍伴读通知。",
                     "2026-04-17T00:00:00Z",
                     "2026-06-24T00:00:00Z",
                     true,
@@ -151,12 +151,12 @@ class ReadingAnnouncementCompatControllerWebMvcTest {
             ));
 
         mockMvc.perform(get("/api/v1/announcements")
-                .param("appCode", "fitmystery")
+                .param("appCode", "paipai_readingcompanion")
                 .param("windowDays", "7")
                 .param("scene", "app_launch")
                 .param("activeOnly", "true"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data[0].announcementUuid").value("fit-notice"))
+            .andExpect(jsonPath("$.data[0].announcementUuid").value("reading-notice"))
             .andExpect(jsonPath("$.data[0].active").value(true));
     }
 

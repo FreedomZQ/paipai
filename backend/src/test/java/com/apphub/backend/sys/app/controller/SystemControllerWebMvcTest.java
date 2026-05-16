@@ -79,11 +79,9 @@ class SystemControllerWebMvcTest {
     @BeforeEach
     void setUp() {
         AppModule readingModule = appModule("paipai_readingcompanion", "reading", "reading_", "/api/v1");
-        AppModule savingModule = appModule("saving", "saving", "saving_", "/v1");
-        org.mockito.BDDMockito.given(appModuleRegistry.activeModules()).willReturn(List.of(readingModule, savingModule));
+        org.mockito.BDDMockito.given(appModuleRegistry.activeModules()).willReturn(List.of(readingModule));
         org.mockito.BDDMockito.given(powerSyncAppAdapterRegistry.activeAdapters()).willReturn(List.of(
-            appPowerSyncAdapter(readingModule, "child_profile", "review_card", "review_event", "usage_session", "user_preference"),
-            appPowerSyncAdapter(savingModule, "saving_goal")
+            appPowerSyncAdapter(readingModule, "child_profile", "review_card", "review_event", "usage_session", "user_preference")
         ));
         org.mockito.BDDMockito.given(sysRemoteConfigService.loadNamespace("paipai_readingcompanion", "release_ios"))
             .willReturn(new RemoteConfigNamespaceView(
@@ -104,8 +102,6 @@ class SystemControllerWebMvcTest {
                     )
                 )
             ));
-        overrideAppDefinition("saving", raw -> raw.put("app.release.requiredForCurrentWave", "false"));
-        overrideAppDefinition("fitmystery", raw -> raw.put("app.release.requiredForCurrentWave", "false"));
         overrideReadingDefinition(raw -> {
             raw.put("app.auth.apple.clientId", "com.paipai.readalong.v2");
             raw.put("app.billing.appstore.bundleId", "com.paipai.readalong.v2");
@@ -120,10 +116,9 @@ class SystemControllerWebMvcTest {
         @Primary
         AppCatalogProperties appCatalogProperties() {
             AppCatalogProperties properties = new AppCatalogProperties();
-            properties.setSupported(List.of("paipai_readingcompanion", "saving"));
+            properties.setSupported(List.of("paipai_readingcompanion"));
             Map<String, String> definitions = new LinkedHashMap<>();
             definitions.put("paipai_readingcompanion", "classpath:apps/reading/app-definition.yml");
-            definitions.put("saving", "classpath:apps/saving/app-definition.yml");
             properties.setDefinitions(definitions);
             return properties;
         }
@@ -186,7 +181,7 @@ class SystemControllerWebMvcTest {
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.data.status").value("ok"))
             .andExpect(jsonPath("$.data.supportedApps[0]").value("paipai_readingcompanion"))
-            .andExpect(jsonPath("$.data.supportedApps[1]").value("saving"));
+            .andExpect(jsonPath("$.data.supportedApps.length()").value(1));
     }
 
     @Test
@@ -194,7 +189,7 @@ class SystemControllerWebMvcTest {
         mockMvc.perform(get("/api/v1/system/apps"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].code").value("paipai_readingcompanion"))
-            .andExpect(jsonPath("$.data[1].code").value("saving"));
+            .andExpect(jsonPath("$.data.length()").value(1));
     }
 
     @Test
@@ -477,7 +472,7 @@ class SystemControllerWebMvcTest {
         mockMvc.perform(get("/api/v1/system/apple/ops-gates"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data[0].appCode").value("paipai_readingcompanion"))
-            .andExpect(jsonPath("$.data[1].appCode").value("saving"));
+            .andExpect(jsonPath("$.data.length()").value(1));
     }
 
     @Test
@@ -519,7 +514,6 @@ class SystemControllerWebMvcTest {
             .andExpect(jsonPath("$.data.externalStatus").value("blocked"))
             .andExpect(jsonPath("$.data.codeBlockers", hasSize(0)))
             .andExpect(jsonPath("$.data.externalBlockers", hasItem("paipai_readingcompanion: auth.apple.teamId missing")))
-            .andExpect(jsonPath("$.data.externalBlockers", not(hasItem("saving: billing.appstore.bundleId missing"))))
             .andExpect(jsonPath("$.data.environment").value("dev"))
             .andExpect(jsonPath("$.data.appCount").value(1))
             .andExpect(jsonPath("$.data.blockedAppCount").value(1))
@@ -530,9 +524,9 @@ class SystemControllerWebMvcTest {
             .andExpect(jsonPath("$.data.checks[2].key").value("powerSyncAdapterTemplates"))
             .andExpect(jsonPath("$.data.checks[2].status").value("ready"))
             .andExpect(jsonPath("$.data.checks[5].key").value("publicSurface"))
-            .andExpect(jsonPath("$.data.checks[5].currentValue").value("7 endpoints"))
+            .andExpect(jsonPath("$.data.checks[5].currentValue").value("5 endpoints"))
             .andExpect(jsonPath("$.data.checks[6].key").value("releaseScope"))
-            .andExpect(jsonPath("$.data.checks[6].currentValue").value("included=[paipai_readingcompanion], excluded=[saving, fitmystery]"))
+            .andExpect(jsonPath("$.data.checks[6].currentValue").value("included=[paipai_readingcompanion], excluded=[]"))
             .andExpect(jsonPath("$.data.apps", hasSize(1)))
             .andExpect(jsonPath("$.data.apps[0].appCode").value("paipai_readingcompanion"))
             .andExpect(jsonPath("$.data.apps[0].blockers").isArray());
@@ -753,14 +747,12 @@ class SystemControllerWebMvcTest {
     void publicSurfaceShouldReturnIntentionalPublicEndpoints() throws Exception {
         mockMvc.perform(get("/api/v1/system/public-surface"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.endpoints", hasSize(7)))
+            .andExpect(jsonPath("$.data.endpoints", hasSize(5)))
             .andExpect(jsonPath("$.data.endpoints[0].path").value("/api/v1/system/healthz"))
             .andExpect(jsonPath("$.data.endpoints[1].path").value("/actuator/health"))
             .andExpect(jsonPath("$.data.endpoints[2].path").value("/api/v1/system/auth/apps/{appCode}/apple/exchange"))
-            .andExpect(jsonPath("$.data.endpoints[3].path").value("/v1/users/bootstrap"))
-            .andExpect(jsonPath("$.data.endpoints[4].path").value("/api/v1/system/appstore/apps/{appCode}/notifications"))
-            .andExpect(jsonPath("$.data.endpoints[5].path").value("/api/v1/webhooks/app-store/notifications"))
-            .andExpect(jsonPath("$.data.endpoints[6].path").value("/v1/appstore/notifications"));
+            .andExpect(jsonPath("$.data.endpoints[3].path").value("/api/v1/system/appstore/apps/{appCode}/notifications"))
+            .andExpect(jsonPath("$.data.endpoints[4].path").value("/api/v1/webhooks/app-store/notifications"));
     }
 
     @Test
@@ -769,7 +761,7 @@ class SystemControllerWebMvcTest {
 
         mockMvc.perform(get("/api/v1/system/public-surface"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.endpoints", hasSize(8)))
+            .andExpect(jsonPath("$.data.endpoints", hasSize(6)))
             .andExpect(jsonPath("$.data.endpoints[3].path").value("/api/v1/system/auth/apps/{appCode}/sessions/demo"))
             .andExpect(jsonPath("$.data.endpoints[3].exposure").value("public_when_app_explicitly_enables_demo"));
     }

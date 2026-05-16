@@ -59,12 +59,12 @@ class AppDefinitionServiceTest {
     @Test
     void shouldApplyEnvironmentOverridesForPublicAuthPolicy() {
         MockEnvironment environment = new MockEnvironment()
-            .withProperty("backend.apps.saving.app.auth.bootstrapSessionEnabled", "false");
+            .withProperty("backend.apps.paipai_readingcompanion.app.auth.bootstrapSessionEnabled", "false");
         AppDefinitionService service = new AppDefinitionService(appCatalogProperties(), new DefaultResourceLoader(), environment);
         service.afterPropertiesSet();
 
-        AppDefinition saving = service.get("saving").orElseThrow();
-        assertThat(saving.raw().get("app.auth.bootstrapSessionEnabled")).isEqualTo("false");
+        AppDefinition reading = service.get("paipai_readingcompanion").orElseThrow();
+        assertThat(reading.raw().get("app.auth.bootstrapSessionEnabled")).isEqualTo("false");
     }
 
     @Test
@@ -86,10 +86,9 @@ class AppDefinitionServiceTest {
 
     private AppCatalogProperties appCatalogProperties() {
         AppCatalogProperties properties = new AppCatalogProperties();
-        properties.setSupported(List.of("paipai_readingcompanion", "saving"));
+        properties.setSupported(List.of("paipai_readingcompanion"));
         Map<String, String> definitions = new LinkedHashMap<>();
         definitions.put("paipai_readingcompanion", "classpath:apps/reading/app-definition.yml");
-        definitions.put("saving", "classpath:apps/saving/app-definition.yml");
         properties.setDefinitions(definitions);
         return properties;
     }

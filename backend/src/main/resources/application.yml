@@ -62,14 +62,9 @@ backend:
     # 当前统一后端支持的 appCode 列表
     supported:
       - paipai_readingcompanion
-      - saving
-      - fitmystery
     definitions:
       # 每个 appCode 对应的 app-definition 配置文件位置
       paipai_readingcompanion: classpath:apps/reading/app-definition.yml
-      saving: classpath:apps/saving/app-definition.yml
-      # FitMystery 默认以 development scaffold 进入清单；正式上线前用环境变量开启 Apple/IAP required，避免影响既有 App 生产启动。
-      fitmystery: classpath:apps/fitmystery/app-definition.yml
     paipai_readingcompanion:
       admin:
         # 拍拍伴读低运维管理接口 token；为空时管理接口拒绝访问。

@@ -66,11 +66,10 @@ class SystemOpsTokenFailClosedWebMvcTest {
         @Bean
         AppCatalogProperties appCatalogProperties() {
             AppCatalogProperties properties = new AppCatalogProperties();
-            properties.setSupported(List.of("paipai_readingcompanion", "saving"));
+            properties.setSupported(List.of("paipai_readingcompanion"));
             Map<String, String> definitions = new LinkedHashMap<>();
             definitions.put("paipai_readingcompanion", "classpath:apps/reading/app-definition.yml");
-            definitions.put("saving", "classpath:apps/saving/app-definition.yml");
-            properties.setDefinitions(definitions);
+                        properties.setDefinitions(definitions);
             return properties;
         }
     }

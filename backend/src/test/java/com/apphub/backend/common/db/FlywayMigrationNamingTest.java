@@ -40,10 +40,10 @@ class FlywayMigrationNamingTest {
         assertThat(versions).doesNotHaveDuplicates();
         List<Integer> expected = IntStream.rangeClosed(1, versions.get(versions.size() - 1)).boxed().toList();
         List<Integer> missing = expected.stream().filter(version -> !versions.contains(version)).toList();
-        // V1 是当前首发库的合并基线；V2~V17 是旧开发期迁移号段，已被合并进 V1。
+        // V1 是当前首发库的合并基线；V2~V38 是旧开发期迁移号段，已被合并进 V1 或随非拍拍模块清理删除。
         // 不补空迁移文件，避免已经执行过 V18 的环境在 Flyway 校验时出现“低版本未应用”的运维风险。
         // 新增迁移仍必须从当前最大版本继续递增，并且不得重复。
-        assertThat(missing).containsExactlyElementsOf(List.of(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17));
+        assertThat(missing).containsExactlyElementsOf(IntStream.rangeClosed(2, 38).boxed().toList());
     }
 
     private static Integer version(String filename) {

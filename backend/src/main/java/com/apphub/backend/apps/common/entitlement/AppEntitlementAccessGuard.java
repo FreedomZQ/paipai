@@ -15,7 +15,7 @@ import java.util.Map;
  *
  * <p>个人开发者低运维原则：这里不做复杂 Policy Engine，只把统一计费内核的 active entitlement
  * 转成每个业务模块可消费的 backend-verified decision / proof。具体 feature 需要哪些 plan/entitlement，
- * 仍由各 App 自己的 DB 配置 namespace 决定，避免 saving 与拍拍伴读权益口径互相污染。</p>
+ * 仍由各 App 自己的 DB 配置 namespace 决定，避免不同 App 的权益口径互相污染。</p>
  */
 public final class AppEntitlementAccessGuard {
     private AppEntitlementAccessGuard() {}

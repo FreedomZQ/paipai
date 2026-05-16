@@ -529,6 +529,8 @@ public class ReadingCloudUsageService {
     private ActiveEntitlementView toActiveEntitlementView(ReadingCloudServiceCreditGrantEntity entity) {
         int total = value(entity.getTotalCount());
         int used = Math.min(value(entity.getUsedCount()), total);
+        boolean expired = entity.getExpiresAt() != null && entity.getExpiresAt().isBefore(now());
+        int remaining = expired ? 0 : Math.max(total - used, 0);
         String acquireMethod = switch (entity.getSourceType() == null ? "" : entity.getSourceType()) {
             case "internal_purchase" -> "内部购买";
             case "admin" -> "后台赠送";
@@ -541,7 +543,7 @@ public class ReadingCloudUsageService {
             acquireMethod,
             total,
             used,
-            Math.max(total - used, 0),
+            remaining,
             entity.getCreatedAt() == null ? "" : entity.getCreatedAt().toString(),
             entity.getExpiresAt() == null ? "" : entity.getExpiresAt().toString(),
             entity.getProductCode()

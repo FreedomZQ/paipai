@@ -9,8 +9,6 @@ package com.apphub.backend.sys.app.model;
  */
 public final class AppCodes {
     public static final String PAIPAI_READINGCOMPANION = "paipai_readingcompanion";
-    public static final String SAVING = "saving";
-    public static final String FITMYSTERY = "fitmystery";
 
     private AppCodes() {
     }

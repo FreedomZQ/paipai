@@ -167,11 +167,11 @@ class SysBillingControllerWebMvcTest {
         when(appDefinitionService.get("paipai_readingcompanion")).thenReturn(Optional.of(appDefinition()));
         when(sysAuthSessionService.findCurrentSession("token-123"))
             .thenReturn(Optional.of(new AuthenticatedSessionView(
-                "saving",
+                "other_app",
                 "demo",
                 "active",
                 OffsetDateTime.parse("2026-05-16T00:00:00Z"),
-                new CurrentUserView(101L, "saving", "guest", "Guest", "active")
+                new CurrentUserView(101L, "other_app", "guest", "Guest", "active")
             )));
 
         mockMvc.perform(post("/api/v1/system/billing/apps/paipai_readingcompanion/purchases/verify")

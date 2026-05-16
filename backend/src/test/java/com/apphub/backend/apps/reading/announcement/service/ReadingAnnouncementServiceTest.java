@@ -119,11 +119,11 @@ class ReadingAnnouncementServiceTest {
         ReadingAnnouncementEntity active = announcement("uuid-active", "当前公告", now.minusHours(1), now.plusDays(1));
         ReadingAnnouncementEntity expired = announcement("uuid-expired", "过期公告", now.minusDays(5), now.minusDays(1));
 
-        when(mapper.selectRecentPublished(eq("fitmystery"), any(), any()))
+        when(mapper.selectRecentPublished(eq("paipai_readingcompanion"), any(), any()))
             .thenReturn(List.of(active, expired));
 
         ReadingAnnouncementService service = new ReadingAnnouncementService(mapper);
-        var items = service.listRecent("fitmystery", 7, "app_launch", null, null, null, true);
+        var items = service.listRecent("paipai_readingcompanion", 7, "app_launch", null, null, null, true);
 
         assertThat(items).hasSize(1);
         assertThat(items.get(0).announcementUuid()).isEqualTo("uuid-active");

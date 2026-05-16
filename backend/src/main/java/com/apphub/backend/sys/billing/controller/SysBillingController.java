@@ -49,7 +49,7 @@ public class SysBillingController {
 
     @Operation(summary = "查询权益", description = "查询当前用户在指定应用下的权益快照。")
     @GetMapping("/apps/{appCode}/entitlements")
-    public ApiResponse<EntitlementOverviewView> entitlements(@Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode, @Parameter(hidden = true) HttpServletRequest request) {
+    public ApiResponse<EntitlementOverviewView> entitlements(@Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode, @Parameter(hidden = true) HttpServletRequest request) {
         AuthenticatedSessionView session = requireSession(appCode, request);
         return ApiResponse.success(
             currentRequestId(),
@@ -59,7 +59,7 @@ public class SysBillingController {
 
     @Operation(summary = "刷新权益", description = "刷新当前用户在指定应用下的权益投影。")
     @PostMapping("/apps/{appCode}/entitlements/refresh")
-    public ApiResponse<EntitlementRefreshResultView> refreshEntitlements(@Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode, @Parameter(hidden = true) HttpServletRequest request) {
+    public ApiResponse<EntitlementRefreshResultView> refreshEntitlements(@Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode, @Parameter(hidden = true) HttpServletRequest request) {
         AuthenticatedSessionView session = requireSession(appCode, request);
         return ApiResponse.success(
             currentRequestId(),
@@ -70,7 +70,7 @@ public class SysBillingController {
     @Operation(summary = "验证购买交易", description = "接收交易签名信息并提交统一计费服务验证。")
     @PostMapping("/apps/{appCode}/purchases/verify")
     public ApiResponse<PurchaseIntakeAcceptedView> verify(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Valid @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "接口请求体，字段中文说明和示例见 DTO Schema；未特别说明时由当前登录用户上下文补齐 userId。", required = true) @RequestBody PurchaseVerifyRequest request,
         @Parameter(hidden = true) HttpServletRequest httpServletRequest
     ) {
@@ -84,7 +84,7 @@ public class SysBillingController {
     @Operation(summary = "恢复购买交易", description = "接收恢复购买交易列表并提交统一计费服务处理。")
     @PostMapping("/apps/{appCode}/purchases/restore")
     public ApiResponse<PurchaseRestoreAcceptedView> restore(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Valid @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "接口请求体，字段中文说明和示例见 DTO Schema；未特别说明时由当前登录用户上下文补齐 userId。", required = true) @RequestBody PurchaseRestoreRequest request,
         @Parameter(hidden = true) HttpServletRequest httpServletRequest
     ) {

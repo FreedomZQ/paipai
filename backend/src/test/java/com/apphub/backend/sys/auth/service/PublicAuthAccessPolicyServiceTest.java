@@ -48,10 +48,10 @@ class PublicAuthAccessPolicyServiceTest {
     void bootstrapSessionsShouldDefaultToEnabled() {
         PublicAuthAccessPolicyService service = new PublicAuthAccessPolicyService("prod");
         AppDefinition definition = new AppDefinition(
-            "saving",
-            "省钱项目",
+            "example",
+            "示例应用",
             "/v1",
-            "saving_",
+            "example_",
             new AppDefinition.Support(true, false, true),
             Map.of()
         );
@@ -63,10 +63,10 @@ class PublicAuthAccessPolicyServiceTest {
     void bootstrapSessionsShouldRespectExplicitDisable() {
         PublicAuthAccessPolicyService service = new PublicAuthAccessPolicyService("dev");
         AppDefinition definition = new AppDefinition(
-            "saving",
-            "省钱项目",
+            "example",
+            "示例应用",
             "/v1",
-            "saving_",
+            "example_",
             new AppDefinition.Support(true, false, true),
             Map.of("app.auth.bootstrapSessionEnabled", "false")
         );

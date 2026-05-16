@@ -2,7 +2,6 @@ package com.apphub.backend.sys.app.service;
 
 import com.apphub.backend.sys.app.model.AppAppleReadinessView;
 import com.apphub.backend.sys.app.model.AppDefinition;
-import com.apphub.backend.sys.auth.service.PublicAuthAccessPolicyService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -29,15 +28,11 @@ class SystemProductionConfigurationGuardTest {
     @Mock
     private AppAppleReadinessService appAppleReadinessService;
 
-    @Mock
-    private PublicAuthAccessPolicyService publicAuthAccessPolicyService;
-
     @Test
     void shouldDoNothingOutsideProd() {
         SystemProductionConfigurationGuard guard = new SystemProductionConfigurationGuard(
             appDefinitionService,
             appAppleReadinessService,
-            publicAuthAccessPolicyService,
             "dev",
             "",
             "health,info,metrics",
@@ -57,7 +52,6 @@ class SystemProductionConfigurationGuardTest {
         SystemProductionConfigurationGuard guard = new SystemProductionConfigurationGuard(
             appDefinitionService,
             appAppleReadinessService,
-            publicAuthAccessPolicyService,
             "prod",
             "",
             "health,info",
@@ -77,36 +71,12 @@ class SystemProductionConfigurationGuardTest {
     @Test
     void shouldPassWhenProdConfigurationIsSafe() {
         AppDefinition reading = readingDefinition();
-        AppDefinition saving = savingDefinition();
-        when(appDefinitionService.list()).thenReturn(List.of(reading, saving));
+        when(appDefinitionService.list()).thenReturn(List.of(reading));
         when(appAppleReadinessService.inspect(reading)).thenReturn(readyReadiness(false));
-        when(appAppleReadinessService.inspect(saving)).thenReturn(notRequiredReadiness());
-        when(publicAuthAccessPolicyService.bootstrapSessionsEnabled(saving)).thenReturn(true);
 
         SystemProductionConfigurationGuard guard = new SystemProductionConfigurationGuard(
             appDefinitionService,
             appAppleReadinessService,
-            publicAuthAccessPolicyService,
-            "prod",
-            "ops-token",
-            "health",
-            false,
-            false
-        );
-
-        assertThatCode(guard::validateOrThrow).doesNotThrowAnyException();
-    }
-
-    @Test
-    void shouldAllowAppleOnlySavingWithBootstrapDisabledInProd() {
-        AppDefinition saving = savingAppleOnlyDefinition();
-        when(appDefinitionService.list()).thenReturn(List.of(saving));
-        when(appAppleReadinessService.inspect(saving)).thenReturn(readyReadiness(false));
-
-        SystemProductionConfigurationGuard guard = new SystemProductionConfigurationGuard(
-            appDefinitionService,
-            appAppleReadinessService,
-            publicAuthAccessPolicyService,
             "prod",
             "ops-token",
             "health",
@@ -123,28 +93,6 @@ class SystemProductionConfigurationGuardTest {
             "拍拍伴读",
             "/api/v1",
             "reading_",
-            new AppDefinition.Support(true, true, true),
-            Map.of()
-        );
-    }
-
-    private AppDefinition savingDefinition() {
-        return new AppDefinition(
-            "saving",
-            "省钱项目",
-            "/v1",
-            "saving_",
-            new AppDefinition.Support(true, false, true),
-            Map.of()
-        );
-    }
-
-    private AppDefinition savingAppleOnlyDefinition() {
-        return new AppDefinition(
-            "saving",
-            "省省星球",
-            "/v1",
-            "saving_",
             new AppDefinition.Support(true, true, true),
             Map.of()
         );
@@ -172,14 +120,4 @@ class SystemProductionConfigurationGuardTest {
         );
     }
 
-    private AppAppleReadinessView notRequiredReadiness() {
-        return new AppAppleReadinessView(
-            "saving",
-            "ready",
-            new AppAppleReadinessView.AppleAuthReadiness("not_required", false, false, false, false, false, false, false, false, false, false, false, false, false),
-            new AppAppleReadinessView.AppStoreReadiness("ready", true, true, true, false, true, true, true, true, true),
-            List.of(),
-            List.of()
-        );
-    }
 }

@@ -1,9 +1,6 @@
 package com.apphub.backend.sys.app.service;
-
-import com.apphub.backend.apps.saving.SavingAppModule;
 import com.apphub.backend.sys.app.model.AppAppleReadinessView;
 import com.apphub.backend.sys.app.model.AppDefinition;
-import com.apphub.backend.sys.auth.service.PublicAuthAccessPolicyService;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,7 +19,6 @@ public class SystemProductionConfigurationGuard implements InitializingBean {
 
     private final AppDefinitionService appDefinitionService;
     private final AppAppleReadinessService appAppleReadinessService;
-    private final PublicAuthAccessPolicyService publicAuthAccessPolicyService;
     private final String environment;
     private final String opsToken;
     private final String actuatorExposure;
@@ -32,7 +28,6 @@ public class SystemProductionConfigurationGuard implements InitializingBean {
     public SystemProductionConfigurationGuard(
         AppDefinitionService appDefinitionService,
         AppAppleReadinessService appAppleReadinessService,
-        PublicAuthAccessPolicyService publicAuthAccessPolicyService,
         @Value("${backend.environment:${BACKEND_ENV:dev}}") String environment,
         @Value("${backend.ops.token:${BACKEND_OPS_TOKEN:}}") String opsToken,
         @Value("${management.endpoints.web.exposure.include:health,info,metrics}") String actuatorExposure,
@@ -41,7 +36,6 @@ public class SystemProductionConfigurationGuard implements InitializingBean {
     ) {
         this.appDefinitionService = appDefinitionService;
         this.appAppleReadinessService = appAppleReadinessService;
-        this.publicAuthAccessPolicyService = publicAuthAccessPolicyService;
         this.environment = environment;
         this.opsToken = opsToken;
         this.actuatorExposure = actuatorExposure;
@@ -78,11 +72,6 @@ public class SystemProductionConfigurationGuard implements InitializingBean {
             }
             if (definition.support().billingRequired() && !readiness.appStore().productionSandboxSafe()) {
                 blockers.add(definition.code() + ": billing.appstore.allowSandbox must be false in production");
-            }
-            if (SavingAppModule.APP_CODE.equals(definition.code())
-                && !definition.support().appleSignInRequired()
-                && !publicAuthAccessPolicyService.bootstrapSessionsEnabled(definition)) {
-                blockers.add(SavingAppModule.APP_CODE + ": public.bootstrapSession disabled");
             }
         }
 

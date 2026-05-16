@@ -4,7 +4,7 @@
 # 作用：在干净 PostgreSQL 容器中用 Flyway 执行全部迁移，验证：
 # - Flyway 能成功解析并执行初始化文件与后续增量迁移；
 # - `${API_KEY}` 这类需要保留给运行时替换的字面值没有被 Flyway placeholder 误吞；
-# - Paipai / saving / 多 App 首发所需的核心表、remote config、公告与 usage policy 种子数据存在。
+# - 拍拍伴读首发所需的核心表、remote config、公告与 usage policy 种子数据存在。
 #
 # 该脚本不依赖本机 Postgres，适合个人开发者本地/CI 低运维运行。需要 Docker。
 set -euo pipefail

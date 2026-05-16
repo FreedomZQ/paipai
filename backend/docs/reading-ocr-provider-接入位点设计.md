@@ -52,7 +52,7 @@
 /home/admin/code/app/backend/src/main/java/com/apphub/backend/apps/reading/...
 ```
 
-不要混进 saving 或 system 公共域。
+不要混进非拍拍项目或 system 公共域。
 
 推荐后续目录结构：
 

@@ -17,9 +17,7 @@ import org.springframework.context.annotation.Configuration;
     "com.apphub.backend.sys.compensation.mapper",
     "com.apphub.backend.sys.appstore.mapper",
     "com.apphub.backend.sys.powersync.mapper",
-    "com.apphub.backend.apps.reading.domain.mapper",
-    "com.apphub.backend.apps.saving.domain.mapper",
-    "com.apphub.backend.apps.fitmystery.domain.mapper"
+    "com.apphub.backend.apps.reading.domain.mapper"
 })
 public class MybatisPlusConfig {
 }

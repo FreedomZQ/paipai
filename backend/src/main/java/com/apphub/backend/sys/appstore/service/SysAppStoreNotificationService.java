@@ -1,7 +1,5 @@
 package com.apphub.backend.sys.appstore.service;
 
-import com.apphub.backend.apps.fitmystery.FitMysteryAppModule;
-import com.apphub.backend.apps.fitmystery.purchase.FitMysteryPurchaseService;
 import com.apphub.backend.common.util.Sha256HashService;
 import com.apphub.backend.sys.billing.service.SysBillingService;
 import com.apphub.backend.sys.appstore.entity.SysAppStoreNotificationEntity;
@@ -11,7 +9,6 @@ import com.apphub.backend.sys.appstore.model.AppStoreNotificationIngestRequest;
 import com.apphub.backend.sys.appstore.model.AppStoreNotificationObservabilityView;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -41,7 +38,6 @@ public class SysAppStoreNotificationService {
     private final ObjectMapper objectMapper;
     private final AppStoreJwsVerificationService appStoreJwsVerificationService;
     private final SysBillingService sysBillingService;
-    private final ObjectProvider<FitMysteryPurchaseService> fitMysteryPurchaseServiceProvider;
 
     @Autowired
     public SysAppStoreNotificationService(
@@ -49,15 +45,13 @@ public class SysAppStoreNotificationService {
         Sha256HashService sha256HashService,
         ObjectMapper objectMapper,
         AppStoreJwsVerificationService appStoreJwsVerificationService,
-        SysBillingService sysBillingService,
-        ObjectProvider<FitMysteryPurchaseService> fitMysteryPurchaseServiceProvider
+        SysBillingService sysBillingService
     ) {
         this.appStoreNotificationCrudService = appStoreNotificationCrudService;
         this.sha256HashService = sha256HashService;
         this.objectMapper = objectMapper;
         this.appStoreJwsVerificationService = appStoreJwsVerificationService;
         this.sysBillingService = sysBillingService;
-        this.fitMysteryPurchaseServiceProvider = fitMysteryPurchaseServiceProvider;
     }
 
     public AppStoreNotificationObservabilityView describeObservability(String appCode) {
@@ -103,7 +97,7 @@ public class SysAppStoreNotificationService {
         SysBillingService.NotificationReconcileResult reconcileResult = verificationResult.claims() == null || !"verified".equalsIgnoreCase(verificationResult.verificationStatus())
             ? new SysBillingService.NotificationReconcileResult("skipped_notification_not_verified", false, null, null, null)
             : sysBillingService.reconcileVerifiedNotification(appCode, verificationResult.claims(), payloadBody(request));
-        Map<String, Object> appSpecificGrant = grantFitMysteryConsumableIfNeeded(appCode, verificationResult, reconcileResult);
+        Map<String, Object> appSpecificGrant = Map.of("status", "skipped");
 
         OffsetDateTime now = now();
         SysAppStoreNotificationEntity entity = new SysAppStoreNotificationEntity();
@@ -150,32 +144,6 @@ public class SysAppStoreNotificationService {
             }
             throw ex;
         }
-    }
-
-    private Map<String, Object> grantFitMysteryConsumableIfNeeded(
-        String appCode,
-        AppStoreJwsVerificationService.NotificationVerificationResult verificationResult,
-        SysBillingService.NotificationReconcileResult reconcileResult
-    ) {
-        if (!FitMysteryAppModule.APP_CODE.equals(appCode)
-            || verificationResult == null
-            || verificationResult.claims() == null
-            || reconcileResult == null
-            || !reconcileResult.verified()
-            || reconcileResult.userId() == null) {
-            return Map.of("status", "skipped");
-        }
-        FitMysteryPurchaseService service = fitMysteryPurchaseServiceProvider.getIfAvailable();
-        if (service == null) {
-            return Map.of("status", "skipped_service_unavailable");
-        }
-        AppStoreJwsVerificationService.NotificationClaims claims = verificationResult.claims();
-        return service.grantConsumableFromVerifiedNotification(
-            reconcileResult.userId(),
-            claims.productId(),
-            claims.transactionId(),
-            firstNonBlank(claims.originalTransactionId(), reconcileResult.originalTransactionId())
-        );
     }
 
     private Map<String, Object> payloadBody(AppStoreNotificationIngestRequest request) {

@@ -15,8 +15,7 @@ import java.util.Map;
 /**
  * 多应用通用购买权限服务。
  *
- * <p>该服务只读取 `sys_remote_config` 中的 `billing_purchase_control` 命名空间，不绑定拍拍伴读、
- * 省钱星球或 FitMystery 的业务表。每个 App 可通过 appCode 配置全局购买开关，也可通过
+ * <p>该服务只读取 `sys_remote_config` 中的 `billing_purchase_control` 命名空间，不绑定任何单个 App 的业务表。每个 App 可通过 appCode 配置全局购买开关，也可通过
  * `products.{productCode}` 配置单个购买项状态，前端和购买提交接口共用同一个实时判定结果。
  */
 @Service

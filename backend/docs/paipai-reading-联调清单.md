@@ -33,7 +33,7 @@
 /home/admin/code/app/backend/src/main/java/com/apphub/backend/apps/reading/...
 ```
 
-没有混入 saving 项目或 system 公共业务域。
+没有混入非拍拍项目或 system 公共业务域。
 
 ### 2.2 对齐状态判断
 

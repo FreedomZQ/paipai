@@ -38,7 +38,7 @@ public class SysConfigCenterController {
     @Operation(summary = "查询远程配置命名空间", description = "按应用编码和命名空间读取 active 远程配置。")
     @GetMapping("/{appCode}/{namespaceCode}")
     public ApiResponse<RemoteConfigNamespaceView> namespace(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Parameter(description = "远程配置命名空间编码。示例：release_ios", example = "release_ios") @PathVariable String namespaceCode
     ) {
         appDefinitionService.get(appCode).orElseThrow(() -> new AppNotFoundException(appCode));

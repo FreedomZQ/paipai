@@ -50,8 +50,7 @@ class SysAppStoreNotificationServiceTest {
             sha256HashService,
             new ObjectMapper(),
             appStoreJwsVerificationService,
-            sysBillingService,
-            org.mockito.Mockito.mock(org.springframework.beans.factory.ObjectProvider.class)
+            sysBillingService
         );
     }
 

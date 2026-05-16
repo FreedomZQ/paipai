@@ -62,19 +62,19 @@ class SysAuthControllerWebMvcTest {
 
     @Test
     void createDemoSessionShouldReturnCreatedSession() throws Exception {
-        when(appDefinitionService.get("saving"))
-            .thenReturn(Optional.of(appDefinition("saving", "/v1", "saving_", Map.of("app.auth.demoSessionEnabled", "true"))));
+        when(appDefinitionService.get("other_app"))
+            .thenReturn(Optional.of(appDefinition("other_app", "/v1", "other_", Map.of("app.auth.demoSessionEnabled", "true"))));
         when(publicAuthAccessPolicyService.demoSessionsEnabled(any(AppDefinition.class))).thenReturn(true);
-        when(sysAuthSessionService.createDemoSession(eq("saving"), any(DemoSessionCreateRequest.class)))
+        when(sysAuthSessionService.createDemoSession(eq("other_app"), any(DemoSessionCreateRequest.class)))
             .thenReturn(new DemoSessionCreatedView(
-                "saving",
+                "other_app",
                 "demo",
                 "token-123",
                 OffsetDateTime.parse("2026-05-16T00:00:00Z"),
-                new CurrentUserView(101L, "saving", "guest", "Test Guest", "active")
+                new CurrentUserView(101L, "other_app", "guest", "Test Guest", "active")
             ));
 
-        mockMvc.perform(post("/api/v1/system/auth/apps/saving/sessions/demo")
+        mockMvc.perform(post("/api/v1/system/auth/apps/other_app/sessions/demo")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -85,7 +85,7 @@ class SysAuthControllerWebMvcTest {
                     """))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.success").value(true))
-            .andExpect(jsonPath("$.data.appCode").value("saving"))
+            .andExpect(jsonPath("$.data.appCode").value("other_app"))
             .andExpect(jsonPath("$.data.sessionSource").value("demo"))
             .andExpect(jsonPath("$.data.sessionToken").value("token-123"))
             .andExpect(jsonPath("$.data.user.displayName").value("Test Guest"));
@@ -190,8 +190,8 @@ class SysAuthControllerWebMvcTest {
 
     @Test
     void meForAppShouldRejectMismatchedSessionAppCode() throws Exception {
-        when(appDefinitionService.get("saving"))
-            .thenReturn(Optional.of(appDefinition("saving", "/v1", "saving_")));
+        when(appDefinitionService.get("other_app"))
+            .thenReturn(Optional.of(appDefinition("other_app", "/v1", "other_")));
         when(sysAuthSessionService.findCurrentSession("token-123"))
             .thenReturn(Optional.of(new AuthenticatedSessionView(
                 "paipai_readingcompanion",
@@ -201,7 +201,7 @@ class SysAuthControllerWebMvcTest {
                 new CurrentUserView(101L, "paipai_readingcompanion", "member", "Apple User", "active")
             )));
 
-        mockMvc.perform(get("/api/v1/system/auth/apps/saving/me")
+        mockMvc.perform(get("/api/v1/system/auth/apps/other_app/me")
                 .header("Authorization", "Bearer token-123"))
             .andExpect(status().isForbidden());
     }
@@ -250,8 +250,8 @@ class SysAuthControllerWebMvcTest {
 
     @Test
     void logoutForAppShouldRejectMismatchedSessionAppCode() throws Exception {
-        when(appDefinitionService.get("saving"))
-            .thenReturn(Optional.of(appDefinition("saving", "/v1", "saving_")));
+        when(appDefinitionService.get("other_app"))
+            .thenReturn(Optional.of(appDefinition("other_app", "/v1", "other_")));
         when(sysAuthSessionService.findCurrentSession("token-123"))
             .thenReturn(Optional.of(new AuthenticatedSessionView(
                 "paipai_readingcompanion",
@@ -261,7 +261,7 @@ class SysAuthControllerWebMvcTest {
                 new CurrentUserView(101L, "paipai_readingcompanion", "member", "Apple User", "active")
             )));
 
-        mockMvc.perform(post("/api/v1/system/auth/apps/saving/logout")
+        mockMvc.perform(post("/api/v1/system/auth/apps/other_app/logout")
                 .header("Authorization", "Bearer token-123"))
             .andExpect(status().isForbidden());
     }
@@ -299,8 +299,8 @@ class SysAuthControllerWebMvcTest {
 
     @Test
     void revokeAppleShouldRejectMismatchedSessionAppCode() throws Exception {
-        when(appDefinitionService.get("saving"))
-            .thenReturn(Optional.of(appDefinition("saving", "/v1", "saving_")));
+        when(appDefinitionService.get("other_app"))
+            .thenReturn(Optional.of(appDefinition("other_app", "/v1", "other_")));
         when(sysAuthSessionService.findCurrentSession("token-123"))
             .thenReturn(Optional.of(new AuthenticatedSessionView(
                 "paipai_readingcompanion",
@@ -310,7 +310,7 @@ class SysAuthControllerWebMvcTest {
                 new CurrentUserView(101L, "paipai_readingcompanion", "member", "Apple User", "active")
             )));
 
-        mockMvc.perform(post("/api/v1/system/auth/apps/saving/apple/revoke")
+        mockMvc.perform(post("/api/v1/system/auth/apps/other_app/apple/revoke")
                 .header("Authorization", "Bearer token-123"))
             .andExpect(status().isForbidden());
     }
@@ -368,8 +368,8 @@ class SysAuthControllerWebMvcTest {
 
     @Test
     void refreshAppleShouldRejectMismatchedSessionAppCode() throws Exception {
-        when(appDefinitionService.get("saving"))
-            .thenReturn(Optional.of(appDefinition("saving", "/v1", "saving_")));
+        when(appDefinitionService.get("other_app"))
+            .thenReturn(Optional.of(appDefinition("other_app", "/v1", "other_")));
         when(sysAuthSessionService.findCurrentSession("token-123"))
             .thenReturn(Optional.of(new AuthenticatedSessionView(
                 "paipai_readingcompanion",
@@ -379,7 +379,7 @@ class SysAuthControllerWebMvcTest {
                 new CurrentUserView(101L, "paipai_readingcompanion", "member", "Apple User", "active")
             )));
 
-        mockMvc.perform(post("/api/v1/system/auth/apps/saving/apple/refresh")
+        mockMvc.perform(post("/api/v1/system/auth/apps/other_app/apple/refresh")
                 .header("Authorization", "Bearer token-123"))
             .andExpect(status().isForbidden());
     }

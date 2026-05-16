@@ -64,7 +64,7 @@ public class SysAuthController {
     @PostMapping("/apps/{appCode}/sessions/demo")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<DemoSessionCreatedView> createDemoSession(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Valid @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "接口请求体，字段中文说明和示例见 DTO Schema；未特别说明时由当前登录用户上下文补齐 userId。", required = false) @RequestBody(required = false) DemoSessionCreateRequest request
     ) {
         var appDefinition = appCompatControllerSupport.requireAppDefinition(appCode);
@@ -82,7 +82,7 @@ public class SysAuthController {
     @PostMapping("/apps/{appCode}/sessions/dev")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<DemoSessionCreatedView> createDevSession(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Valid @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "本地开发会话请求体。", required = false) @RequestBody(required = false) DemoSessionCreateRequest request
     ) {
         if (!localDevelopmentAuthEnabled()) {
@@ -99,7 +99,7 @@ public class SysAuthController {
     @Operation(summary = "Apple 登录换取会话", description = "校验 Apple identity token / authorization code，并在通过后签发正式会话。")
     @PostMapping("/apps/{appCode}/apple/exchange")
     public ApiResponse<AppleExchangePreviewView> exchangeApple(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Valid @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "接口请求体，字段中文说明和示例见 DTO Schema；未特别说明时由当前登录用户上下文补齐 userId。", required = true) @RequestBody AppleExchangeRequest request
     ) {
         var appDefinition = appCompatControllerSupport.requireAppDefinition(appCode);
@@ -110,7 +110,7 @@ public class SysAuthController {
     @Operation(summary = "撤销 Apple 授权", description = "撤销当前会话关联的 Apple provider token，并同步撤销本地会话。")
     @PostMapping("/apps/{appCode}/apple/revoke")
     public ApiResponse<AppleRevokeResultView> revokeApple(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Parameter(hidden = true) HttpServletRequest request
     ) {
         var appDefinition = appCompatControllerSupport.requireAppDefinition(appCode);
@@ -125,7 +125,7 @@ public class SysAuthController {
     @Operation(summary = "刷新 Apple 会话", description = "使用已保存的 Apple provider token 刷新并签发新会话。")
     @PostMapping("/apps/{appCode}/apple/refresh")
     public ApiResponse<AppleSessionRefreshView> refreshApple(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Parameter(hidden = true) HttpServletRequest request
     ) {
         var appDefinition = appCompatControllerSupport.requireAppDefinition(appCode);
@@ -148,7 +148,7 @@ public class SysAuthController {
     @Operation(summary = "查询指定应用的当前会话", description = "根据 bearer token 查询当前账号、会话和权益上下文，并校验会话确实属于 path 中的 appCode。")
     @GetMapping("/apps/{appCode}/me")
     public ApiResponse<AuthenticatedSessionView> meForApp(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Parameter(hidden = true) HttpServletRequest request
     ) {
         AuthenticatedSessionView response = appCompatControllerSupport.requireCurrentSessionForApp(appCode, request);
@@ -167,7 +167,7 @@ public class SysAuthController {
     @Operation(summary = "退出指定应用登录", description = "仅当当前 bearer 会话属于 path 中的 appCode 时才撤销会话，防止客户端误把别的应用会话打到当前应用路由。")
     @PostMapping("/apps/{appCode}/logout")
     public ApiResponse<LogoutResultView> logoutForApp(
-        @Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode,
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
         @Parameter(hidden = true) HttpServletRequest request
     ) {
         AuthenticatedSessionView currentSession = appCompatControllerSupport.requireCurrentSessionForApp(appCode, request);

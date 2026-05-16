@@ -33,7 +33,7 @@ public class AppVersionConfigController {
     @Operation(summary = "查询应用版本策略", description = "客户端启动或进入设置页时按应用编码查询升级提示策略；只返回 App Store 更新提示配置，不做安装包分发。")
     @GetMapping("/app-version")
     public ApiResponse<Map<String, Object>> appVersion(
-                                                       @Parameter(description = "应用编码。示例：saving", example = "saving") @PathVariable String appCode,
+                                                       @Parameter(description = "应用编码。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
                                                        @Parameter(description = "客户端平台。示例：ios", example = "ios") @RequestParam(defaultValue = "ios") String platform,
                                                        @Parameter(description = "客户端展示版本号。示例：1.0.0", example = "1.0.0") @RequestParam(defaultValue = "unknown") String appVersion,
                                                        @Parameter(description = "客户端构建号。示例：100", example = "100") @RequestParam(defaultValue = "unknown") String buildNumber) {

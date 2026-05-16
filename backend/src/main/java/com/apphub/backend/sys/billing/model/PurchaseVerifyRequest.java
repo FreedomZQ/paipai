@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
  */
 @Schema(description = "App Store 购买交易验证请求体。")
 public record PurchaseVerifyRequest(
-    @Schema(description = "商品 ID。", example = "com.savingsplanet.app.pro.monthly") @NotBlank @Size(max = 128) String productId,
+    @Schema(description = "商品 ID。", example = "com.paipai.readalong.family.monthly") @NotBlank @Size(max = 128) String productId,
     @Schema(description = "交易 ID。", example = "2000000123456789") @Size(max = 128) String transactionId,
     @Schema(description = "原始交易 ID，必填。", example = "2000000123000000") @NotBlank @Size(max = 128) String originalTransactionId,
     @Schema(description = "商店环境，例如 Sandbox 或 Production。", example = "Production") @Size(max = 32) String environment,

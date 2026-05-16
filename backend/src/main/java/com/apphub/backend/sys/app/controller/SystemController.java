@@ -128,7 +128,7 @@ public class SystemController {
 
     @Operation(summary = "查询应用详情", description = "按应用编码查询应用定义详情。")
     @GetMapping("/apps/{appCode}")
-    public ApiResponse<AppDefinition> app(@Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode) {
+    public ApiResponse<AppDefinition> app(@Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode) {
         AppDefinition definition = appDefinitionService.get(appCode)
             .orElseThrow(() -> new AppNotFoundException(appCode));
         return ApiResponse.success(currentRequestId(), definition);
@@ -136,7 +136,7 @@ public class SystemController {
 
     @Operation(summary = "查询 Apple 配置就绪状态", description = "查询指定应用 Apple 登录和 Server API 配置是否就绪。")
     @GetMapping("/apps/{appCode}/apple/readiness")
-    public ApiResponse<AppAppleReadinessView> appleReadiness(@Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode) {
+    public ApiResponse<AppAppleReadinessView> appleReadiness(@Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode) {
         AppDefinition definition = appDefinitionService.get(appCode)
             .orElseThrow(() -> new AppNotFoundException(appCode));
         return ApiResponse.success(currentRequestId(), appAppleReadinessService.inspect(definition));
@@ -144,7 +144,7 @@ public class SystemController {
 
     @Operation(summary = "查询 Apple Token 存储状态", description = "查询指定应用 Apple token 加密存储和明文兜底状态。")
     @GetMapping("/apps/{appCode}/apple/token-storage")
-    public ApiResponse<AppAppleTokenStorageView> appleTokenStorage(@Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode) {
+    public ApiResponse<AppAppleTokenStorageView> appleTokenStorage(@Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode) {
         appDefinitionService.get(appCode)
             .orElseThrow(() -> new AppNotFoundException(appCode));
         return ApiResponse.success(currentRequestId(), buildTokenStorage(appCode));
@@ -152,7 +152,7 @@ public class SystemController {
 
     @Operation(summary = "查询单应用 Apple 运维门禁", description = "查询指定应用 Apple 能力是否满足上线前门禁。")
     @GetMapping("/apps/{appCode}/apple/ops-gate")
-    public ApiResponse<AppAppleOpsGateView> appleOpsGate(@Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode) {
+    public ApiResponse<AppAppleOpsGateView> appleOpsGate(@Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode) {
         AppDefinition definition = appDefinitionService.get(appCode)
             .orElseThrow(() -> new AppNotFoundException(appCode));
         return ApiResponse.success(currentRequestId(), buildAppleOpsGate(definition));
@@ -190,7 +190,6 @@ public class SystemController {
         addPublicSurfaceCheck(checks);
         addReleaseScopeCheck(checks, releaseScopedDefinitions);
         addAppReleaseConfigChecks(checks, blockers, warnings);
-        addFitMysteryReleaseChecks(checks, blockers, warnings, releaseScopedDefinitions);
 
         for (AppAppleOpsGateView appGate : appGates) {
             for (String blocker : appGate.blockers()) {
@@ -529,68 +528,6 @@ public class SystemController {
         }
     }
 
-    private void addFitMysteryReleaseChecks(
-        List<SystemReleaseGateView.ReleaseGateCheckView> checks,
-        List<String> blockers,
-        List<String> warnings,
-        List<AppDefinition> releaseScopedDefinitions
-    ) {
-        boolean included = releaseScopedDefinitions.stream().anyMatch(definition -> "fitmystery".equals(definition.code()));
-        if (!included) {
-            checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
-                "fitmystery.compliance",
-                "ready",
-                "FitMystery is not included in the current release-gate wave; app-specific checks are skipped.",
-                "excluded",
-                "include only when app.release.requiredForCurrentWave=true"
-            ));
-            return;
-        }
-        Map<String, Object> reportPolicy = loadNamespaceItems("fitmystery", "fit_report_generation_policy");
-        Object reportPolicyRaw = reportPolicy.get("ios_v1");
-        boolean reportQuotaConfigured = reportPolicyRaw instanceof Map<?, ?> reportMap
-            && reportMap.get("freeInitialQuota") instanceof Number
-            && ((Number) reportMap.get("freeInitialQuota")).intValue() >= 0
-            && Boolean.FALSE.equals(reportMap.get("serverStoresReportPayload"));
-        addFitMysteryBooleanCheck(checks, blockers, "fitmystery.reportGenerationQuota", reportQuotaConfigured,
-            reportQuotaConfigured ? "freeInitialQuota configured and serverStoresReportPayload=false" : String.valueOf(reportPolicyRaw),
-            "freeInitialQuota>=0 and serverStoresReportPayload=false");
-
-        Map<String, Object> odds = loadNamespaceItems("fitmystery", "fit_odds_disclosure");
-        Object oddsRaw = odds.get("starter_pool");
-        boolean oddsConfigured = oddsRaw instanceof Map<?, ?> oddsMap
-            && oddsMap.get("rarityOdds") instanceof List<?> rarityOdds
-            && !rarityOdds.isEmpty()
-            && normalizeConfigValue(oddsMap.get("noCashValueNotice")) != null;
-        addFitMysteryBooleanCheck(checks, blockers, "fitmystery.oddsDisclosure", oddsConfigured,
-            oddsConfigured ? "starter_pool odds disclosure configured" : String.valueOf(oddsRaw),
-            "rarity odds + no cash value notice");
-
-        Map<String, Object> compliance = loadNamespaceItems("fitmystery", "fit_app_store_compliance");
-        Object complianceRaw = compliance.get("ios_submission_v1");
-        boolean deletionConfigured = complianceRaw instanceof Map<?, ?> complianceMap
-            && normalizeConfigValue(complianceMap.get("accountDeletionEndpoint")) != null;
-        addFitMysteryBooleanCheck(checks, blockers, "fitmystery.accountDeletion", deletionConfigured,
-            deletionConfigured ? String.valueOf(((Map<?, ?>) complianceRaw).get("accountDeletionEndpoint")) : String.valueOf(complianceRaw),
-            "configured in-app account deletion endpoint");
-    }
-
-    private void addFitMysteryBooleanCheck(
-        List<SystemReleaseGateView.ReleaseGateCheckView> checks,
-        List<String> blockers,
-        String key,
-        boolean ready,
-        String actual,
-        String expected
-    ) {
-        if (ready) {
-            checks.add(new SystemReleaseGateView.ReleaseGateCheckView(key, "ready", key + " is configured for App Store release.", actual, expected));
-        } else {
-            blockers.add(key + " missing or invalid");
-            checks.add(new SystemReleaseGateView.ReleaseGateCheckView(key, "blocked", key + " must be configured before FitMystery release.", actual, expected));
-        }
-    }
-
     private void addRequiredReleaseConfigCheck(
         List<SystemReleaseGateView.ReleaseGateCheckView> checks,
         List<String> blockers,
@@ -890,7 +827,7 @@ public class SystemController {
      *
      * <p>统一后端可以同时承载多个 App，但每个 App 的商品 ID 必须按 appCode 隔离。
      * 这里把 release_ios.product_ids 与 app.billing.entitlements.productMappings.* 做集合比对，
-     * 避免 saving 与拍拍伴读的商品 ID 在上线门禁中互相串用。</p>
+     * 避免不同商品 ID 在上线门禁中互相串用。</p>
      */
     private void addReleaseProductIdConsistencyCheck(
         List<SystemReleaseGateView.ReleaseGateCheckView> checks,
@@ -1118,12 +1055,6 @@ public class SystemController {
         }
         endpoints.add(new SystemPublicSurfaceView.PublicEndpointView(
             "POST",
-            "/v1/users/bootstrap",
-            "public",
-            "省钱项目兼容 bootstrap 入口，用于创建初始会话，并纳入 release-gate 追踪。"
-        ));
-        endpoints.add(new SystemPublicSurfaceView.PublicEndpointView(
-            "POST",
             "/api/v1/system/appstore/apps/{appCode}/notifications",
             "public",
             "Generic appCode-scoped App Store Server Notification route; Apple JWS signature verification + notification UUID dedupe protect processing."
@@ -1134,18 +1065,12 @@ public class SystemController {
             "public",
             "Public App Store webhook compatibility route for reading; Apple JWS signature verification + notification UUID dedupe protect processing."
         ));
-        endpoints.add(new SystemPublicSurfaceView.PublicEndpointView(
-            "POST",
-            "/v1/appstore/notifications",
-            "public",
-            "Public App Store webhook compatibility route for saving; Apple JWS signature verification + notification UUID dedupe protect processing."
-        ));
         return List.copyOf(endpoints);
     }
 
     @Operation(summary = "查询权益观测", description = "查询指定应用权益、刷新候选和待处理交易观测信息。")
     @GetMapping("/apps/{appCode}/billing/entitlements/observability")
-    public ApiResponse<EntitlementObservabilityView> entitlementObservability(@Parameter(description = "应用编码，例如 paipai_readingcompanion 或 saving。示例：saving", example = "saving") @PathVariable String appCode) {
+    public ApiResponse<EntitlementObservabilityView> entitlementObservability(@Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode) {
         appDefinitionService.get(appCode)
             .orElseThrow(() -> new AppNotFoundException(appCode));
         return ApiResponse.success(currentRequestId(), sysBillingService.describeEntitlementObservability(appCode));

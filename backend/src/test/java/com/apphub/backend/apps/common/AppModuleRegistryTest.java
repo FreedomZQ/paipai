@@ -1,7 +1,6 @@
 package com.apphub.backend.apps.common;
 
 import com.apphub.backend.apps.reading.ReadingAppModule;
-import com.apphub.backend.apps.saving.SavingAppModule;
 import com.apphub.backend.sys.app.service.AppDefinitionService;
 import org.junit.jupiter.api.Test;
 
@@ -12,18 +11,16 @@ import static org.mockito.Mockito.mock;
 class AppModuleRegistryTest {
 
     @Test
-    void shouldRegisterReadingAndSavingModulesWithoutFallback() {
+    void shouldRegisterReadingModuleWithoutFallback() {
         AppDefinitionService appDefinitionService = mock(AppDefinitionService.class);
         AppModuleRegistry registry = new AppModuleRegistry(java.util.List.of(
-            new ReadingAppModule(appDefinitionService),
-            new SavingAppModule(appDefinitionService)
+            new ReadingAppModule(appDefinitionService)
         ));
 
         assertThat(registry.activeModules())
             .extracting(AppModule::appCode)
-            .containsExactlyInAnyOrder(ReadingAppModule.APP_CODE, SavingAppModule.APP_CODE);
+            .containsExactlyInAnyOrder(ReadingAppModule.APP_CODE);
         assertThat(registry.require(ReadingAppModule.APP_CODE).tablePrefix()).isEqualTo(ReadingAppModule.TABLE_PREFIX);
-        assertThat(registry.require(SavingAppModule.APP_CODE).tablePrefix()).isEqualTo(SavingAppModule.TABLE_PREFIX);
         assertThat(registry.get("unknown_app")).isEmpty();
     }
 

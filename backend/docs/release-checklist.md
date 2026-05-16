@@ -38,9 +38,8 @@
 | GET | `/actuator/health` | prod profile 只暴露 health，且 `show-details=never` |
 | POST | `/api/v1/system/auth/apps/{appCode}/apple/exchange` | Apple identity token 验签 / state / nonce 校验后签发 session；reading 不再暴露旧 `/api/v1/auth/...` auth 入口 |
 | POST | `/api/v1/system/auth/apps/{appCode}/sessions/demo` | 仅当某个 app 显式设置 `app.auth.demoSessionEnabled=true` 时才进入公开面清单；默认关闭，Apple-only app 开启会被 ops-gate 阻断 |
-| POST | `/v1/users/bootstrap` | saving 初始 session bootstrap；关闭会影响客户端启动，release-gate 会阻断 |
+| POST | `/api/v1/system/appstore/apps/{appCode}/notifications` | Apple JWS 真验签 + notification UUID 去重 + authoritative reconcile |
 | POST | `/api/v1/webhooks/app-store/notifications` | Apple JWS 真验签 + notification UUID 去重 + authoritative reconcile |
-| POST | `/v1/appstore/notifications` | Apple JWS 真验签 + notification UUID 去重 + authoritative reconcile |
 
 ## 2. 直接查 gate
 
@@ -101,9 +100,8 @@ ALLOW_WARNINGS=true \
 - `GET /actuator/health`
 - `POST /api/v1/system/auth/apps/{appCode}/apple/exchange`
 - `POST /api/v1/system/auth/apps/{appCode}/sessions/demo`（仅在 app 显式启用 `app.auth.demoSessionEnabled=true` 时出现；Paipai reading 必须保持关闭）
-- `POST /v1/users/bootstrap`
+- `POST /api/v1/system/appstore/apps/{appCode}/notifications`
 - `POST /api/v1/webhooks/app-store/notifications`
-- `POST /v1/appstore/notifications`
 - 不应再出现任何不带 appCode 的旧 auth Apple/me/logout 路由
 
 它们的安全边界分别是：
@@ -112,5 +110,4 @@ ALLOW_WARNINGS=true \
 - Apple exchange：Apple identity token 真校验 + nonce/state 校验 + session 签发规则
 - system demo session：默认关闭；必须由 app definition 显式 opt-in；Apple-only app 启用会进入 ops-gate blocker
 - auth compat static guard：执行 `./scripts/check-no-auth-compat-routes.sh`，确保 iOS / backend runtime / runbook 不会重新引入旧 `/api/v1/auth/...` auth 路由
-- saving bootstrap：显式公开的客户端启动入口，关闭会进入 release blocker
 - Apple webhook：Apple JWS 真验签 + `notification_uuid` 去重 + authoritative reconcile
