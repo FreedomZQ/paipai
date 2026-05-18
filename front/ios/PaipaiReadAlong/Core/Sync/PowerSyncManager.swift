@@ -84,6 +84,10 @@ final class PowerSyncManager {
             latestStatus = await buildState(scope: scope)
             return latestStatus
         } catch {
+            if Self.isCancellationError(error) {
+                latestStatus = await buildState(scope: scope)
+                return latestStatus
+            }
             latestStatus = await buildState(scope: scope, forcedStatus: .error, forcedError: error.localizedDescription)
             return latestStatus
         }
@@ -96,6 +100,10 @@ final class PowerSyncManager {
             rejectionStore.clear(scope: scope)
             return await synchronize(scope: scope, waitForFirstSync: true)
         } catch {
+            if Self.isCancellationError(error) {
+                latestStatus = await buildState(scope: scope)
+                return latestStatus
+            }
             latestStatus = await buildState(scope: scope, forcedStatus: .error, forcedError: error.localizedDescription)
             return latestStatus
         }
@@ -158,5 +166,16 @@ final class PowerSyncManager {
     private func stringifyError(_ value: Any?) -> String? {
         guard let value else { return nil }
         return String(describing: value)
+    }
+
+    private static func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            return true
+        }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 }

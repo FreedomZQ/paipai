@@ -237,7 +237,7 @@ struct PaywallView: View {
                 .foregroundColor(AppColors.textTertiary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(appState.uiText("购买成功后将立即发放权益，并同步到云端与本地。", "Entitlements are granted immediately after purchase and synced to both cloud and local storage."))
+            Text(appState.uiText("购买成功后会按商品类型发放本地或云端权益。删除云端账号会停止账号权益并清理可删除数据；必要购买凭证按 Apple、退款、税务和反欺诈规则最小保留，退款仍需走 App Store 流程。", "After purchase, local or cloud entitlements are granted according to the product type. Deleting the cloud account stops account entitlements and clears deletable data; necessary purchase evidence is minimally retained under Apple, refund, tax, and anti-fraud rules. Refunds still follow the App Store process."))
                 .font(AppTypography.caption)
                 .foregroundColor(AppColors.textTertiary)
                 .multilineTextAlignment(.center)

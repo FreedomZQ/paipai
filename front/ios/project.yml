@@ -12,7 +12,7 @@ settings:
     # RELEASE GATE: this value must be injected from backend PostgreSQL sys_remote_config
     # namespace=`release_ios`, key=`development_team` before xcodegen / Archive.
     # Placeholder values are forbidden in release branches and must fail preflight.
-    DEVELOPMENT_TEAM: '棋 张(Personal Team)'
+    DEVELOPMENT_TEAM: 'S79P567WCU'
     # RELEASE GATE: these two values must be injected from backend PostgreSQL sys_remote_config
     # namespace=`release_ios`, keys=`marketing_version` / `current_project_version`.
     # They must match Xcode Organizer / TestFlight / SQL build_number exactly.

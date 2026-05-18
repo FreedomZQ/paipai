@@ -139,7 +139,13 @@ class AppState: ObservableObject {
     @Published var selectedTab: Tab = .home
     @Published var isLoading = false
     @Published var isInitialDataReady = false
-    @Published var errorMessage: String?
+    @Published var errorMessage: String? {
+        didSet {
+            if Self.isSilentServerConnectionMessage(errorMessage) {
+                errorMessage = nil
+            }
+        }
+    }
     @Published var isShowingPaywall = false
     @Published var isSpeechQuotaExhausted = false
     @Published var speechQuotaExhaustedMessage: String?
@@ -423,6 +429,7 @@ class AppState: ObservableObject {
     }
 
     func localizedErrorMessage(_ error: Error) -> String {
+        guard !shouldSilenceUserFacingError(error) else { return "" }
         if let urlError = error as? URLError, urlError.code == .notConnectedToInternet, isLikelyLocalBackendURL() {
             return uiText(
                 "当前 App 连接的是局域网后端，但设备没有允许“局域网”访问。请到「设置 > 隐私与安全 > 局域网」中打开“拍拍伴读”，然后重试。",
@@ -442,6 +449,48 @@ class AppState: ObservableObject {
             }
         }
         return error.localizedDescription
+    }
+
+    private func shouldSilenceUserFacingError(_ error: Error) -> Bool {
+        if Self.isCancellationError(error) {
+            return true
+        }
+        if case BackendClient.BackendError.connectionUnavailable = error {
+            return true
+        }
+        if BackendClient.BackendError.isConnectionFailure(error) {
+            return true
+        }
+        return Self.isSilentServerConnectionMessage(error.localizedDescription)
+    }
+
+    static func isCancellationError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            return true
+        }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+    }
+
+    private static func isSilentServerConnectionMessage(_ message: String?) -> Bool {
+        guard let normalized = message?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(),
+              !normalized.isEmpty else {
+            return false
+        }
+        let connectionFailureFragments = [
+            "could not connect to the server",
+            "cannot connect to the server",
+            "未能连接到服务器",
+            "无法连接到服务器",
+            "似乎已断开与互联网的连接",
+            "the internet connection appears to be offline"
+        ]
+        return connectionFailureFragments.contains { normalized.contains($0) }
     }
 
     private func isLikelyLocalBackendURL() -> Bool {
@@ -850,22 +899,8 @@ class AppState: ObservableObject {
     }
 
     func extractCloudOcrText(imageData: Data, mimeType: String = "image/jpeg") async throws -> OcrExtractReceipt {
-        guard hasAuthenticatedSession else {
-            throw URLError(.userAuthenticationRequired)
-        }
-        accountState = try await backendClient.fetchAccountState()
-        cloudUsageState = try await backendClient.fetchCloudUsageState()
-        let receipt = try await backendClient.extractOcrText(
-            imageBase64: imageData.base64EncodedString(),
-            mimeType: mimeType
-        )
-        // 后端掉线时保留已有的 accountState / cloudUsageState，避免把用户权益重置为小默认值。
-        if let refreshed = try? await backendClient.fetchAccountState() {
-            accountState = refreshed
-        }
-        await refreshCloudUsageStateFromBackend()
-        alignLocalQuotaUsageWithEntitlement()
-        return receipt
+        // 首发合规策略：云端 OCR 暂未开放，不再把图片编码后发往业务后端。
+        throw BackendClient.BackendError.server(code: "cloud_ocr_disabled", message: "云端识图暂未开放，请使用设备端识别。", traceId: nil)
     }
 
     func refreshLegalDocs() async {
@@ -1528,23 +1563,7 @@ class AppState: ObservableObject {
     }
 
     private func reportSuccessfulLoginDeviceEvent(locale: String, reason: String) async {
-        let device = deviceInfoService.currentDeviceInfo
-        try? await backendClient.reportDeviceEvent(
-            eventType: reason == "dev_login" ? "dev_login_succeeded" : "apple_login_succeeded",
-            clientPlatform: device.deviceType.rawValue.lowercased(),
-            deviceModel: device.model,
-            systemName: device.systemName,
-            systemVersion: device.systemVersion,
-            appVersion: device.appVersion,
-            buildNumber: device.buildNumber,
-            locale: locale,
-            payload: [
-                "authMode": authMode.rawValue,
-                "uiLocale": locale,
-                "loginReason": reason,
-                "onboardingCompleted": hasCompletedOnboarding ? "true" : "false"
-            ]
-        )
+        // 默认登录链路不再上报设备事件。低敏诊断必须由家长在设置中单独开启后再调用。
     }
 
     func signOut() async {
@@ -1638,26 +1657,11 @@ class AppState: ObservableObject {
             return false
         }
         if preferCloud {
-            // 云端朗读仍然需要先拿到后端合成结果，才能播放音频。
-            let didRecordUsage = await reportSpeechUsage(language: language, preferCloud: true)
-            await refreshHomeData()
-            do {
-                _ = try await ttsService.speak(
-                    text: normalizedText,
-                    language: language,
-                    rate: rate,
-                    mode: .cloud,
-                    backendClient: backendClient
-                )
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-            return didRecordUsage
+            // 首发合规策略：云端朗读入口关闭，忽略该偏好并继续走设备端朗读。
         }
 
         // 设备端朗读优先立即启动播放，再在后台补记账，避免把首响卡在网络往返上。
-        ttsService.ensureDeviceVoiceCached(for: language)
-        let didStartPlayback = ttsService.speak(text, language: language, rate: rate)
+        let didStartPlayback = await ttsService.speakFromSwiftConcurrency(text, language: language, rate: rate)
         guard didStartPlayback else {
             errorMessage = ttsService.lastTTSError?.localizedDescription
                 ?? uiText("本地发音启动失败，请检查设备音量或稍后重试。", "Local speech failed to start. Please check device volume or try again shortly.")
@@ -2185,22 +2189,13 @@ class AppState: ObservableObject {
     }
 
     func synthesizeCloudSpeech(text: String, language: String, rate: Float = 1.0) async -> CloudSpeechReceipt? {
-        do {
-            accountState = try await backendClient.fetchAccountState()
-            cloudUsageState = try await backendClient.fetchCloudUsageState()
-            let receipt = try await backendClient.synthesizeCloudSpeech(text: text, languageCode: language, rate: rate)
-            // 云端合成结束后刷新权益，但后端掉线时保留已有缓存，不要清空为 nil。
-            if let refreshedAccount = try? await backendClient.fetchAccountState() {
-                accountState = refreshedAccount
-            }
-            if let refreshedUsage = try? await backendClient.fetchCloudUsageState() {
-                cloudUsageState = refreshedUsage
-            }
-            return receipt
-        } catch {
-            errorMessage = error.localizedDescription
-            return nil
-        }
+        // 首发合规策略：不把儿童正文发往业务后端云 TTS 代理。
+        // 后续开放时必须先完成家长 direct notice、granular consent、reservation/capability 链路。
+        errorMessage = uiText(
+            "云端朗读暂未开放，请使用设备端朗读。",
+            "Cloud speech is not enabled yet. Please use on-device speech."
+        )
+        return nil
     }
 
     func updateLanguagePreferences(interfaceLocale: String, readingTrackCode: String) async {
@@ -2270,22 +2265,20 @@ class AppState: ObservableObject {
         guard hasAuthenticatedSession else { return }
         let childId = selectedChild.id
         guard !childId.isEmpty else { return }
-        let device = deviceInfoService.currentDeviceInfo
-        let hasConsent = deviceInfoService.hasAcceptedPrivacyConsent
         _ = await usageSessionRepository.startSession(
             childId: childId,
             sessionId: sessionUuid,
             sourcePage: sourcePage,
-            clientPlatform: hasConsent ? device.deviceType.rawValue.lowercased() : "ios",
-            deviceModel: hasConsent ? device.model : nil
+            clientPlatform: "ios",
+            deviceModel: nil
         )
         if sourcePage == "app_foreground" {
             _ = try? await backendClient.startUsageSession(
                 childId: childId,
                 sessionUuid: sessionUuid,
                 sourcePage: sourcePage,
-                clientPlatform: hasConsent ? device.deviceType.rawValue.lowercased() : "ios",
-                deviceModel: hasConsent ? device.model : nil
+                clientPlatform: "ios",
+                deviceModel: nil
             )
         }
         await refreshParentData()
@@ -3029,8 +3022,6 @@ struct ContentView: View {
         Group {
             if !appState.hasCompletedOnboarding {
                 OnboardingView()
-            } else if !appState.hasAuthenticatedSession {
-                AppleSignInRequiredView()
             } else if !appState.isInitialDataReady {
                 SplashView(onComplete: {})
             } else {

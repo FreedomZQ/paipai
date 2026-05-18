@@ -25,6 +25,7 @@ struct EntitlementRecordsView: View {
             VStack(alignment: .leading, spacing: AppLayout.spacingM) {
                 pageHeader
                 filterBar
+                retentionNotice
                 summarySection
                 if currentRecords.isEmpty {
                     emptyState
@@ -126,6 +127,26 @@ struct EntitlementRecordsView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityAddTraits(.isHeader)
+    }
+
+    private var retentionNotice: some View {
+        MainCard {
+            VStack(alignment: .leading, spacing: AppLayout.spacingS) {
+                Label(appState.localizedText(zhHans: "记录说明", english: "Record notes", japanese: "記録について", korean: "기록 안내", spanish: "Notas de registros"), systemImage: "doc.text.magnifyingglass")
+                    .font(.system(size: rowTitleSize * textScale, weight: .semibold))
+                    .foregroundColor(AppColors.textPrimary)
+                Text(appState.localizedText(
+                    zhHans: "这里展示权益、同意和购买摘要相关记录。必要购买凭证仅以哈希和最小账务字段保留，用于退款、税务、反欺诈或争议处理。",
+                    english: "This page shows entitlement, consent, and purchase summary records. Necessary purchase evidence is retained only as hashes and minimal accounting fields for refunds, tax, anti-fraud, or disputes.",
+                    japanese: "このページには権益、同意、購入概要に関する記録が表示されます。必要な購入証跡のみ、返金、税務、不正防止、紛争対応のためにハッシュと最小会計項目で保持されます。",
+                    korean: "이 페이지에는 권한, 동의, 구매 요약 관련 기록이 표시됩니다. 필요한 구매 증빙만 환불, 세무, 부정 방지, 분쟁 처리를 위해 해시와 최소 회계 항목으로 보관됩니다.",
+                    spanish: "Esta pagina muestra registros de beneficios, consentimientos y resumenes de compra. Las pruebas de compra necesarias se conservan solo como hashes y campos contables minimos para reembolsos, impuestos, antifraude o disputas."
+                ))
+                .font(.system(size: footnoteSize * textScale, weight: .regular))
+                .foregroundColor(AppColors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private var filterBar: some View {
@@ -300,7 +321,10 @@ struct EntitlementRecordsView: View {
 
     private func categoryName(for serviceType: String) -> String {
         switch serviceType {
-        case "cloud_tts", "speech": return ttsText
+        case "cloud_tts": return ttsText + " · " + appState.uiText("云端", "Cloud")
+        case "local_tts", "device_tts", "speech": return ttsText + " · " + appState.uiText("本地", "Local")
+        case "cloud_ocr": return ocrText + " · " + appState.uiText("云端", "Cloud")
+        case "local_ocr", "capture": return ocrText + " · " + appState.uiText("本地", "Local")
         default: return ocrText
         }
     }

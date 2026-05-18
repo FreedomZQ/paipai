@@ -118,7 +118,7 @@ struct PendingSyncChange: Codable, Hashable, Identifiable {
 struct PowerSyncBootstrapRequestPayload: Encodable {
     let installationId: String
     let deviceId: String?
-    let clientPlatform: String
+    let clientPlatform: String?
     let deviceModel: String?
     let appVersion: String?
     let cloudSyncEnabled: Bool

@@ -140,7 +140,8 @@ public class ReadingPowerSyncPayloadConverter {
         entity.setEndedAt(endedAt);
         entity.setDurationSeconds(durationSeconds);
         entity.setClientPlatform(blankToNull(stringValue(payload, "clientPlatform")));
-        entity.setDeviceModel(blankToNull(stringValue(payload, "deviceModel")));
+        // COPPA/GDPR-K 收口：同步学习时长不再接收设备型号，避免形成设备指纹。
+        entity.setDeviceModel(null);
         entity.setLastModifiedByInstallationId(installationId);
         entity.setDeletedAt(parseTime(payload.get("deletedAt")));
         entity.setCreatedAt(parseTime(payload.get("createdAt")) == null ? now : parseTime(payload.get("createdAt")));

@@ -59,9 +59,9 @@ fi
 
 BOOTSTRAP_API="$APP_DIR/Core/Sync/PowerSyncBootstrapAPI.swift"
 grep -q 'deviceId: nil' "$BOOTSTRAP_API" || fail "PowerSync bootstrap must not upload deviceId"
-grep -q 'clientPlatform: hasConsent ?' "$BOOTSTRAP_API" || fail "PowerSync bootstrap clientPlatform must be consent-gated"
-grep -q 'deviceModel: hasConsent ? device.model : nil' "$BOOTSTRAP_API" || fail "PowerSync bootstrap deviceModel must be consent-gated"
-grep -q 'appVersion: hasConsent ? device.appVersion : nil' "$BOOTSTRAP_API" || fail "PowerSync bootstrap appVersion must be consent-gated"
+grep -q 'clientPlatform: hasPrivacyNoticeAccepted ?' "$BOOTSTRAP_API" || fail "PowerSync bootstrap clientPlatform must be notice-gated"
+grep -q 'deviceModel: nil' "$BOOTSTRAP_API" || fail "PowerSync bootstrap must not upload deviceModel"
+grep -q 'appVersion: hasPrivacyNoticeAccepted ? BackendClient.defaultAppVersion() : nil' "$BOOTSTRAP_API" || fail "PowerSync bootstrap appVersion must be notice-gated"
 
 ACCOUNT_MODELS="$APP_DIR/Core/Models/AccountModels.swift"
 APP_STATE="$APP_DIR/App/PaipaiReadAlongApp.swift"

@@ -1,4 +1,3 @@
-import AuthenticationServices
 import SwiftUI
 import UIKit
 
@@ -17,7 +16,6 @@ struct ParentAreaView: View {
                 } else {
                     ParentDashboardView(
                         children: appState.children,
-                        familyUsageSummary: appState.familyUsageSummary,
                         currentChildUsageSummary: appState.childUsageSummaries[appState.selectedChild.id]
                     )
                         .environmentObject(appState)
@@ -43,8 +41,6 @@ struct ParentGateView: View {
         case devicePassword
         case offlinePassword
         case createOfflinePassword
-        case recovery
-        case resetOfflinePassword
     }
 
     private let gateService = ParentGateService.shared
@@ -55,7 +51,6 @@ struct ParentGateView: View {
     @State private var message: String?
     @State private var password = ""
     @State private var confirmPassword = ""
-    @State private var recoveryAnswers: [String: String] = [:]
     @State private var isPasswordVisible = false
     @State private var isBusy = false
 
@@ -88,7 +83,7 @@ struct ParentGateView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                    Text(appState.uiText("请完成一道简单算题后进入家长中心，避免孩子误触设置和账号操作。", "Solve one quick math question to enter Parents and avoid accidental settings or account changes."))
+                    Text(appState.uiText("请先完成算题。答对后会使用当前设备密码验证；如果设备没有密码，请设置本机家长密码。", "Solve one quick math question first. Then use the current device passcode, or set a local parent password if this device has no passcode."))
                         .font(promptFont)
                         .foregroundColor(AppColors.textSecondary)
                         .multilineTextAlignment(.center)
@@ -114,10 +109,6 @@ struct ParentGateView: View {
                             offlinePasswordCard(isWide: isWide)
                         case .createOfflinePassword:
                             createPasswordCard(isWide: isWide, isReset: false)
-                        case .recovery:
-                            recoveryCard(isWide: isWide)
-                        case .resetOfflinePassword:
-                            createPasswordCard(isWide: isWide, isReset: true)
                         }
                     }
 
@@ -173,7 +164,7 @@ struct ParentGateView: View {
                     )
                     .frame(maxWidth: keypadMaxWidth)
 
-                    Text(appState.uiText("先完成算题，再进行家长身份验证。", "Solve the math question first, then complete parent verification."))
+                    Text(appState.uiText("先完成算题，再输入 iPhone 密码或本机家长密码。", "Solve the math question first, then enter the iPhone passcode or local parent password."))
                         .font(AppTypography.caption)
                         .foregroundColor(AppColors.textTertiary)
                         .multilineTextAlignment(.center)
@@ -210,15 +201,15 @@ struct ParentGateView: View {
     private func devicePasswordCard(isWide: Bool) -> some View {
         MainCard {
             VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                Text(appState.uiText("使用设备解锁密码", "Use device passcode"))
+                Text(appState.uiText("输入 iPhone 密码", "Enter iPhone passcode"))
                     .font(AppTypography.headline)
                     .foregroundColor(AppColors.textPrimary)
-                Text(appState.uiText("系统会验证当前设备的解锁密码。验证通过后进入家长区。", "iOS will verify this device's unlock passcode. After it passes, Parents will open."))
+                Text(appState.uiText("系统会验证当前设备的解锁密码。当前设备有密码时，家长区使用这个设备密码进入。", "iOS will verify this device's unlock passcode. When this device has a passcode, Parents uses that passcode."))
                     .font(AppTypography.bodySmall)
                     .foregroundColor(AppColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 gateMessage
-                primaryButton(title: appState.uiText("验证设备密码", "Verify device passcode"), icon: "lock.shield", isDisabled: isBusy) {
+                primaryButton(title: appState.uiText("输入 iPhone 密码", "Enter iPhone passcode"), icon: "lock.shield", isDisabled: isBusy) {
                     authenticateDevice()
                 }
             }
@@ -228,22 +219,18 @@ struct ParentGateView: View {
     private func offlinePasswordCard(isWide: Bool) -> some View {
         MainCard {
             VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                Text(appState.uiText("输入离线密码", "Enter offline password"))
+                Text(appState.uiText("输入本机家长密码", "Enter local parent password"))
                     .font(AppTypography.headline)
                     .foregroundColor(AppColors.textPrimary)
-                passwordField(appState.uiText("离线密码", "Offline password"), text: $password)
+                Text(appState.uiText("此设备曾在没有系统密码时设置过本机家长密码。之后即使设备又设置了 iPhone 密码，也仍使用这个密码进入家长区。", "This device already has a local parent password from when no system passcode was set. Even if an iPhone passcode is added later, this password is still used for Parents."))
+                    .font(AppTypography.bodySmall)
+                    .foregroundColor(AppColors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                passwordField(appState.uiText("本机家长密码", "Local parent password"), text: $password)
                 gateMessage
                 primaryButton(title: appState.uiText("进入家长区", "Open Parents"), icon: "checkmark.circle.fill", isDisabled: password.isEmpty || isBusy) {
                     verifyOfflinePassword()
                 }
-                Button(appState.uiText("忘记密码", "Forgot password")) {
-                    clearSensitiveInputs()
-                    step = .recovery
-                    message = nil
-                }
-                .font(AppTypography.buttonSmall)
-                .foregroundColor(AppColors.primary)
-                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
     }
@@ -251,69 +238,18 @@ struct ParentGateView: View {
     private func createPasswordCard(isWide: Bool, isReset: Bool) -> some View {
         MainCard {
             VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                Text(isReset ? appState.uiText("重置离线密码", "Reset offline password") : appState.uiText("创建离线密码", "Create offline password"))
+                Text(appState.uiText("设置本机家长密码", "Set local parent password"))
                     .font(AppTypography.headline)
                     .foregroundColor(AppColors.textPrimary)
-                Text(appState.uiText("设备未设置解锁密码或已启用离线密码。请设置至少 6 位、同时包含数字和字母的本地密码。密码和找回答案只保存在本机 Keychain。", "Set a local password with at least 6 characters including letters and numbers. The password and recovery answers stay only in this device's Keychain."))
+                Text(appState.uiText("当前设备没有 iPhone 解锁密码。请连续输入两次本机家长密码；之后家长区会一直使用这个密码，即使以后设备设置了 iPhone 密码也不切换。", "This device has no iPhone unlock passcode. Enter a local parent password twice; Parents will keep using this password even if an iPhone passcode is added later."))
                     .font(AppTypography.bodySmall)
                     .foregroundColor(AppColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-                passwordField(appState.uiText("新密码", "New password"), text: $password)
+                passwordField(appState.uiText("设置密码", "Set password"), text: $password)
                 passwordField(appState.uiText("确认密码", "Confirm password"), text: $confirmPassword)
-                ForEach(ParentGateService.recoveryQuestions) { question in
-                    Text(questionText(question))
-                        .font(AppTypography.footnote.weight(.semibold))
-                        .foregroundColor(AppColors.textPrimary)
-                    TextField(appState.uiText("请输入答案", "Enter answer"), text: bindingForRecoveryAnswer(question.id))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-                        .font(AppTypography.bodySmall)
-                        .padding(AppLayout.spacingM)
-                        .background(Color.white)
-                        .overlay(RoundedRectangle(cornerRadius: AppLayout.cornerRadiusM).stroke(AppColors.border, lineWidth: 1))
-                        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadiusM))
-                }
                 gateMessage
-                primaryButton(title: isReset ? appState.uiText("保存新密码", "Save new password") : appState.uiText("创建并进入", "Create and continue"), icon: "key.fill", isDisabled: isBusy) {
-                    saveOfflinePassword(isReset: isReset)
-                }
-            }
-        }
-    }
-
-    private func recoveryCard(isWide: Bool) -> some View {
-        MainCard {
-            VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                Text(appState.uiText("找回离线密码", "Recover offline password"))
-                    .font(AppTypography.headline)
-                    .foregroundColor(AppColors.textPrimary)
-                Text(appState.uiText("锁定时间结束后，回答任意一个预设问题即可重置密码。", "After any lock has expired, answer any one saved question to reset the password."))
-                    .font(AppTypography.bodySmall)
-                    .foregroundColor(AppColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                ForEach(ParentGateService.recoveryQuestions) { question in
-                    Text(questionText(question))
-                        .font(AppTypography.footnote.weight(.semibold))
-                        .foregroundColor(AppColors.textPrimary)
-                    TextField(appState.uiText("答案", "Answer"), text: bindingForRecoveryAnswer(question.id))
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-                        .font(AppTypography.bodySmall)
-                        .padding(AppLayout.spacingM)
-                        .background(Color.white)
-                        .overlay(RoundedRectangle(cornerRadius: AppLayout.cornerRadiusM).stroke(AppColors.border, lineWidth: 1))
-                        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadiusM))
-                }
-                gateMessage
-                HStack(spacing: AppLayout.spacingM) {
-                    secondaryButton(title: appState.uiText("返回", "Back"), icon: "chevron.left") {
-                        clearSensitiveInputs()
-                        step = .offlinePassword
-                        message = nil
-                    }
-                    primaryButton(title: appState.uiText("验证答案", "Verify answer"), icon: "questionmark.circle.fill", isDisabled: isBusy) {
-                        verifyRecoveryAnswer()
-                    }
+                primaryButton(title: appState.uiText("保存并进入", "Save and continue"), icon: "key.fill", isDisabled: isBusy) {
+                    saveOfflinePassword()
                 }
             }
         }
@@ -340,7 +276,7 @@ struct ParentGateView: View {
             authenticateDevice()
         case .createOfflinePassword:
             clearSensitiveInputs()
-            message = appState.uiText("当前设备未设置解锁密码，请先创建本机离线密码。", "This device has no unlock passcode set. Create a local offline password first.")
+            message = appState.uiText("当前设备未设置 iPhone 密码，请先设置本机家长密码并确认一次。", "This device has no iPhone passcode set. Set and confirm a local parent password first.")
             step = .createOfflinePassword
         }
     }
@@ -354,6 +290,12 @@ struct ParentGateView: View {
                 await MainActor.run { onPass() }
             } catch {
                 await MainActor.run {
+                    if (error as? ParentGateServiceError) == .deviceAuthenticationCancelled {
+                        message = nil
+                        step = .devicePassword
+                        isBusy = false
+                        return
+                    }
                     message = errorMessage(for: error)
                     if (error as? ParentGateServiceError) == .deviceAuthenticationUnavailable {
                         clearSensitiveInputs()
@@ -375,31 +317,15 @@ struct ParentGateView: View {
         }
     }
 
-    private func saveOfflinePassword(isReset: Bool) {
+    private func saveOfflinePassword() {
         guard password == confirmPassword else {
             message = appState.uiText("两次输入的密码不一致。", "The two passwords do not match.")
             return
         }
         do {
-            let payload = ParentPasswordSetupPayload(password: password, answersByQuestionId: recoveryAnswers)
-            if isReset {
-                try gateService.resetOfflinePassword(payload)
-            } else {
-                try gateService.createOfflinePassword(payload)
-            }
+            try gateService.createOfflinePassword(ParentPasswordSetupPayload(password: password))
             clearSensitiveInputs()
             onPass()
-        } catch {
-            message = errorMessage(for: error)
-        }
-    }
-
-    private func verifyRecoveryAnswer() {
-        do {
-            try gateService.verifyRecoveryAnswer(recoveryAnswers)
-            clearSensitiveInputs()
-            message = appState.uiText("验证通过，请设置新离线密码。", "Verified. Set a new offline password.")
-            step = .resetOfflinePassword
         } catch {
             message = errorMessage(for: error)
         }
@@ -414,24 +340,6 @@ struct ParentGateView: View {
     private func clearSensitiveInputs() {
         password = ""
         confirmPassword = ""
-        recoveryAnswers = [:]
-    }
-
-    private func bindingForRecoveryAnswer(_ id: String) -> Binding<String> {
-        Binding(
-            get: { recoveryAnswers[id, default: ""] },
-            set: { recoveryAnswers[id] = $0 }
-        )
-    }
-
-    private func questionText(_ question: ParentRecoveryQuestion) -> String {
-        appState.localizedText(
-            zhHans: question.zhHans,
-            english: question.english,
-            japanese: question.japanese,
-            korean: question.korean,
-            spanish: question.spanish
-        )
     }
 
     @ViewBuilder
@@ -524,25 +432,27 @@ struct ParentGateView: View {
     private func errorMessage(for error: Error) -> String {
         switch error as? ParentGateServiceError {
         case .deviceAuthenticationUnavailable:
-            return appState.uiText("当前设备无法使用系统密码验证，请创建离线密码。", "Device passcode verification is unavailable. Create an offline password.")
+            return appState.uiText("当前设备无法使用系统密码验证，请设置本机家长密码。", "Device passcode verification is unavailable. Set a local parent password.")
+        case .deviceAuthenticationCancelled:
+            return ""
         case .deviceAuthenticationFailed:
             return appState.uiText("设备密码验证未通过，请重试。", "Device passcode verification failed. Please try again.")
         case .passwordTooShort:
-            return appState.uiText("密码至少需要 6 位。", "Password must be at least 6 characters.")
+            return appState.uiText("密码至少需要 4 位。", "Password must be at least 4 characters.")
         case .passwordNeedsLettersAndNumbers:
-            return appState.uiText("密码必须同时包含数字和字母。", "Password must include both letters and numbers.")
+            return appState.uiText("密码格式不符合要求。", "Password format is invalid.")
         case .weakPassword:
             return appState.uiText("这个密码过于常见，请更换更安全的组合。", "This password is too common. Use a stronger one.")
         case .recoveryAnswersIncomplete:
-            return appState.uiText("请完整填写 3 个找回问题答案。", "Please answer all 3 recovery questions.")
+            return appState.uiText("请重新设置本机家长密码。", "Please set the local parent password again.")
         case let .invalidPassword(remaining):
             return appState.uiText("密码不正确，还可尝试 \(remaining) 次。", "Incorrect password. \(remaining) attempts remaining.")
         case let .locked(until), let .recoveryLocked(until):
             return appState.uiText("尝试次数过多，请在 \(lockTimeText(until)) 后重试。", "Too many attempts. Try again after \(lockTimeText(until)).")
         case .recoveryAnswerMismatch:
-            return appState.uiText("答案不匹配。任意答对一个问题即可通过。", "No answer matched. Any one correct answer will pass.")
+            return appState.uiText("验证未通过。", "Verification failed.")
         case .offlinePasswordMissing:
-            return appState.uiText("尚未创建离线密码。", "No offline password has been created.")
+            return appState.uiText("尚未设置本机家长密码。", "No local parent password has been set.")
         case .keychainFailure:
             return appState.uiText("本机安全存储暂时不可用，请稍后重试。", "Secure local storage is temporarily unavailable. Please try again.")
         case .none:
@@ -713,10 +623,8 @@ struct ParentDashboardView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.openURL) private var openURL
     let children: [ChildProfile]
-    let familyUsageSummary: FamilyUsageSummary?
     let currentChildUsageSummary: ChildUsageSummary?
 
-    @State private var appleSignInRequestContext: AppleSignInRequestContext?
     @State private var versionCardTapCount = 0
 
     var body: some View {
@@ -724,9 +632,7 @@ struct ParentDashboardView: View {
             VStack(spacing: AppLayout.spacingXL) {
                 childrenSection
                 usageSection
-                parentGuidanceSection
                 settingsSection
-                authSection
                 if let error = appState.errorMessage, !error.isEmpty {
                     MainCard {
                         Text(error)
@@ -735,66 +641,12 @@ struct ParentDashboardView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                if let receipt = appState.lastDeletionReceipt {
-                    MainCard {
-                        VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-                            Text(appState.uiText("最近删除结果", "Latest deletion result"))
-                                .font(AppTypography.headline)
-                            Text(appState.uiText("状态：", "Status: ") + "\(receipt.status) / \(receipt.executionStatus)")
-                                .font(AppTypography.footnote)
-                            Text(receipt.note)
-                                .font(AppTypography.footnote)
-                                .foregroundColor(AppColors.textSecondary)
-                        }
-                    }
-                }
             }
             .padding()
             .padding(.bottom, AppLayout.bottomNavigationContentInset)
             .adaptiveContentFrame(maxWidth: AppLayout.wideReadableMaxWidth)
         }
         .background(AppColors.background)
-    }
-
-    private var authSection: some View {
-        MainCard {
-            VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                Text(appState.uiText("账号", "Account"))
-                    .font(AppTypography.headline)
-                if appState.authMode == .formalAccount {
-                    Text(appState.uiText("已登录 Apple 账号", "Signed in with Apple"))
-                        .font(AppTypography.body)
-                        .foregroundColor(AppColors.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    HStack {
-                        Spacer()
-                        Button {
-                            Task { await appState.signOut() }
-                        } label: {
-                            Text(appState.uiText("退出登录", "Sign out"))
-                                .font(AppTypography.buttonSmall)
-                                .foregroundColor(.white)
-                                .frame(minWidth: 140, minHeight: 44)
-                                .background(AppColors.error)
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        Spacer()
-                    }
-                } else {
-                    Text(appState.uiText("当前未登录", "Currently signed out"))
-                        .font(AppTypography.body)
-                        .foregroundColor(AppColors.textPrimary)
-                    SignInWithAppleButton(.signIn, onRequest: configureAppleRequest, onCompletion: handleAppleSignInCompletion)
-                        .signInWithAppleButtonStyle(.black)
-                        .frame(minHeight: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    Text(appState.uiText("当前仅支持 Apple 登录。删除账号时仍会要求临时输入邮箱接收验证码，但不会作为登录方式长期保存。", "Only Sign in with Apple is supported now. Account deletion still requires a one-time email verification step, but email is not kept as a sign-in method."))
-                        .font(AppTypography.caption)
-                        .foregroundColor(AppColors.textSecondary)
-                }
-            }
-        }
     }
 
     private var usageSection: some View {
@@ -872,108 +724,8 @@ struct ParentDashboardView: View {
         }
     }
 
-    private var noticeSection: some View {
-        MainCard {
-            VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                HStack {
-                    Text(appState.uiText("通知公告", "Notices"))
-                        .font(AppTypography.headline)
-                    Spacer()
-                    NavigationLink {
-                        AnnouncementListView()
-                            .environmentObject(appState)
-                    } label: {
-                        Text(appState.uiText("查看全部", "View all"))
-                            .font(AppTypography.caption)
-                            .foregroundColor(AppColors.primary)
-                    }
-                }
-
-                Text(appState.uiText(
-                    "当前展示期内的公告统一放在这里查看；本模块只提供入口，不直接展开公告内容。",
-                    "Active notices are collected here. This card only opens the notice center and does not expand notice content inline."
-                ))
-                    .font(AppTypography.footnote)
-                    .foregroundColor(AppColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private var parentGuidanceSection: some View {
-        let isPremium = appState.accountState?.entitlement.backendVerifiedPremiumActive == true
-        return MainCard {
-            ZStack(alignment: .topTrailing) {
-                VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                    HStack(alignment: .top, spacing: AppLayout.spacingM) {
-                        Image(systemName: "heart.text.square.fill")
-                            .font(AppTypography.scaledFont(size: 28))
-                            .foregroundColor(isPremium ? AppColors.error : AppColors.primary)
-                        VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-                            Text(appState.uiText("家长陪读节奏", "Parent reading rhythm"))
-                                .font(AppTypography.headline)
-                                .foregroundColor(AppColors.textPrimary)
-                            Text(parentGuidanceCopy)
-                                .font(AppTypography.footnote)
-                                .foregroundColor(AppColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-
-                    LazyVGrid(columns: [GridItem(.flexible(minimum: 0), spacing: AppLayout.spacingM), GridItem(.flexible(minimum: 0), spacing: AppLayout.spacingM)], spacing: AppLayout.spacingS) {
-                        guidanceChip(icon: "calendar", text: appState.uiText("每周看一次回顾", "Check weekly"), isPremium: isPremium)
-                        guidanceChip(icon: "moon.zzz.fill", text: appState.uiText("每天复习更轻松", "Review daily"), isPremium: isPremium)
-                    }
-                }
-
-                Text(appState.uiText("付费用户权益", "Premium benefit"))
-                    .font(AppTypography.scaledFont(size: 10, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(AppColors.error)
-                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    .rotationEffect(.degrees(12))
-                    .offset(x: 8, y: -8)
-            }
-        }
-    }
-
-    private var parentGuidanceCopy: String {
-        let weeklySeconds = familyUsageSummary?.weeklyDurationSeconds ?? 0
-        if weeklySeconds <= 0 {
-            return appState.uiText(
-                "近7天还没有使用记录。建议先和孩子完成一张句卡，家长区会按最近记录展示陪读节奏。",
-                "No usage recorded in the last 7 days yet. Try completing one card with your child; this area will show recent reading rhythm."
-            )
-        }
-        return appState.uiText(
-            "近7天已经有陪读记录。保持短时间、多次回访即可；本区只展示近期节奏，不做成绩承诺。",
-            "There has been reading activity in the last 7 days. Short, repeated sessions are enough; this area shows recent rhythm, not guaranteed outcomes."
-        )
-    }
-
     private var currentChildName: String {
         appState.selectedChild.nickname.isEmpty ? appState.uiText("当前孩子", "Current child") : appState.selectedChild.nickname
-    }
-
-    private func guidanceChip(icon: String, text: String, isPremium: Bool) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(AppTypography.scaledFont(size: 12, weight: .semibold))
-                .foregroundColor(isPremium ? AppColors.error : AppColors.textSecondary)
-            Text(text)
-                .font(AppTypography.caption)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-                .allowsTightening(true)
-        }
-        .foregroundColor(isPremium ? AppColors.error : AppColors.textSecondary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(isPremium ? AppColors.error.opacity(0.10) : AppColors.primary.opacity(0.08))
-        .clipShape(Capsule())
-        .frame(maxWidth: .infinity, minHeight: AppLayout.minimumTapTarget, alignment: .leading)
     }
 
     private var settingsSection: some View {
@@ -983,19 +735,19 @@ struct ParentDashboardView: View {
                     .font(AppTypography.headline)
                 settingsNoticeItem
                 Divider()
-                NavigationLink { PaywallView() } label: {
+                SettingsNavigationLink {
+                    PaywallView()
+                } label: {
                     SettingRow(icon: "crown.fill", title: appState.uiText("订阅管理", "Subscription"), color: AppColors.accentYellow)
                 }
-                .buttonStyle(.plain)
-                NavigationLink { WeeklyReportView() } label: {
-                    SettingRow(icon: "chart.bar.fill", title: appState.uiText("本周陪读回顾", "Weekly report"), color: AppColors.info)
-                }
-                .buttonStyle(.plain)
-                NavigationLink { LanguagePreferenceView() } label: {
+                SettingsNavigationLink {
+                    LanguagePreferenceView()
+                } label: {
                     SettingRow(icon: "globe", title: appState.uiText("语言偏好", "Language Preferences"), color: AppColors.primary)
                 }
-                .buttonStyle(.plain)
-                NavigationLink { TextSizeSettingsView() } label: {
+                SettingsNavigationLink {
+                    TextSizeSettingsView()
+                } label: {
                     SettingRow(
                         icon: "textformat.size",
                         title: appState.uiText("字体大小", "Text size"),
@@ -1006,68 +758,59 @@ struct ParentDashboardView: View {
                         color: AppColors.secondary
                     )
                 }
-                .buttonStyle(.plain)
-                NavigationLink { SyncSettingsView() } label: {
+                SettingsNavigationLink {
+                    SyncSettingsView()
+                } label: {
                     SettingRow(icon: "icloud.fill", title: appState.uiText("云同步", "Cloud Sync"), color: AppColors.info)
                 }
-                .buttonStyle(.plain)
-                NavigationLink { EntitlementRecordsView() } label: {
+                SettingsNavigationLink {
+                    EntitlementRecordsView()
+                } label: {
                     SettingRow(icon: "list.bullet.rectangle", title: appState.uiText("权益获取记录", "Entitlement records"), color: AppColors.secondary)
                 }
-                .buttonStyle(.plain)
-                NavigationLink { CompensationCodeView() } label: {
+                SettingsNavigationLink {
+                    CompensationCodeView()
+                } label: {
                     SettingRow(
                         icon: "ticket.fill",
                         title: appState.uiText("权益补偿", "Compensation"),
-                        subtitle: appState.uiText("输入后端发放的补偿码", "Redeem the backend-issued code"),
+                        subtitle: "输入发放的补偿码",
                         color: AppColors.secondary
                     )
                 }
-                .buttonStyle(.plain)
                 versionUpdateCard
-                if appState.authMode == .formalAccount {
-                    NavigationLink { DeleteAccountView() } label: {
-                        SettingRow(icon: "trash.fill", title: appState.uiText("删除账号", "Delete account"), color: AppColors.error)
-                    }
-                    .buttonStyle(.plain)
-                }
-                NavigationLink { SupportAndPrivacyView() } label: {
+                SettingsNavigationLink {
+                    SupportAndPrivacyView()
+                } label: {
                     SettingRow(icon: "questionmark.circle.fill", title: appState.uiText("隐私与支持", "Privacy & support"), color: AppColors.textSecondary)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
 
     private var settingsNoticeItem: some View {
-        VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-            HStack(alignment: .firstTextBaseline) {
+        NavigationLink {
+            AnnouncementListView()
+                .environmentObject(appState)
+        } label: {
+            HStack(alignment: .center, spacing: AppLayout.spacingM) {
                 Text(appState.uiText("通知公告", "Notices"))
                     .font(AppTypography.body.weight(.semibold))
                     .foregroundColor(AppColors.textPrimary)
                 Spacer()
-                NavigationLink {
-                    AnnouncementListView()
-                        .environmentObject(appState)
-                } label: {
-                    Text(appState.uiText("查看全部", "View all"))
-                        .font(AppTypography.caption.weight(.semibold))
-                        .foregroundColor(AppColors.primary)
-                        .frame(minHeight: AppLayout.minimumTapTarget)
-                }
-                .buttonStyle(.plain)
+                Text(appState.uiText("查看全部", "View all"))
+                    .font(AppTypography.caption.weight(.semibold))
+                    .foregroundColor(AppColors.primary)
+                Image(systemName: "chevron.right")
+                    .font(AppTypography.scaledFont(size: 14))
+                    .foregroundColor(AppColors.textTertiary)
             }
-
-            Text(appState.uiText(
-                "当前展示期内的公告统一放在这里查看；本模块只提供入口，不直接展开公告内容。",
-                "Active notices are collected here. This entry opens the notice center and does not expand notice content inline."
-            ))
-                .font(AppTypography.footnote)
-                .foregroundColor(AppColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 56)
+            .padding(.vertical, 2)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 2)
+        .buttonStyle(.plain)
     }
 
     private var versionUpdateCard: some View {
@@ -1171,19 +914,6 @@ struct ParentDashboardView: View {
         return "\(trimmedVersion) (\(trimmedBuild))"
     }
 
-    private func recentUsageTitle(days: Int?) -> String {
-        let safeDays = max(days ?? appState.bootstrap.usagePolicy?.safeRecentSummaryDays ?? 7, 1)
-        return appState.uiText("最近 \(safeDays) 天：", "Last \(safeDays) days: ")
-    }
-
-    private func formatDailyUsage(_ items: [DailyUsagePoint]) -> String {
-        guard !items.isEmpty else { return appState.uiText("暂无记录", "No usage yet") }
-        return items.suffix(7).map { item in
-            let suffix = String(item.usageDate.suffix(5))
-            return "\(suffix) \(formatTime(Double(item.durationSeconds)))"
-        }.joined(separator: " · ")
-    }
-
     private func formatTime(_ timeInterval: TimeInterval) -> String {
         let hours = Int(timeInterval) / 3600
         let minutes = Int(timeInterval) / 60 % 60
@@ -1191,60 +921,6 @@ struct ParentDashboardView: View {
         return appState.uiText("\(minutes)分钟", "\(minutes)m")
     }
 
-    private func configureAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
-        let context = AppleSignInRequestContext.make()
-        appleSignInRequestContext = context
-        request.requestedScopes = [.fullName]
-        request.state = context.state
-        request.nonce = context.requestNonce
-    }
-
-    private func handleAppleSignInCompletion(_ result: Result<ASAuthorization, Error>) {
-        defer { appleSignInRequestContext = nil }
-        switch result {
-        case let .success(authorization):
-            guard let requestContext = appleSignInRequestContext else {
-                appState.errorMessage = appState.uiText("Apple 登录请求上下文丢失，请重试。", "Apple sign-in request context was lost. Please try again.")
-                return
-            }
-            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-                appState.errorMessage = appState.uiText("Apple 登录返回了无法识别的凭据类型。", "Apple sign-in returned an unsupported credential type.")
-                return
-            }
-            guard let authorizationCodeData = credential.authorizationCode,
-                  let authorizationCode = String(data: authorizationCodeData, encoding: .utf8),
-                  !authorizationCode.isEmpty else {
-                appState.errorMessage = appState.uiText("Apple 没有返回可用的 authorizationCode。", "Apple did not return a usable authorizationCode.")
-                return
-            }
-            guard let identityTokenData = credential.identityToken,
-                  let identityToken = String(data: identityTokenData, encoding: .utf8),
-                  !identityToken.isEmpty else {
-                appState.errorMessage = appState.uiText("Apple 没有返回可用的 identityToken。", "Apple did not return a usable identityToken.")
-                return
-            }
-            Task {
-                _ = await appState.completeAppleSignIn(
-                    authorizationCode: authorizationCode,
-                    identityToken: identityToken,
-                    state: requestContext.state,
-                    nonce: requestContext.backendNonce,
-                    givenName: credential.fullName?.normalizedGivenName,
-                    familyName: credential.fullName?.normalizedFamilyName
-                )
-            }
-        case let .failure(error):
-            if isAppleSignInCancellation(error) {
-                return
-            }
-            appState.errorMessage = error.localizedDescription
-        }
-    }
-
-    private func isAppleSignInCancellation(_ error: Error) -> Bool {
-        let nsError = error as NSError
-        return nsError.domain == ASAuthorizationError.errorDomain && nsError.code == ASAuthorizationError.canceled.rawValue
-    }
 }
 
 struct ChildRow: View {
@@ -1560,14 +1236,30 @@ struct SettingRow: View {
                 }
             }
             Spacer()
-            if subtitle == nil {
-                Image(systemName: "chevron.right")
-                    .font(AppTypography.scaledFont(size: 14))
-                    .foregroundColor(AppColors.textTertiary)
-            }
+            Image(systemName: "chevron.right")
+                .font(AppTypography.scaledFont(size: 14))
+                .foregroundColor(AppColors.textTertiary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 56)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct SettingsNavigationLink<Destination: View, Label: View>: View {
+    let destination: () -> Destination
+    let label: () -> Label
+
+    var body: some View {
+        NavigationLink {
+            destination()
+        } label: {
+            label()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

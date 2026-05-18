@@ -108,25 +108,17 @@ final class ParentGateServiceTests: XCTestCase {
         )
     }
 
-    private var validAnswers: [String: String] {
-        Dictionary(uniqueKeysWithValues: ParentGateService.recoveryQuestions.enumerated().map { index, question in
-            (question.id, "answer-\(index)")
-        })
-    }
-
-    func testPasswordComplexityAndWeakPasswordRules() throws {
+    func testLocalParentPasswordLengthAndWeakPasswordRules() throws {
         let service = makeService()
         defer { service.clearOfflinePassword() }
 
-        XCTAssertThrowsError(try service.validatePassword("a1b2")) { error in
+        XCTAssertThrowsError(try service.validatePassword("123")) { error in
             XCTAssertEqual(error as? ParentGateServiceError, .passwordTooShort)
         }
-        XCTAssertThrowsError(try service.validatePassword("abcdef")) { error in
-            XCTAssertEqual(error as? ParentGateServiceError, .passwordNeedsLettersAndNumbers)
-        }
-        XCTAssertThrowsError(try service.validatePassword("password1")) { error in
+        XCTAssertThrowsError(try service.validatePassword("1234")) { error in
             XCTAssertEqual(error as? ParentGateServiceError, .weakPassword)
         }
+        XCTAssertNoThrow(try service.validatePassword("2580"))
         XCTAssertNoThrow(try service.validatePassword("Read2026"))
     }
 
@@ -134,33 +126,33 @@ final class ParentGateServiceTests: XCTestCase {
         let service = makeService()
         defer { service.clearOfflinePassword() }
 
-        try service.createOfflinePassword(ParentPasswordSetupPayload(password: "Read2026", answersByQuestionId: validAnswers))
+        try service.createOfflinePassword(ParentPasswordSetupPayload(password: "2580"))
 
         XCTAssertEqual(service.preferredAccessMethod(), .offlinePassword)
-        XCTAssertThrowsError(try service.verifyOfflinePassword("Wrong2026")) { error in
+        XCTAssertThrowsError(try service.verifyOfflinePassword("9999")) { error in
             XCTAssertEqual(error as? ParentGateServiceError, .invalidPassword(remainingAttempts: 4))
         }
-        XCTAssertNoThrow(try service.verifyOfflinePassword("Read2026"))
+        XCTAssertNoThrow(try service.verifyOfflinePassword("2580"))
     }
 
     func testOfflinePasswordLocksAfterRepeatedFailures() throws {
         let service = makeService()
         defer { service.clearOfflinePassword() }
-        try service.createOfflinePassword(ParentPasswordSetupPayload(password: "Read2026", answersByQuestionId: validAnswers))
+        try service.createOfflinePassword(ParentPasswordSetupPayload(password: "2580"))
 
         for remaining in stride(from: 4, through: 1, by: -1) {
-            XCTAssertThrowsError(try service.verifyOfflinePassword("Wrong2026")) { error in
+            XCTAssertThrowsError(try service.verifyOfflinePassword("9999")) { error in
                 XCTAssertEqual(error as? ParentGateServiceError, .invalidPassword(remainingAttempts: remaining))
             }
         }
 
-        XCTAssertThrowsError(try service.verifyOfflinePassword("Wrong2026")) { error in
+        XCTAssertThrowsError(try service.verifyOfflinePassword("9999")) { error in
             guard case .locked = error as? ParentGateServiceError else {
                 XCTFail("Expected locked error, got \(error)")
                 return
             }
         }
-        XCTAssertThrowsError(try service.verifyOfflinePassword("Read2026")) { error in
+        XCTAssertThrowsError(try service.verifyOfflinePassword("2580")) { error in
             guard case .locked = error as? ParentGateServiceError else {
                 XCTFail("Expected lock to block correct password during lock window, got \(error)")
                 return
@@ -168,23 +160,17 @@ final class ParentGateServiceTests: XCTestCase {
         }
     }
 
-    func testAnyOneRecoveryAnswerCanAuthorizeReset() throws {
+    func testLocalParentPasswordCanBeReplacedWithoutRecoveryAnswers() throws {
         let service = makeService()
         defer { service.clearOfflinePassword() }
-        try service.createOfflinePassword(ParentPasswordSetupPayload(password: "Read2026", answersByQuestionId: validAnswers))
+        try service.createOfflinePassword(ParentPasswordSetupPayload(password: "2580"))
 
-        let firstQuestionId = try XCTUnwrap(ParentGateService.recoveryQuestions.first?.id)
-        XCTAssertNoThrow(try service.verifyRecoveryAnswer([firstQuestionId: " ANSWER-0 "]))
-        XCTAssertThrowsError(
-            try service.resetOfflinePassword(
-                ParentPasswordSetupPayload(password: "password1", answersByQuestionId: validAnswers)
-            )
-        ) { error in
+        XCTAssertThrowsError(try service.createOfflinePassword(ParentPasswordSetupPayload(password: "1234"))) { error in
             XCTAssertEqual(error as? ParentGateServiceError, .weakPassword)
         }
 
-        try service.resetOfflinePassword(ParentPasswordSetupPayload(password: "New2026", answersByQuestionId: validAnswers))
-        XCTAssertThrowsError(try service.verifyOfflinePassword("Read2026"))
-        XCTAssertNoThrow(try service.verifyOfflinePassword("New2026"))
+        try service.createOfflinePassword(ParentPasswordSetupPayload(password: "3690"))
+        XCTAssertThrowsError(try service.verifyOfflinePassword("2580"))
+        XCTAssertNoThrow(try service.verifyOfflinePassword("3690"))
     }
 }

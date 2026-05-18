@@ -21,6 +21,22 @@ app:
     appleSignInRequired: "true"
     # 是否启用 App Store 计费能力
     billingRequired: "true"
+  privacy:
+    # 本地匿名模式为默认入口；云能力需家长授权后再启用。
+    localGuestEnabled: "true"
+    # 低敏诊断默认关闭，只有家长显式同意后才可上报。
+    diagnosticsEnabledByDefault: "false"
+    # 云 OCR / 云 TTS 首发关闭，未来通过 capability / reservation 模式开启。
+    cloudContentProcessingEnabled: "false"
+    # 本地购买权益签名快照默认有效期（天）。
+    localEntitlementSnapshotDays: "30"
+    retention:
+      # 购买最小保留默认期限（天）。
+      purchaseRetentionDays: "365"
+      # 诊断日志默认保留期（天）。
+      diagnosticsRetentionDays: "30"
+      # 权益 ledger 默认保留期（天）。
+      entitlementLedgerRetentionDays: "365"
 
   release:
     # 当前发布波次是否必须纳入 release-gate。

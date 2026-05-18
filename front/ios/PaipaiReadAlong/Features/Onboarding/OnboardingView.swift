@@ -35,10 +35,10 @@ struct OnboardingView: View {
                     "We follow the principle of minimal necessity to protect personal information for you and your child."
                 ),
                 kind: .features([
-                    OnboardingFeature(icon: "📋", title: appState.uiText("最小必要", "Minimal collection"), description: appState.uiText("仅收集核心功能所必需的学习数据，如额度、进度和推荐。", "Only learning data essential to core features is collected, such as quota, progress, and recommendations.")),
-                    OnboardingFeature(icon: "☁️", title: appState.uiText("云端存储", "Cloud storage"), description: appState.uiText("学习内容经加密存储于云端，支持多设备同步。", "Learning content is encrypted in the cloud and supports multi-device sync.")),
-                    OnboardingFeature(icon: "🛡️", title: appState.uiText("第三方 API", "Third-party APIs"), description: appState.uiText("仅在您同意后，发送内容至合规第三方进行语音/文本/图像分析。", "Content is sent to compliant third parties for speech/text/image analysis only with your consent.")),
-                    OnboardingFeature(icon: "⚙️", title: appState.uiText("自主可控", "Full control"), description: appState.uiText("可随时查看、修改或删除数据；删除账户即清除云端数据。", "View, modify, or delete your data at any time; deleting your account clears all cloud data."))
+                    OnboardingFeature(icon: "📋", title: appState.uiText("最小必要", "Minimal collection"), description: appState.uiText("默认本地使用，不上传孩子图片、原文、录音或诊断日志。", "Local use is the default; child images, text, audio, and diagnostics are not uploaded.")),
+                    OnboardingFeature(icon: "☁️", title: appState.uiText("家长开启云能力", "Parent-enabled cloud"), description: appState.uiText("云同步、购买恢复和未来云能力需要家长授权后才启用。", "Cloud sync, purchase restore, and future cloud features require parent authorization.")),
+                    OnboardingFeature(icon: "🛡️", title: appState.uiText("第三方处理受控", "Controlled processors"), description: appState.uiText("未来云处理会按能力单独同意，并避免业务后端保存儿童内容。", "Future cloud processing requires separate consent and avoids storing child content on the business backend.")),
+                    OnboardingFeature(icon: "⚙️", title: appState.uiText("自主可控", "Full control"), description: appState.uiText("家长可查看、导出、删除云端账号数据；本机学习数据由设备内删除入口控制。", "Parents can view, export, and delete cloud account data; local learning data is controlled on device."))
                 ])
             ),
             OnboardingPage(
@@ -63,7 +63,7 @@ struct OnboardingView: View {
                 ),
                 kind: .features([
                     OnboardingFeature(icon: "📱", title: appState.uiText("多设备适配", "Adaptive layout"), description: appState.uiText("页面按 iPhone、iPad 和 Mac 窗口宽度自动收拢或居中展示。", "Screens adapt to iPhone, iPad, and Mac window widths.")),
-                    OnboardingFeature(icon: "🛡️", title: appState.uiText("账号安全", "Account safety"), description: appState.uiText("当前只支持 Apple 登录，避免游客账号带来的数据与删除风险。", "Only Sign in with Apple is supported to avoid guest-account data and deletion risks.")),
+                    OnboardingFeature(icon: "🛡️", title: appState.uiText("家长账号", "Parent account"), description: appState.uiText("本地使用无需登录；购买、同步、补偿和删除云端账号时再使用 Apple 登录。", "Local use does not require sign-in; Apple sign-in is used for purchases, sync, compensation, and cloud account deletion.")),
                     OnboardingFeature(icon: "💳", title: appState.uiText("权益校验", "Entitlements"), description: appState.uiText("免费/付费权益以后端返回为准，扣款金额以 Apple 确认弹窗为准。", "Free/paid entitlements follow the backend result; Apple confirms final charges."))
                 ])
             )
@@ -508,24 +508,24 @@ struct PrivacyConsentView: View {
                             SectionView(
                                 title: appState.uiText("数据收集说明", "What we collect"),
                                 content: appState.uiText(
-                                    "我们只收集与当前功能直接相关的信息：\n\n• 设备信息用于兼容性适配与问题排查\n• 使用时长汇总用于向家长展示今日、最近 7 天与累计学习统计\n• Apple 登录返回的用户标识用于创建/复用账号和保护数据边界\n• 相机/相册权限仅用于你主动拍摄或选择绘本内容进行识别",
-                                    "We collect only data needed by current features:\n\n• Device information for compatibility and troubleshooting\n• Usage summaries for parent-facing today / recent / total stats\n• The Apple sign-in user identifier to create/reuse the account and protect data boundaries\n• Camera/photo access only when you capture or select picture-book content"
+                                    "默认本地模式不创建后端账号，不上传孩子图片、OCR 原文、录音、句卡正文或诊断日志。\n\n家长开启账号能力后，仅为账号、安全、权益、购买恢复、云同步或删除请求处理必要数据；低敏诊断需要家长单独开启。",
+                                    "The default local mode does not create a backend account or upload child images, OCR text, audio, card text, or diagnostics.\n\nAfter a parent enables account features, only data needed for account, security, entitlements, purchase restore, cloud sync, or deletion requests is processed. Low-sensitivity diagnostics require separate parent opt-in."
                                 )
                             )
 
                             SectionView(
                                 title: appState.uiText("数据存储与同步", "Storage & sync"),
                                 content: appState.uiText(
-                                    "• 学习内容默认优先保存在设备本地\n• Apple 登录后，统一后端会返回账号状态、免费权益和今日额度\n• 若开启云同步或主动使用云端能力，必要结构化数据会同步到后端\n• 你可以在家长中心查看协议、退出登录或申请删除账号",
-                                    "• Learning content is local-first by default\n• After Sign in with Apple, the unified backend returns account state, free entitlement, and today's quota\n• If cloud sync or cloud features are enabled, necessary structured data is synced to the backend\n• From the parent area, you can view legal docs, sign out, or request account deletion"
+                                    "• 学习内容默认保存在本机\n• Apple 登录只代表家长账号，不创建孩子登录身份\n• 云同步默认关闭，开启前需要家长确认和同意范围\n• 删除云端账号不会自动擦除本机学习数据，可在设备内单独清理",
+                                    "• Learning content is saved on this device by default\n• Apple sign-in represents the parent account, not a child identity\n• Cloud sync is off by default and requires parent confirmation and scoped consent\n• Deleting the cloud account does not automatically erase local learning data; clear it separately on device"
                                 )
                             )
 
                             SectionView(
                                 title: appState.uiText("离线与权益", "Offline & entitlements"),
                                 content: appState.uiText(
-                                    "• 默认优先使用设备端 OCR、翻译与朗读能力\n• 设备朗读在离线时仍可用；翻译首次使用可能需要下载语言包\n• 云端 OCR / 云端朗读 / 云同步受免费或付费权益与次数控制\n• 购买和恢复购买以后端校验为准，扣款金额以 Apple 确认弹窗为准",
-                                    "• On-device OCR, translation, and speech are preferred by default\n• Device speech works offline; translation may need a language-pack download the first time\n• Cloud OCR / cloud speech / cloud sync are controlled by free or paid entitlements and quota\n• Purchases and restores follow backend verification; Apple confirms the final charge"
+                                    "• 默认使用设备端 OCR、翻译与朗读能力\n• 后端不可用时，本地识别、朗读、句卡和本机记录仍可使用\n• 云端 OCR / 云端朗读首发暂未开放；未来必须先经家长同意和后端能力令牌\n• 购买和恢复购买以后端校验为准，扣款金额以 Apple 确认弹窗为准",
+                                    "• On-device OCR, translation, and speech are used by default\n• If the backend is unavailable, local OCR, speech, cards, and records continue to work\n• Cloud OCR / cloud speech are not enabled at launch; future use requires parent consent and backend capability tokens\n• Purchases and restores follow backend verification; Apple confirms the final charge"
                                 )
                             )
                         }
@@ -540,7 +540,7 @@ struct PrivacyConsentView: View {
                                 dismiss()
                                 onAccept()
                             }) {
-                                Text(appState.uiText("同意并继续 Apple 登录", "Agree & Continue to Apple Sign-In"))
+                                Text(appState.uiText("同意并开始本地使用", "Agree & Start Local Use"))
                                     .font(AppTypography.buttonLarge)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
@@ -607,15 +607,15 @@ struct AppleSignInRequiredView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: proxy.size.width >= 700 ? 24 : 18) {
                         VStack(spacing: 12) {
-                            Text(appState.uiText("使用 Apple ID 登录后进入 App", "Sign in with Apple to enter"))
+                            Text(appState.uiText("本地可直接使用，家长能力再登录", "Use locally first; sign in for parent features"))
                                 .font(proxy.size.width >= 700 ? AppTypography.title1 : AppTypography.title2)
                                 .foregroundColor(AppColors.textPrimary)
                                 .multilineTextAlignment(.center)
                                 .fixedSize(horizontal: false, vertical: true)
 
                             Text(appState.uiText(
-                                "拍拍伴读使用统一后端创建或复用你的账号，并在登录后初始化免费用户权益、今日额度和家长数据边界。当前不提供游客模式，避免孩子学习数据丢失或无法删除。",
-                                "Paipai uses the unified backend to create or reuse your account, then initializes the free entitlement, today's quota, and family data boundary. Guest mode is not offered to avoid lost or undeletable child learning data."
+                                "拍拍伴读默认使用本地匿名模式，不上传儿童内容。购买、云同步、补偿、恢复购买或删除云端账号时，再由家长使用 Apple 登录授权。",
+                                "Paipai uses local anonymous mode by default and does not upload child content. A parent signs in with Apple only for purchases, cloud sync, compensation, purchase restore, or cloud account deletion."
                             ))
                             .font(AppTypography.bodyLarge)
                             .foregroundColor(AppColors.textSecondary)

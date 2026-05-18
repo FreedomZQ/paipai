@@ -65,7 +65,8 @@ public class ReadingUsageService {
         entity.setStartedAt(startedAt);
         entity.setDurationSeconds(0);
         entity.setClientPlatform(blankToNull(request.clientPlatform()));
-        entity.setDeviceModel(blankToNull(request.deviceModel()));
+        // COPPA/GDPR-K 收口：学习时长记录只需要平台类别，不再保存设备型号。
+        entity.setDeviceModel(null);
         entity.setSourcePage(blankToNull(request.sourcePage()));
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);

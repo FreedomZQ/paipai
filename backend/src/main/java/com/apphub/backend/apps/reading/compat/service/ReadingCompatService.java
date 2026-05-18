@@ -52,7 +52,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.DateTimeException;
@@ -62,7 +61,6 @@ import java.time.temporal.TemporalAdjusters;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -605,15 +603,18 @@ public class ReadingCompatService {
         card.setChildId(child.getId());
         card.setLearningTrackCode(normalizeLearningTrack(request.learningTrackCode()));
         String encryptedText = trimRequired(request.encryptedText(), "encryptedText");
+        if (!isClientEncryptedEnvelope(encryptedText) && !encryptedText.startsWith("hash:v1:sha256:")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ENCRYPTED_REVIEW_CARD_REQUIRED");
+        }
         String decodedPreview = decodePreview(encryptedText);
         card.setEncryptedText(encryptedText);
         card.setTextPreview(decodedPreview);
         card.setSupportHint(blankToNull(request.supportHint()) == null ? "" : request.supportHint().trim());
-        // P1 隐私升级：新的 enc:v1:aesgcm:keychain:* 正文由客户端本机密钥加密，后端不可解密。
-        // 因此后端只保存通用预览，不再把完整儿童阅读内容回填到 source_text / translated_text，降低个人开发者的法律和审核风险。
-        card.setSourceText(isClientEncryptedEnvelope(encryptedText) ? null : decodedPreview);
-        card.setTranslatedText(isClientEncryptedEnvelope(encryptedText) ? null : (blankToNull(request.supportHint()) == null ? "" : request.supportHint().trim()));
-        card.setContentEncryptionVersion(isClientEncryptedEnvelope(encryptedText) ? "aesgcm_keychain_v1" : "legacy_base64_v0");
+        // COPPA/GDPR-K 收口：生产写入只接受客户端加密 envelope 或内容哈希。
+        // 后端不再 base64 解码儿童原文，也不回填 source_text / translated_text。
+        card.setSourceText(null);
+        card.setTranslatedText(null);
+        card.setContentEncryptionVersion(isClientEncryptedEnvelope(encryptedText) ? "aesgcm_keychain_v1" : "hash_reference_v1");
         card.setContentKeyId(isClientEncryptedEnvelope(encryptedText) ? "local_device_key_v1" : null);
         card.setSourceLanguageCode(defaultIfBlank(request.sourceLanguageCode(), sourceLanguageCode(card.getLearningTrackCode())));
         card.setTargetLanguageCode(defaultIfBlank(request.targetLanguageCode(), targetLanguageCode(card.getLearningTrackCode())));
@@ -811,11 +812,11 @@ public class ReadingCompatService {
             "not_configured",
             null,
             null,
-            request.text(),
+            null,
             request.languageCode(),
             request.rate(),
             "云端朗读暂未启用",
-            "当前版本默认推荐使用设备自带朗读；云端朗读入口已接入当前 App 后端校验与次数控制，但真实 provider 还未配置。",
+            "当前版本仅使用设备端朗读；云端朗读未来会改为家长同意后的 capability / reservation 模式，业务后端不会保存儿童正文。",
             decision.unlockOptions()
         );
     }
@@ -2307,21 +2308,7 @@ public class ReadingCompatService {
     }
 
     private String decodePreview(String encryptedText) {
-        if (encryptedText == null || encryptedText.isBlank()) {
-            return "已保存句卡";
-        }
-        if (isClientEncryptedEnvelope(encryptedText) || encryptedText.startsWith("hash:v1:sha256:")) {
-            return "已保存句卡";
-        }
-        try {
-            String decoded = new String(Base64.getDecoder().decode(encryptedText), StandardCharsets.UTF_8).trim();
-            if (decoded.isBlank()) {
-                return "已保存句卡";
-            }
-            return decoded.length() > 80 ? decoded.substring(0, 80) : decoded;
-        } catch (IllegalArgumentException exception) {
-            return "已保存句卡";
-        }
+        return "已保存句卡";
     }
 
     private boolean isClientEncryptedEnvelope(String encryptedText) {

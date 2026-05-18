@@ -32,9 +32,10 @@ public class SysSyncInstallationService {
         entity.setInstallationId(installationId);
         entity.setAppCode(appCode);
         entity.setUserId(userId);
-        entity.setDeviceId(blankToNull(request.deviceId()));
+        // 合规说明：PowerSync 安装号只用于已授权云同步的技术路由，不能复用设备 ID 或设备型号形成替代身份标识。
+        entity.setDeviceId(null);
         entity.setClientPlatform(trimRequired(request.clientPlatform(), "clientPlatform"));
-        entity.setDeviceModel(blankToNull(request.deviceModel()));
+        entity.setDeviceModel(null);
         entity.setAppVersion(blankToNull(request.appVersion()));
         entity.setPowersyncClientId(blankToNull(request.powersyncClientId()));
         entity.setCloudSyncEnabled(request.cloudSyncEnabled());

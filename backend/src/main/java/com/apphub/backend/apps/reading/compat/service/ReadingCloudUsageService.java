@@ -27,8 +27,10 @@ import java.util.Locale;
 public class ReadingCloudUsageService {
     public static final String CLOUD_OCR = "cloud_ocr";
     public static final String CLOUD_TTS = "cloud_tts";
-    public static final String LOCAL_CAPTURE = "capture";
-    public static final String LOCAL_SPEECH = "speech";
+    public static final String LOCAL_OCR = "local_ocr";
+    public static final String LOCAL_TTS = "local_tts";
+    @Deprecated public static final String LOCAL_CAPTURE = LOCAL_OCR;
+    @Deprecated public static final String LOCAL_SPEECH = LOCAL_TTS;
     private static final String APP_CODE = ReadingAppModule.APP_CODE;
     private static final int DEFAULT_GIFT_VALID_DAYS = 30;
 
@@ -312,11 +314,11 @@ public class ReadingCloudUsageService {
         String featureCode = switch (serviceType) {
             case CLOUD_TTS -> ReadingDailyQuotaConfigService.FEATURE_CLOUD_TTS;
             case CLOUD_OCR -> ReadingDailyQuotaConfigService.FEATURE_CLOUD_OCR;
-            case LOCAL_SPEECH -> ReadingDailyQuotaConfigService.FEATURE_SPEECH;
-            case LOCAL_CAPTURE -> ReadingDailyQuotaConfigService.FEATURE_CAPTURE;
+            case LOCAL_TTS -> ReadingDailyQuotaConfigService.FEATURE_SPEECH;
+            case LOCAL_OCR -> ReadingDailyQuotaConfigService.FEATURE_CAPTURE;
             default -> ReadingDailyQuotaConfigService.FEATURE_CLOUD_OCR;
         };
-        if (LOCAL_CAPTURE.equals(serviceType) || LOCAL_SPEECH.equals(serviceType)) {
+        if (LOCAL_OCR.equals(serviceType) || LOCAL_TTS.equals(serviceType)) {
             return 0;
         }
         return dailyQuotaConfigService.dailyLimit("free", featureCode);
@@ -600,7 +602,7 @@ public class ReadingCloudUsageService {
             || "photo_ocr".equals(normalized)
             || "device_ocr".equals(normalized)
             || "local_ocr".equals(normalized)) {
-            return LOCAL_CAPTURE;
+            return LOCAL_OCR;
         }
         if ("speech".equals(normalized)
             || "tts".equals(normalized)
@@ -609,7 +611,7 @@ public class ReadingCloudUsageService {
             || "speech_synthesis".equals(normalized)
             || "device_tts".equals(normalized)
             || "local_tts".equals(normalized)) {
-            return LOCAL_SPEECH;
+            return LOCAL_TTS;
         }
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported serviceType");
     }

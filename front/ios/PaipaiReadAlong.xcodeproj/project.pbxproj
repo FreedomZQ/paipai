@@ -53,7 +53,6 @@
 		800C559661167A7239A0E5C3 /* SecureSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E547B96826FDB4378EDC5CB /* SecureSessionStore.swift */; };
 		82D49AAFACC362E0C132704A /* AppStorePurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB5B390E9D6F9EC9FDDD8B1 /* AppStorePurchaseService.swift */; };
 		853C8D7E0CAFF65EA0BBD0B2 /* AppScopedDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 530AEC5D1022DA5F00FA87A1 /* AppScopedDefaults.swift */; };
-		8A3A5BB3EC23182AC6901E60 /* DeleteAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F403B4CF99EDC043D6BC84E5 /* DeleteAccountView.swift */; };
 		8CE5D88342B61124D87CAC05 /* PowerSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99879049E9DCD5A933F7FA69 /* PowerSyncManager.swift */; };
 		8E3985D69AA903D1A6D4241B /* ReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2783BEBE24CBD47485CF97D2 /* ReviewView.swift */; };
 		8E72BC6BD997432FCD6D5890 /* SyncSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2466794A4A9EE723A37E34 /* SyncSupport.swift */; };
@@ -145,7 +144,7 @@
 		58F96E89E029FD6C11AFFC90 /* BackendRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendRoute.swift; sourceTree = "<group>"; };
 		5D134B85F8C0BFF184F7BCE5 /* Cards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards.swift; sourceTree = "<group>"; };
 		5F6E942622A4EF722BA9F60F /* AuthModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthModels.swift; sourceTree = "<group>"; };
-		5F83EE3EC8D306BDFD9A628B /* PaipaiReadAlong.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = PaipaiReadAlong.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F83EE3EC8D306BDFD9A628B /* PaipaiReadAlong.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PaipaiReadAlong.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		62A1885D967F02C3AEFA5F23 /* ReviewCardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewCardModels.swift; sourceTree = "<group>"; };
 		656D2BF22764E3AE38AF5464 /* AnnouncementLocalizationHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementLocalizationHost.swift; sourceTree = "<group>"; };
 		66F80D08E08195A84FD7DDFE /* SyncSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSettingsStore.swift; sourceTree = "<group>"; };
@@ -160,7 +159,7 @@
 		7A3494973D5F76AA9B995053 /* PowerSyncInstallationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSyncInstallationStore.swift; sourceTree = "<group>"; };
 		7AF3C6DEBBAA089C61F2C828 /* EntitlementRecordRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementRecordRepository.swift; sourceTree = "<group>"; };
 		7E2466794A4A9EE723A37E34 /* SyncSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSupport.swift; sourceTree = "<group>"; };
-		83DD1A909F86E7340498F9B9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		83DD1A909F86E7340498F9B9 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8A8482BB2D79696E7A1B2189 /* ReadingParkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingParkView.swift; sourceTree = "<group>"; };
 		90725D3357B4BF57D4CB1A36 /* ReviewEventRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewEventRepository.swift; sourceTree = "<group>"; };
 		92F557D333C7E7F054699F28 /* TranslationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationService.swift; sourceTree = "<group>"; };
@@ -190,14 +189,13 @@
 		E1780D0CC2727678241882EA /* AppVersionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionPolicy.swift; sourceTree = "<group>"; };
 		E2178F281258733DB079807E /* LocalTextCryptoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTextCryptoService.swift; sourceTree = "<group>"; };
 		E39CE8BD6975CDD335FC9DDD /* UsageSessionRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageSessionRepository.swift; sourceTree = "<group>"; };
-		E72094787FD391DAE6614896 /* PaipaiReadAlongTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = PaipaiReadAlongTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E72094787FD391DAE6614896 /* PaipaiReadAlongTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PaipaiReadAlongTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E8610BCC2D92449C7D525A83 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		E9095D296B1D907391159F3C /* AnnouncementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementModels.swift; sourceTree = "<group>"; };
 		EAF8681A449E79C31F65ED98 /* OCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRService.swift; sourceTree = "<group>"; };
 		EF01CD223F37C4CF61140CAB /* CaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureView.swift; sourceTree = "<group>"; };
 		EFED80C3A4783880F5887A69 /* TTSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSService.swift; sourceTree = "<group>"; };
 		F3D65C942304DE40054D5419 /* PowerSyncCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSyncCredentialStore.swift; sourceTree = "<group>"; };
-		F403B4CF99EDC043D6BC84E5 /* DeleteAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeleteAccountView.swift; sourceTree = "<group>"; };
 		F5FE8C7C66AC7E422C2470D2 /* VerificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerificationModels.swift; sourceTree = "<group>"; };
 		F67C17A7EFD342514B8B1AD2 /* AnnouncementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementView.swift; sourceTree = "<group>"; };
 		F7455E5376B8F12216477767 /* ParentAreaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentAreaView.swift; sourceTree = "<group>"; };
@@ -332,7 +330,6 @@
 			isa = PBXGroup;
 			children = (
 				284D6B2AB3DA292A6931ED9B /* CompensationCodeView.swift */,
-				F403B4CF99EDC043D6BC84E5 /* DeleteAccountView.swift */,
 				43C7D44659130092486179F7 /* EntitlementRecordsView.swift */,
 				D492DF45AEF44DCF302505C0 /* InterfaceLanguageSettingsView.swift */,
 				AD8F7B5C9D09EA9616975686 /* LanguagePreferenceView.swift */,
@@ -564,14 +561,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-					830E5B4EB86C9FD22B922B87 = {
-						DevelopmentTeam = "棋 张(Personal Team)";
-					};
-					CF38EB1B0EF0EF846863AF08 = {
-						DevelopmentTeam = "棋 张(Personal Team)";
-					};
-				};
 			};
 			buildConfigurationList = 3DE380C8E8D50B52C3D927AE /* Build configuration list for PBXProject "PaipaiReadAlong" */;
 			developmentRegion = en;
@@ -641,7 +630,6 @@
 				9E7BAEC6D478BF62F7060D56 /* ChildProfileRepository.swift in Sources */,
 				02F14071177F4B9310841F59 /* CompensationCodeView.swift in Sources */,
 				129D9222C86B85823AC01FC7 /* DailyLearningTask.swift in Sources */,
-				8A3A5BB3EC23182AC6901E60 /* DeleteAccountView.swift in Sources */,
 				6B7E1AF28B901A408FD7F10C /* DeviceInfoService.swift in Sources */,
 				6A0D7CB44DD1570844639162 /* EntitlementRecordRepository.swift in Sources */,
 				A39773328EBA005119DC0744 /* EntitlementRecordsView.swift in Sources */,
@@ -726,6 +714,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = PaipaiReadAlong/Resources/PaipaiReadAlongDebug.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = S79P567WCU;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PaipaiReadAlong/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -792,7 +781,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "棋 张(Personal Team)";
+				DEVELOPMENT_TEAM = S79P567WCU;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -852,7 +841,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "棋 张(Personal Team)";
+				DEVELOPMENT_TEAM = S79P567WCU;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -887,6 +876,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = S79P567WCU;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

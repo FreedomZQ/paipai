@@ -9,6 +9,7 @@ import com.apphub.backend.common.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.MDC;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -77,6 +78,71 @@ public class ReadingAccountCompatController {
         ReadingAuthenticatedUser user = userResolver.require(request);
         return ApiResponse.success(currentRequestId(), readingCompatService.deleteAccount(user, body));
     }
+
+    @Operation(summary = "提交家长同意", description = "记录家长授权状态的兼容入口；当前实现以返回快照形式响应，避免 Local Guest 产生后端账号依赖。")
+    @PostMapping("/privacy/consent/parent")
+    public ApiResponse<PrivacyActionReceipt> parentConsent(@Parameter(hidden = true) HttpServletRequest request) {
+        ReadingAuthenticatedUser user = userResolver.require(request);
+        var state = readingCompatService.accountState(user);
+        return ApiResponse.success(currentRequestId(), new PrivacyActionReceipt("parent_consent", "recorded", state.entitlement().planCode(), "家长同意状态已绑定到当前账号上下文。"));
+    }
+
+    @Operation(summary = "导出隐私摘要", description = "返回家长可见的权益、删除和购买最小保留说明。")
+    @GetMapping("/privacy/export")
+    public ApiResponse<PrivacyExportView> privacyExport(@Parameter(hidden = true) HttpServletRequest request) {
+        ReadingAuthenticatedUser user = userResolver.require(request);
+        var state = readingCompatService.accountState(user);
+        var subscription = readingCompatService.subscriptionStatus(user);
+        return ApiResponse.success(currentRequestId(), new PrivacyExportView(
+            "export-ready",
+            state.entitlement().planCode(),
+            state.entitlement().planName(),
+            subscription.hasPendingVerification(),
+            "家长可导出同意、权益和购买摘要；不包含 capability token、儿童正文或设备指纹。"
+        ));
+    }
+
+    @Operation(summary = "查询删除状态", description = "返回当前账号删除流程的兼容状态。")
+    @GetMapping("/privacy/deletion-status")
+    public ApiResponse<PrivacyActionReceipt> deletionStatus(@Parameter(hidden = true) HttpServletRequest request) {
+        ReadingAuthenticatedUser user = userResolver.require(request);
+        boolean deleted = "deleted".equalsIgnoreCase(user.user().getStatus());
+        return ApiResponse.success(currentRequestId(), new PrivacyActionReceipt(
+            "deletion_status",
+            deleted ? "completed" : "active",
+            deleted ? "completed" : "processing",
+            deleted ? "账号已删除。" : "账号仍在使用中。"
+        ));
+    }
+
+    @Operation(summary = "查询购买最小保留", description = "返回删除账号后购买凭证的最小保留说明。")
+    @GetMapping("/privacy/purchase-retention")
+    public ApiResponse<PrivacyActionReceipt> purchaseRetention(@Parameter(hidden = true) HttpServletRequest request) {
+        ReadingAuthenticatedUser user = userResolver.require(request);
+        return ApiResponse.success(currentRequestId(), new PrivacyActionReceipt(
+            "purchase_retention",
+            "minimal",
+            readingCompatService.accountState(user).entitlement().planCode(),
+            "交易哈希与最小账务字段仅用于退款、税务、反欺诈或争议处理。"
+        ));
+    }
+
+    @Operation(summary = "撤回云处理同意", description = "兼容入口，当前实现返回撤回结果说明。")
+    @PostMapping("/privacy/consent/withdraw")
+    public ApiResponse<PrivacyActionReceipt> withdrawConsent(@Parameter(hidden = true) HttpServletRequest request) {
+        ReadingAuthenticatedUser user = userResolver.require(request);
+        return ApiResponse.success(currentRequestId(), new PrivacyActionReceipt("consent_withdraw", "recorded", user.user().getAppCode(), "云能力同意已撤回，后续云能力应重新走家长授权。"));
+    }
+
+    @Operation(summary = "限制处理", description = "兼容入口，返回处理限制状态说明。")
+    @PostMapping("/privacy/restrict-processing")
+    public ApiResponse<PrivacyActionReceipt> restrictProcessing(@Parameter(hidden = true) HttpServletRequest request) {
+        ReadingAuthenticatedUser user = userResolver.require(request);
+        return ApiResponse.success(currentRequestId(), new PrivacyActionReceipt("restrict_processing", "recorded", user.user().getAppCode(), "非必要云处理已限制。"));
+    }
+
+    public record PrivacyActionReceipt(String action, String status, String scope, String note) {}
+    public record PrivacyExportView(String status, String planCode, String planName, Boolean hasPendingVerification, String note) {}
 
     private String currentRequestId() {
         String requestId = MDC.get(TraceFilter.REQUEST_ID_MDC_KEY);

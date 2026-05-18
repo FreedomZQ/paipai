@@ -22,10 +22,16 @@ struct ParentRecoveryQuestion: Identifiable, Codable, Equatable {
 struct ParentPasswordSetupPayload {
     let password: String
     let answersByQuestionId: [String: String]
+
+    init(password: String, answersByQuestionId: [String: String] = [:]) {
+        self.password = password
+        self.answersByQuestionId = answersByQuestionId
+    }
 }
 
 enum ParentGateServiceError: Error, Equatable {
     case deviceAuthenticationUnavailable
+    case deviceAuthenticationCancelled
     case deviceAuthenticationFailed
     case passwordTooShort
     case passwordNeedsLettersAndNumbers
@@ -144,6 +150,18 @@ final class ParentGateService {
             }
             throw ParentGateServiceError.deviceAuthenticationFailed
         } catch {
+            if let laError = error as? LAError {
+                switch laError.code {
+                case .userCancel, .systemCancel, .appCancel:
+                    logger.info("Parent gate device authentication was cancelled.")
+                    throw ParentGateServiceError.deviceAuthenticationCancelled
+                case .passcodeNotSet, .biometryNotAvailable, .notInteractive:
+                    logger.warning("Parent gate device authentication unavailable.")
+                    throw ParentGateServiceError.deviceAuthenticationUnavailable
+                default:
+                    break
+                }
+            }
             logger.warning("Parent gate device authentication failed.")
             throw ParentGateServiceError.deviceAuthenticationFailed
         }
@@ -151,16 +169,12 @@ final class ParentGateService {
 
     func createOfflinePassword(_ payload: ParentPasswordSetupPayload) throws {
         try validatePassword(payload.password)
-        let normalizedAnswers = Self.recoveryQuestions.map { question in
-            normalizedRecoveryAnswer(payload.answersByQuestionId[question.id] ?? "")
-        }
-        guard normalizedAnswers.allSatisfy({ !$0.isEmpty }) else {
-            throw ParentGateServiceError.recoveryAnswersIncomplete
-        }
 
         let passwordSalt = try randomData(count: saltByteCount)
         let passwordHash = try pbkdf2(payload.password, salt: passwordSalt)
-        let answerRecords = try zip(Self.recoveryQuestions, normalizedAnswers).map { question, answer in
+        let answerRecords = try Self.recoveryQuestions.compactMap { question -> RecoveryAnswerRecord? in
+            let answer = normalizedRecoveryAnswer(payload.answersByQuestionId[question.id] ?? "")
+            guard !answer.isEmpty else { return nil }
             let salt = try randomData(count: saltByteCount)
             return RecoveryAnswerRecord(
                 questionId: question.id,
@@ -257,14 +271,11 @@ final class ParentGateService {
 
     func validatePassword(_ password: String) throws {
         let trimmed = password.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 6 else { throw ParentGateServiceError.passwordTooShort }
-        guard trimmed.contains(where: { $0.isLetter }) && trimmed.contains(where: { $0.isNumber }) else {
-            throw ParentGateServiceError.passwordNeedsLettersAndNumbers
-        }
+        guard trimmed.count >= 4 else { throw ParentGateServiceError.passwordTooShort }
         let lowercased = trimmed.lowercased()
         let weakPasswords: Set<String> = [
-            "123456", "12345678", "111111", "000000", "654321", "abcdef",
-            "abc123", "a123456", "qwerty", "password", "password1", "paipai123"
+            "0000", "1111", "1234", "123456", "12345678", "111111", "000000", "654321",
+            "abcdef", "abc123", "a123456", "qwerty", "password", "password1", "paipai123"
         ]
         guard !weakPasswords.contains(lowercased) else { throw ParentGateServiceError.weakPassword }
     }

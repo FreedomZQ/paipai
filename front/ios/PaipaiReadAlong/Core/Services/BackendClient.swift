@@ -9,6 +9,7 @@ final class BackendClient {
     enum BackendError: LocalizedError {
         case invalidResponse
         case authRequired
+        case connectionUnavailable
         case server(code: String, message: String, traceId: String?)
 
         var errorDescription: String? {
@@ -17,6 +18,8 @@ final class BackendClient {
                 return "服务器返回了无法识别的响应。"
             case .authRequired:
                 return "请先登录，再查看会员权益和支付状态。"
+            case .connectionUnavailable:
+                return ""
             case let .server(_, message, _):
                 return message
             }
@@ -34,6 +37,24 @@ final class BackendClient {
                 return traceId
             }
             return nil
+        }
+
+        static func isConnectionFailure(_ error: Error) -> Bool {
+            guard let urlError = error as? URLError else { return false }
+            switch urlError.code {
+            case .cannotFindHost,
+                 .cannotConnectToHost,
+                 .networkConnectionLost,
+                 .dnsLookupFailed,
+                 .notConnectedToInternet,
+                 .timedOut,
+                 .internationalRoamingOff,
+                 .dataNotAllowed,
+                 .secureConnectionFailed:
+                return true
+            default:
+                return false
+            }
         }
     }
 
@@ -401,31 +422,19 @@ final class BackendClient {
     }
 
     func extractOcrText(imageBase64: String, mimeType: String, promptOverride: String? = nil) async throws -> OcrExtractReceipt {
-        let receipt: Envelope<OcrExtractReceipt> = try await send(
-            path: "/api/v1/ocr/extract",
-            method: "POST",
-            body: OcrExtractPayload(imageBase64: imageBase64, mimeType: mimeType, promptOverride: promptOverride),
-            requiresAuth: true
-        )
-        return receipt.data
+        throw BackendError.server(code: "cloud_ocr_disabled", message: "云端识图暂未开放。", traceId: nil)
     }
 
 
     func synthesizeCloudSpeech(text: String, languageCode: String, rate: Float) async throws -> CloudSpeechReceipt {
-        let receipt: Envelope<CloudSpeechReceipt> = try await send(
-            path: "/api/v1/tts/speak",
-            method: "POST",
-            body: CloudSpeechPayload(text: text, languageCode: languageCode, rate: rate),
-            requiresAuth: true
-        )
-        return receipt.data
+        throw BackendError.server(code: "cloud_tts_disabled", message: "云端朗读暂未开放。", traceId: nil)
     }
 
 
     func powerSyncBootstrap(
         installationId: String,
         deviceId: String?,
-        clientPlatform: String,
+        clientPlatform: String?,
         deviceModel: String?,
         appVersion: String?,
         cloudSyncEnabled: Bool,
@@ -488,8 +497,12 @@ final class BackendClient {
         appVersion: String? = nil,
         buildNumber: String? = nil,
         locale: String? = nil,
-        payload: [String: String] = [:]
+        payload: [String: String] = [:],
+        diagnosticsOptIn: Bool = false,
+        result: String? = nil
     ) async throws {
+        // 默认链路不上传设备事件。仅家长显式开启 diagnostics 时才发送低敏诊断。
+        guard diagnosticsOptIn else { return }
         let _: Envelope<DeviceEventReceipt> = try await send(
             path: "/api/v1/account/device-event",
             method: "POST",
@@ -504,7 +517,9 @@ final class BackendClient {
                 buildNumber: buildNumber,
                 locale: locale,
                 ipCountry: nil,
-                payload: payload
+                payload: payload,
+                diagnosticsOptIn: diagnosticsOptIn,
+                result: result
             ),
             requiresAuth: true
         )
@@ -633,7 +648,16 @@ final class BackendClient {
             request.httpBody = bodyData
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            if BackendError.isConnectionFailure(error) {
+                throw BackendError.connectionUnavailable
+            }
+            throw error
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
             throw BackendError.invalidResponse
         }
@@ -1022,6 +1046,8 @@ private struct DeviceEventPayload: Encodable {
     let locale: String?
     let ipCountry: String?
     let payload: [String: String]
+    let diagnosticsOptIn: Bool
+    let result: String?
 }
 
 private struct DeviceEventReceipt: Decodable {

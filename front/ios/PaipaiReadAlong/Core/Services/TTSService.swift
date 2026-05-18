@@ -4,6 +4,22 @@ import os
 import AVFoundation
 #endif
 
+#if canImport(AVFoundation)
+private enum MainQueueAVFoundationBridge {
+    static func run<T>(_ work: @escaping () throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.main.async {
+                do {
+                    continuation.resume(returning: try work())
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+}
+#endif
+
 enum TTSPlaybackMode {
     case device
     case cloud
@@ -211,6 +227,25 @@ final class AudioSessionManager: ObservableObject {
         try activateAudioSession()
     }
 
+    func prepareForPlaybackFromSwiftConcurrency() async throws {
+        #if canImport(AVFoundation)
+        let session = audioSession
+        do {
+            try await MainQueueAVFoundationBridge.run {
+                let options: AVAudioSession.CategoryOptions = [.duckOthers]
+                try session.setCategory(.playback, mode: .spokenAudio, options: options)
+                try session.setActive(true, options: [])
+            }
+            isAudioSessionActive = true
+            lastError = nil
+        } catch {
+            isAudioSessionActive = false
+            lastError = .activationFailed(error)
+            throw AudioSessionError.activationFailed(error)
+        }
+        #endif
+    }
+
     #if canImport(AVFoundation)
     func checkHeadphonesConnected() -> Bool {
         let outputs = audioSession.currentRoute.outputs
@@ -288,6 +323,54 @@ final class TTSService: NSObject, ObservableObject {
         #endif
     }
 
+    @discardableResult
+    func speakFromSwiftConcurrency(_ text: String, language: String, rate: Float = 1.0) async -> Bool {
+        #if canImport(AVFoundation)
+        let startedAt = Date()
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let currentPlayer = audioPlayer
+        let currentSynthesizer = synthesizer
+        let needsDrain = (try? await MainQueueAVFoundationBridge.run {
+            let playerWasPlaying = currentPlayer?.isPlaying == true
+            let synthesizerWasActive = currentSynthesizer.isSpeaking || currentSynthesizer.isPaused
+            if playerWasPlaying {
+                currentPlayer?.stop()
+            }
+            if synthesizerWasActive {
+                currentSynthesizer.stopSpeaking(at: .immediate)
+            }
+            return playerWasPlaying || synthesizerWasActive
+        }) ?? false
+        if needsDrain {
+            await Task.yield()
+            try? await Task.sleep(nanoseconds: 80_000_000)
+        }
+
+        guard await prepareAudioSessionForImmediateSpeechFromSwiftConcurrency(reason: "device_speak") else { return false }
+        lastTTSError = nil
+        let utterance = AVSpeechUtterance(string: trimmed)
+        utterance.voice = voice(for: language)
+        utterance.rate = deviceSpeechRate(forPlaybackSpeed: rate)
+
+        do {
+            try await MainQueueAVFoundationBridge.run {
+                currentSynthesizer.speak(utterance)
+            }
+        } catch {
+            lastTTSError = TTSServiceError.audioSessionConfigurationFailed(error.localizedDescription)
+            return false
+        }
+
+        let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+        logger.info("speech_device_start language=\(language, privacy: .public) speed=\(rate, privacy: .public) avRate=\(utterance.rate, privacy: .public) cachedVoice=\(self.cachedVoicesByLanguage[self.normalizeSpeechLanguage(language)] != nil, privacy: .public) elapsedMs=\(elapsedMs, privacy: .public)")
+        return true
+        #else
+        return false
+        #endif
+    }
+
     func speak(
         text: String,
         language: String,
@@ -301,33 +384,13 @@ final class TTSService: NSObject, ObservableObject {
             try await speakDeviceAndWait(text: text, language: language, rate: rate)
             return TTSPlaybackResult(mode: .device, fellBackToDevice: false, cloudReceipt: nil)
         case .cloud:
-            guard let backendClient else {
-                throw TTSServiceError.backendUnavailable
+            // 云端朗读在当前发布阶段关闭，避免儿童正文经过业务后端代理。
+            // 后续开放时必须先完成家长同意、capability token 和 reservation 链路。
+            if fallbackToDeviceOnFailure {
+                try await speakDeviceAndWait(text: text, language: language, rate: rate)
+                return TTSPlaybackResult(mode: .cloud, fellBackToDevice: true, cloudReceipt: nil)
             }
-            let receipt = try await backendClient.synthesizeCloudSpeech(text: text, languageCode: language, rate: rate)
-            if receipt.allowed == false || receipt.serviceStatus == "quota_blocked" {
-                throw TTSServiceError.cloudQuotaBlocked(receipt.upgradeMessage ?? "Cloud TTS quota is exhausted.")
-            }
-            if receipt.serviceStatus == "provider_failed" || receipt.serviceStatus == "not_configured" {
-                throw TTSServiceError.cloudSynthesisFailed(receipt.upgradeMessage ?? "Cloud TTS is currently unavailable.")
-            }
-            guard let audioBase64 = receipt.audioBase64 else {
-                if fallbackToDeviceOnFailure {
-                    try await speakDeviceAndWait(text: text, language: language, rate: rate)
-                    return TTSPlaybackResult(mode: .cloud, fellBackToDevice: true, cloudReceipt: receipt)
-                }
-                throw TTSServiceError.missingCloudAudio
-            }
-            do {
-                try await playCloudAudioAndWait(base64: audioBase64, mimeType: receipt.mimeType, playbackSpeed: rate)
-                return TTSPlaybackResult(mode: .cloud, fellBackToDevice: false, cloudReceipt: receipt)
-            } catch {
-                if fallbackToDeviceOnFailure {
-                    try await speakDeviceAndWait(text: text, language: language, rate: rate)
-                    return TTSPlaybackResult(mode: .cloud, fellBackToDevice: true, cloudReceipt: receipt)
-                }
-                throw error
-            }
+            throw TTSServiceError.backendUnavailable
         }
     }
 
@@ -388,7 +451,8 @@ final class TTSService: NSObject, ObservableObject {
         }
 
         do {
-            try audioSessionManager.prepareForPlayback()
+            try await audioSessionManager.prepareForPlaybackFromSwiftConcurrency()
+            didPrepareAudioSessionForDeviceSpeech = true
         } catch {
             let audioError = error as? AudioSessionError ?? AudioSessionError.configurationConflict
             throw TTSServiceError.audioSessionConfigurationFailed(audioError.localizedDescription)
@@ -520,11 +584,15 @@ final class TTSService: NSObject, ObservableObject {
         let normalizedLanguages = uniqueNormalizedLanguages(languageCodes)
         guard let language = normalizedLanguages.first else { return }
 
-        preloadDeviceVoices(languageCodes: normalizedLanguages)
+        await preloadDeviceVoicesFromSwiftConcurrency(languageCodes: normalizedLanguages)
         guard !prewarmedSpeechEngineLanguages.contains(language) else { return }
-        guard prepareAudioSessionForImmediateSpeech(reason: "engine_prewarm") else { return }
+        guard await prepareAudioSessionForImmediateSpeechFromSwiftConcurrency(reason: "engine_prewarm") else { return }
 
-        if synthesizer.isSpeaking || synthesizer.isPaused {
+        let currentSynthesizer = synthesizer
+        let isActive = (try? await MainQueueAVFoundationBridge.run {
+            currentSynthesizer.isSpeaking || currentSynthesizer.isPaused
+        }) ?? false
+        if isActive {
             return
         }
 
@@ -615,6 +683,20 @@ final class TTSService: NSObject, ObservableObject {
         return configureAudioSessionForDeviceSpeech(reason: reason)
     }
 
+    private func prepareAudioSessionForImmediateSpeechFromSwiftConcurrency(reason: String) async -> Bool {
+        guard !didPrepareAudioSessionForDeviceSpeech || !audioSessionManager.isAudioSessionActive else { return true }
+        do {
+            try await audioSessionManager.prepareForPlaybackFromSwiftConcurrency()
+            didPrepareAudioSessionForDeviceSpeech = true
+            return true
+        } catch {
+            let audioError = error as? AudioSessionError ?? AudioSessionError.configurationConflict
+            lastTTSError = TTSServiceError.audioSessionConfigurationFailed(audioError.localizedDescription)
+            logger.error("speech_preload_audio_session_failed reason=\(reason, privacy: .public) error=\(audioError.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     private func configureAudioSessionForDeviceSpeech(reason: String) -> Bool {
         do {
             try audioSessionManager.prepareForPlayback()
@@ -642,10 +724,37 @@ final class TTSService: NSObject, ObservableObject {
 
         try await withCheckedThrowingContinuation { continuation in
             speechContinuation = continuation
-            DispatchQueue.main.async {
-                currentSynthesizer.speak(utterance)
-            }
+            DispatchQueue.main.async { currentSynthesizer.speak(utterance) }
         }
+    }
+
+    private func preloadDeviceVoicesFromSwiftConcurrency(languageCodes: [String]) async {
+        let startedAt = Date()
+        let normalizedLanguages = uniqueNormalizedLanguages(languageCodes)
+        guard !normalizedLanguages.isEmpty else { return }
+
+        let didPrime = didPrimeSpeechVoiceCatalog
+        let missingLanguages = normalizedLanguages.filter { cachedVoicesByLanguage[$0] == nil }
+        let loadedVoices: [String: AVSpeechSynthesisVoice] = (try? await MainQueueAVFoundationBridge.run {
+            if !didPrime {
+                _ = AVSpeechSynthesisVoice.speechVoices()
+            }
+            var voices: [String: AVSpeechSynthesisVoice] = [:]
+            for language in missingLanguages {
+                voices[language] = AVSpeechSynthesisVoice(language: language)
+            }
+            return voices
+        }) ?? [:]
+
+        didPrimeSpeechVoiceCatalog = true
+        for (language, voice) in loadedVoices {
+            cachedVoicesByLanguage[language] = voice
+        }
+
+        _ = await prepareAudioSessionForImmediateSpeechFromSwiftConcurrency(reason: "preload")
+
+        let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1000)
+        logger.info("speech_preload_completed languages=\(normalizedLanguages.joined(separator: ","), privacy: .public) cached=\(self.cachedVoicesByLanguage.count, privacy: .public) audioSessionPrepared=\(self.didPrepareAudioSessionForDeviceSpeech, privacy: .public) elapsedMs=\(elapsedMs, privacy: .public)")
     }
 
     private func uniqueNormalizedLanguages(_ languages: [String]) -> [String] {

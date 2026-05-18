@@ -53,7 +53,7 @@ struct CompensationCodeView: View {
                     .font(AppTypography.body)
                     .foregroundColor(AppColors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(appState.uiText("同一补偿码只能使用一次，成功后会直接补到当前账号。", "Each code can be redeemed once and will be applied to the current account immediately."))
+                Text(appState.uiText("同一补偿码只能使用一次，成功后会直接补到当前权益。", "Each code can be redeemed once and will be applied to the current entitlement immediately."))
                     .font(AppTypography.footnote)
                     .foregroundColor(AppColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -79,7 +79,7 @@ struct CompensationCodeView: View {
             VStack(alignment: .leading, spacing: AppLayout.spacingM) {
                 Text(appState.uiText("补偿码", "Compensation code"))
                     .font(AppTypography.headline)
-                TextField(appState.uiText("请输入补偿码", "Enter the code"), text: $compensationCode)
+                TextField("输入发放的补偿码", text: $compensationCode)
                     .keyboardType(.asciiCapable)
                     .textInputAutocapitalization(.characters)
                     .textContentType(.oneTimeCode)
@@ -262,6 +262,6 @@ struct CompensationCodeView: View {
         if let validUntil = receipt.validUntil {
             return appState.uiText("到期 \(formatDate(validUntil))", "Expires \(formatDate(validUntil))")
         }
-        return appState.uiText("已更新到当前账号", "Applied to the current account")
+        return appState.uiText("已更新到当前权益", "Applied to the current entitlement")
     }
 }

@@ -6,8 +6,10 @@ import com.apphub.backend.sys.auth.entity.SysUserDeviceEventEntity;
 import com.apphub.backend.sys.auth.mapper.SysUserDeviceEventMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.media.Schema;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -27,25 +29,31 @@ public class ReadingDeviceEventService {
 
     @Transactional
     public DeviceEventReceipt record(ReadingAuthenticatedUser userOrNull, DeviceEventRequest request) {
+        if (userOrNull == null || request == null || !Boolean.TRUE.equals(request.diagnosticsOptIn())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "DIAGNOSTICS_OPT_IN_REQUIRED");
+        }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         SysUserDeviceEventEntity entity = new SysUserDeviceEventEntity();
         entity.setAppCode(APP_CODE);
-        entity.setUserId(userOrNull == null ? null : userOrNull.userId());
-        entity.setSessionId(userOrNull == null ? null : userOrNull.session().getId());
-        entity.setEventType(defaultIfBlank(request.eventType(), "app_launch"));
-        entity.setBundleId(blankToNull(request.bundleId()));
-        entity.setClientPlatform(blankToNull(request.clientPlatform()));
-        entity.setDeviceModel(blankToNull(request.deviceModel()));
-        entity.setSystemName(blankToNull(request.systemName()));
-        entity.setSystemVersion(blankToNull(request.systemVersion()));
+        entity.setUserId(userOrNull.userId());
+        entity.setSessionId(userOrNull.session().getId());
+        entity.setEventType(defaultIfBlank(request.eventType(), "app_diagnostics"));
+        entity.setBundleId(null);
+        entity.setClientPlatform(allowedClientPlatform(request.clientPlatform()));
+        entity.setDeviceModel(null);
+        entity.setSystemName(null);
+        entity.setSystemVersion(null);
         entity.setAppVersion(blankToNull(request.appVersion()));
         entity.setBuildNumber(blankToNull(request.buildNumber()));
         entity.setLocale(blankToNull(request.locale()));
-        entity.setIpCountry(blankToNull(request.ipCountry()));
-        entity.setPayloadJson(toJson(request.payload()));
+        entity.setIpCountry(null);
+        entity.setPayloadJson(toJson(Map.of(
+            "schema", "diagnostics_low_sensitivity_v1",
+            "result", defaultIfBlank(request.result(), "unknown")
+        )));
         entity.setCreatedAt(now);
         deviceEventMapper.insert(entity);
-        return new DeviceEventReceipt(entity.getId(), entity.getEventType(), now.toString(), userOrNull != null);
+        return new DeviceEventReceipt(entity.getId(), entity.getEventType(), now.toString(), true);
     }
 
     private String defaultIfBlank(String value, String defaultValue) {
@@ -54,6 +62,17 @@ public class ReadingDeviceEventService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String allowedClientPlatform(String platform) {
+        String normalized = blankToNull(platform);
+        if (normalized == null) {
+            return "ios";
+        }
+        return switch (normalized.toLowerCase()) {
+            case "ios", "ipados", "macos" -> normalized.toLowerCase();
+            default -> "ios";
+        };
     }
 
     private String toJson(Map<String, Object> payload) {
@@ -75,7 +94,9 @@ public class ReadingDeviceEventService {
         @Schema(description = "客户端构建号。", example = "100") String buildNumber,
         @Schema(description = "本地化语言。", example = "zh-Hans") String locale,
         @Schema(description = "IP 归属国家或地区。", example = "CN") String ipCountry,
-        @Schema(description = "事件扩展载荷。", example = "{\"source\":\"home\"}") Map<String, Object> payload
+        @Schema(description = "事件扩展载荷。旧字段仅兼容接收，服务端会丢弃自由 payload。", example = "{\"source\":\"home\"}") Map<String, Object> payload,
+        @Schema(description = "家长是否已开启低敏诊断。未开启时拒绝写入。", example = "true") Boolean diagnosticsOptIn,
+        @Schema(description = "低敏结果状态。", example = "failed") String result
     ) {}
 
     public record DeviceEventReceipt(

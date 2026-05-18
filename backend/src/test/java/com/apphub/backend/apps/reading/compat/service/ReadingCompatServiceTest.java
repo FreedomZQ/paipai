@@ -286,7 +286,7 @@ class ReadingCompatServiceTest {
         ReadingCloudUsageService.ActiveEntitlementView record = page.records().get(0);
         OffsetDateTime acquiredAt = OffsetDateTime.parse(record.acquiredAt());
         OffsetDateTime expiresAt = OffsetDateTime.parse(record.expiresAt());
-        assertThat(record.id()).isEqualTo("daily-speech-" + java.time.LocalDate.now(ZoneId.of("Asia/Shanghai")));
+        assertThat(record.id()).isEqualTo("daily-local_tts-" + java.time.LocalDate.now(ZoneId.of("Asia/Shanghai")));
         assertThat(acquiredAt.getOffset().toString()).isEqualTo("+08:00");
         assertThat(acquiredAt.toLocalTime().toString()).isEqualTo("00:00");
         assertThat(expiresAt.getOffset().toString()).isEqualTo("+08:00");

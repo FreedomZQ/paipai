@@ -14,7 +14,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 APP_DIR="$(cd -- "$BACKEND_DIR/.." && pwd)"
-IOS_CLIENT="$APP_DIR/paipai/ios/PaipaiReadAlongV2/Core/Services/BackendClient.swift"
+IOS_CLIENT="${IOS_CLIENT:-$APP_DIR/front/ios/PaipaiReadAlong/Core/Services/BackendClient.swift}"
 BACKEND_SRC="$BACKEND_DIR/src/main/java/com/apphub/backend"
 
 python3 - "$BACKEND_SRC" "$IOS_CLIENT" <<'PY'

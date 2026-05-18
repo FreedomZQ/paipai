@@ -20,14 +20,14 @@ final class PowerSyncBootstrapAPI {
 
     func bootstrap(scope: String) async throws -> PowerSyncBootstrapView {
         let installationId = installationStore.installationId(scope: scope)
-        let device = deviceInfoService.currentDeviceInfo
-        let hasConsent = deviceInfoService.hasAcceptedPrivacyConsent
+        let hasPrivacyNoticeAccepted = deviceInfoService.hasAcceptedPrivacyConsent
         return try await backendClient.powerSyncBootstrap(
             installationId: installationId,
             deviceId: nil,
-            clientPlatform: hasConsent ? device.deviceType.rawValue.lowercased() : "ios",
-            deviceModel: hasConsent ? device.model : nil,
-            appVersion: hasConsent ? device.appVersion : nil,
+            // 中文说明：云同步 bootstrap 只传账号同步必要字段；设备型号属于可形成指纹的字段，不能因一般隐私告知确认而上传。
+            clientPlatform: hasPrivacyNoticeAccepted ? "ios" : nil,
+            deviceModel: nil,
+            appVersion: hasPrivacyNoticeAccepted ? BackendClient.defaultAppVersion() : nil,
             cloudSyncEnabled: syncSettingsStore.cloudSyncEnabled(scope: scope),
             powersyncClientId: installationId
         )

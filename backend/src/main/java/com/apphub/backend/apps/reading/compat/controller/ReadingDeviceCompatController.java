@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/account")
-@Tag(name = "拍拍伴读设备事件", description = "客户端设备、安装和版本事件上报接口。")
+@Tag(name = "拍拍伴读低敏诊断", description = "仅 Parent Account 且家长开启 diagnostics 后可上报的低敏诊断接口。")
 public class ReadingDeviceCompatController {
     private final ReadingAuthenticatedUserResolver userResolver;
     private final ReadingDeviceEventService deviceEventService;
@@ -27,7 +27,7 @@ public class ReadingDeviceCompatController {
         this.deviceEventService = deviceEventService;
     }
 
-    @Operation(summary = "上报设备事件", description = "记录客户端登录成功后的设备、版本和环境事件；需要有效登录会话。")
+    @Operation(summary = "上报低敏诊断事件", description = "不接收 Local Guest，不保存设备型号、系统版本、IP 国家或自由 payload；需要 diagnosticsOptIn=true。")
     @PostMapping("/device-event")
     public ApiResponse<ReadingDeviceEventService.DeviceEventReceipt> event(
         @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "设备事件请求体。示例：eventType=apple_login_succeeded，clientPlatform=ios，appVersion=1.0.0。", required = true) @RequestBody ReadingDeviceEventService.DeviceEventRequest body,
