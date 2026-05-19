@@ -26,7 +26,6 @@ public class ReadingChildProfileEntity {
     private String avatarEmoji;
     private String profileStatus;
     private OffsetDateTime deletedAt;
-    private String lastModifiedByInstallationId;
     private Integer recordVersion;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

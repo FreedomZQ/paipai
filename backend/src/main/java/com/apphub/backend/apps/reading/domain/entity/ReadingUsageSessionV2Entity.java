@@ -24,7 +24,6 @@ public class ReadingUsageSessionV2Entity {
     private Integer durationSeconds;
     private String clientPlatform;
     private String deviceModel;
-    private String lastModifiedByInstallationId;
     private OffsetDateTime deletedAt;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

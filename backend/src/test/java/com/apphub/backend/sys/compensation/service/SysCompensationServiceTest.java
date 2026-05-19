@@ -103,6 +103,9 @@ class SysCompensationServiceTest {
                 30,
                 null,
                 null,
+                "single_use",
+                1,
+                null,
                 "活动补偿"
             )
         );
@@ -140,11 +143,13 @@ class SysCompensationServiceTest {
         entity.setStatus(SysCompensationService.STATUS_UNUSED);
         entity.setMetadataJson("{}");
         when(codeMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
+        when(redemptionMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
         doReturn(1).when(codeMapper).update(isNull(), any(LambdaUpdateWrapper.class));
 
         CompensationRedeemResultView result = service.redeem(
             "paipai_readingcompanion",
             101L,
+            "ios-test-device",
             "PP-ABCDE-FGHJK-MNPQR"
         );
 
@@ -176,7 +181,7 @@ class SysCompensationServiceTest {
         entity.setStatus(SysCompensationService.STATUS_UNUSED);
         when(codeMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
 
-        assertThatThrownBy(() -> service.redeem("paipai_readingcompanion", 101L, "PP-ABCDE-FGHJK-MNPQR"))
+        assertThatThrownBy(() -> service.redeem("paipai_readingcompanion", 101L, "ios-test-device", "PP-ABCDE-FGHJK-MNPQR"))
             .hasMessageContaining("已过期");
     }
 
@@ -184,7 +189,7 @@ class SysCompensationServiceTest {
     void redeemInvalidFormatShouldFailFast() {
         mockAppDefinition();
 
-        assertThatThrownBy(() -> service.redeem("paipai_readingcompanion", 101L, "bad-code"))
+        assertThatThrownBy(() -> service.redeem("paipai_readingcompanion", 101L, "ios-test-device", "bad-code"))
             .hasMessageContaining("格式不正确");
     }
 
@@ -205,20 +210,22 @@ class SysCompensationServiceTest {
         entity.setStatus(SysCompensationService.STATUS_UNUSED);
         entity.setMetadataJson("{}");
         when(codeMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(entity);
+        when(redemptionMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
         doReturn(1).when(codeMapper).update(isNull(), any(LambdaUpdateWrapper.class));
 
         CompensationRedeemResultView result = service.redeem(
             "paipai_readingcompanion",
             101L,
+            "ios-test-device",
             "PP-ABCDE-FGHJK-MNPQR"
         );
 
-        verify(readingCloudUsageService).grantPurchase(
+        verify(readingCloudUsageService).grantPurchaseUntil(
             101L,
             ReadingCloudUsageService.CLOUD_TTS,
             "PP-ABCDE-FGHJK-MNPQR",
             3,
-            14,
+            result.validUntil() == null ? null : OffsetDateTime.parse(result.validUntil()),
             "PP-ABCDE-FGHJK-MNPQR"
         );
         assertThat(result.benefitType()).isEqualTo(SysCompensationService.BENEFIT_USAGE_CREDIT);

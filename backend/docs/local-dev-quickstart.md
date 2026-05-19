@@ -41,9 +41,9 @@ cd /home/admin/code/app/backend
 - DB password: `postgres`
 - Ops token: `dev-local-token`
 
-dev profile 下 Flyway 默认开启，因此空数据库会在 backend 启动时自动跑 migration。
+dev profile 下 Flyway 默认开启，因此空数据库会在 backend 启动时自动执行 `db/first_version/V1__init.sql` 首发基线。
 
-`local-dev-up.sh` 还会自动通过 JVM 参数注入 `spring.flyway.placeholders.API_KEY=\${API_KEY}`，避免 baseline migration 里的云厂商 header 模板在冷启动时被 Flyway 误判为缺失占位符。
+`local-dev-up.sh` 仍会自动通过 JVM 参数注入 `spring.flyway.placeholders.API_KEY=\${API_KEY}`，用于兼容 Flyway 占位符解析配置。
 
 ## 健康检查
 

@@ -22,7 +22,6 @@ public class ReadingReviewEventV2Entity {
     private String eventType;
     private String resultLevel;
     private OffsetDateTime eventAt;
-    private String lastModifiedByInstallationId;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 APP_DIR="$(cd -- "$BACKEND_DIR/.." && pwd)"
 IOS_DIR="$APP_DIR/paipai/ios/PaipaiReadAlongV2"
-MIGRATION_DIR="$BACKEND_DIR/src/main/resources/db/migration"
+MIGRATION_DIR="$BACKEND_DIR/src/main/resources/db/first_version"
 
 python3 - "$BACKEND_DIR" "$IOS_DIR" "$MIGRATION_DIR" <<'PY'
 from pathlib import Path
@@ -54,21 +54,17 @@ def add(kind, path, line_no, msg, line=None):
         item += f" :: {line.strip()}"
     (blockers if kind == 'blocker' else warnings).append(item)
 
-# 1) 数据库初始化：允许 V1 + 增量 migration。
-# 中文说明：之前该脚本要求 squash 后只剩 V1__init.sql；当前项目仍在持续增加 V18+ 发布对齐 migration，
-# 因此门禁改为校验 migration 基线、命名顺序和 Flyway placeholder 风险，不再把“存在增量 migration”当 blocker。
+# 1) 数据库初始化：首发库只允许单一 V1 基线。
 if migrations.exists():
     migration_paths = sorted(migrations.glob('V*.sql'))
     migration_files = [p.name for p in migration_paths]
-    if 'V1__init.sql' not in migration_files:
-        blockers.append(f"db/migration missing required baseline V1__init.sql, found: {migration_files}")
-    if not migration_paths:
-        blockers.append("db/migration has no V*.sql files")
+    if migration_files != ['V1__init.sql']:
+        blockers.append(f"db/first_version must contain only unified baseline V1__init.sql, found: {migration_files}")
     seen_versions = {}
     for path in migration_paths:
         match = re.match(r'V(\d+)__.+\.sql$', path.name)
         if not match:
-            blockers.append(f"db/migration file must follow Flyway V<number>__description.sql naming: {path.name}")
+            blockers.append(f"db/first_version file must follow Flyway V<number>__description.sql naming: {path.name}")
             continue
         version = int(match.group(1))
         if version in seen_versions:
@@ -85,12 +81,12 @@ if migrations.exists():
         for token in [
             'CREATE TABLE public.sys_app',
             'CREATE TABLE public.sys_remote_config',
-            'CREATE TABLE public.reading_usage_session_v2',
+            'CREATE TABLE public.reading_usage_session',
             'reading_usage_policy',
             'paipai_readingcompanion',
         ]:
             if token not in text:
-                blockers.append(f"db/migration/V1__init.sql missing required token: {token}")
+                blockers.append(f"db/first_version/V1__init.sql missing required token: {token}")
 
 # 2) iOS 本地存储：裸 UserDefaults key 会造成未来多 App 或 bundle 复用时数据串线。
 if ios.exists():
@@ -108,7 +104,7 @@ if ios.exists():
             if re.search(r'"paipai\.[A-Za-z0-9_.-]+"', line) and 'AppDefaultKey' not in str(path):
                 add('warning', path, idx, 'hard-coded paipai local key; verify AppScopedDefaults wraps it', line)
 
-# 3) 后端路由与 appCode：兼容层可存在，但 system auth / PowerSync 等跨 App 入口必须显式带 appCode。
+# 3) 后端路由与 appCode：兼容层可存在，但 system auth 等跨 App 入口必须显式带 appCode。
 for root in [backend / 'src/main/java', backend / 'src/test/java']:
     for path in iter_files(root):
         text = path.read_text(encoding='utf-8', errors='ignore')

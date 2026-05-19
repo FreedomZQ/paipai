@@ -405,15 +405,6 @@
                     <div class="arrow">›</div>
                 </div>
             </div>
-            <div class="menu-item" onclick="cloudSync()">
-                <div class="menu-left">
-                    <div class="menu-icon">☁️</div>
-                    <div class="menu-text">云同步</div>
-                </div>
-                <div class="menu-right">
-                    <div class="arrow">›</div>
-                </div>
-            </div>
         </div>
 
         <!-- 权限设置 -->
@@ -900,10 +891,6 @@
                 alert('关闭后主要功能使用将受限');
             }
             localStorage.setItem('apiPermission', checked ? 'accepted' : 'declined');
-        }
-
-        function cloudSync() {
-            alert('云同步');
         }
 
         function showNotificationHistory() {

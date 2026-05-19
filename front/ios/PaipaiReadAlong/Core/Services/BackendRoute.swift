@@ -3,9 +3,9 @@ import Foundation
 /// 后端 App 级路由构造器。
 ///
 /// 中文维护说明：
-/// - 账号、Apple 登录、退出登录、PowerSync 这几类接口必须在 URL 中显式携带 appCode。
-/// - 这样未来多个 App 共用同一套后端时，不会误用另一个 App 的 Apple audience、session、权益或同步命名空间。
-/// - 普通 reading 兼容接口仍保留 `/api/v1/...`，但鉴权与同步边界一律走这里。
+/// - 账号、Apple 登录、退出登录这几类接口必须在 URL 中显式携带 appCode。
+/// - 这样未来多个 App 共用同一套后端时，不会误用另一个 App 的 Apple audience、session 或权益边界。
+/// - 普通 reading 兼容接口仍保留 `/api/v1/...`，但鉴权边界一律走这里。
 enum BackendRoute {
     struct AppScoped {
         let appCode: String
@@ -45,24 +45,6 @@ enum BackendRoute {
 
         var authLogout: String {
             systemAuthPrefix + "logout"
-        }
-
-        // MARK: - App-scoped PowerSync routes
-
-        var powerSyncBootstrap: String {
-            "/api/v1/powersync/\(appCode)/bootstrap"
-        }
-
-        var powerSyncToken: String {
-            "/api/v1/powersync/\(appCode)/token"
-        }
-
-        var powerSyncRebuild: String {
-            "/api/v1/powersync/\(appCode)/rebuild"
-        }
-
-        var powerSyncUpload: String {
-            "/api/v1/powersync/\(appCode)/upload"
         }
 
         /// 多 App 通用版本更新策略接口。

@@ -1,5 +1,0 @@
-# PowerSync base notes for AppHub unified backend
-# - isolate by appCode + userId
-# - only sync user-owned mutable learning data
-# - do not place entitlements / billing / announcements / legal docs into sync buckets
-# - first release keeps attachment binaries local-only on device

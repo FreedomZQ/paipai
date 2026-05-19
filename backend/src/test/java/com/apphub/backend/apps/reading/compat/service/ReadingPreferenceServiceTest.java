@@ -18,9 +18,8 @@ class ReadingPreferenceServiceTest {
     @Test
     void getShouldReturnDefaultsWhenPreferenceMissing() {
         ReadingUserPreferenceMapper mapper = mock(ReadingUserPreferenceMapper.class);
-        ReadingCompatService compatService = mock(ReadingCompatService.class);
         when(mapper.selectById(101L)).thenReturn(null);
-        ReadingPreferenceService service = new ReadingPreferenceService(mapper, compatService);
+        ReadingPreferenceService service = new ReadingPreferenceService(mapper);
         var result = service.get(user());
         assertThat(result.uiLocale()).isEqualTo("zh-Hans");
         assertThat(result.persisted()).isFalse();
@@ -29,11 +28,10 @@ class ReadingPreferenceServiceTest {
     @Test
     void updateShouldInsertAndReturnPersistedPreference() {
         ReadingUserPreferenceMapper mapper = mock(ReadingUserPreferenceMapper.class);
-        ReadingCompatService compatService = mock(ReadingCompatService.class);
         when(mapper.selectById(101L)).thenReturn(null);
         doAnswer(invocation -> 1).when(mapper).insert(any(ReadingUserPreferenceEntity.class));
-        ReadingPreferenceService service = new ReadingPreferenceService(mapper, compatService);
-        var result = service.update(user(), new ReadingPreferenceService.PreferencePatchRequest("en", "en", "zh-Hans", "zh_to_en", null, "device_first", false));
+        ReadingPreferenceService service = new ReadingPreferenceService(mapper);
+        var result = service.update(user(), new ReadingPreferenceService.PreferencePatchRequest("en", "en", "zh-Hans", "zh_to_en", null, "device_first"));
         assertThat(result.uiLocale()).isEqualTo("en");
         assertThat(result.persisted()).isTrue();
     }

@@ -170,7 +170,7 @@ struct ManageChildrenView: View {
                 }
             }
         } message: {
-            Text(appState.uiText("删除后该孩子档案会从当前列表移除，并在同步后更新到后端。此操作需要二次确认。", "The profile will be removed from this list and synced to the backend. This action requires confirmation."))
+            Text(appState.uiText("删除后该孩子档案会从当前列表移除。此操作需要二次确认。", "The profile will be removed from this list. This action requires confirmation."))
         }
         .alert(appState.uiText("无法添加孩子档案", "Cannot add child profile"), isPresented: Binding(get: { entitlementAlertMessage != nil }, set: { if !$0 { entitlementAlertMessage = nil } })) {
             Button(appState.uiText("知道了", "Got it")) {

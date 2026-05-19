@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.OffsetDateTime;
 import java.util.Locale;
 
 /**
@@ -66,7 +67,7 @@ public class SysCompensationApplicationController {
         summary = "提交补偿申请并生成补偿记录",
         description = """
             后台或运营系统提交补偿申请信息，后端完成参数校验、管理 token 校验，并生成一个未使用的补偿码记录。
-            当前接口生成 usage_credit 类型补偿，权益标识沿用现有系统标识：capture、speech、cloud_ocr、cloud_tts。
+            当前接口生成 usage_credit 类型补偿，权益标识沿用现有系统标识：local_ocr、local_tts、cloud_ocr、cloud_tts。
             生成成功后返回补偿码、有效期、权益类型、次数和状态，用户可在 App 家长区兑换。
             """
     )
@@ -88,6 +89,9 @@ public class SysCompensationApplicationController {
                         "serviceType": "cloud_tts",
                         "grantCount": 10,
                         "grantValidDays": 30,
+                        "grantValidUntilAt": "2026-06-15T00:00:00Z",
+                        "claimScope": "multi_device_once",
+                        "maxUses": 100,
                         "status": "unused",
                         "usedCount": 0
                       },
@@ -137,6 +141,9 @@ public class SysCompensationApplicationController {
             body.compensationCount(),
             body.validDays(),
             null,
+            body.expiresAt(),
+            body.normalizedClaimScope(),
+            body.resolvedMaxUses(),
             body.normalizedBenefitKey(),
             buildNote(body, httpServletRequest)
         );
@@ -210,12 +217,12 @@ public class SysCompensationApplicationController {
         String remark,
 
         @Schema(
-            description = "权益标识，沿用现有系统标识：capture=本地拍读/识别，speech=本地朗读，cloud_ocr=云端OCR，cloud_tts=云端语音朗读。",
+            description = "权益标识，沿用现有系统标识：local_ocr=本地拍读/识别，local_tts=本地朗读，cloud_ocr=云端OCR，cloud_tts=云端语音朗读。",
             example = "cloud_tts",
-            allowableValues = {"capture", "speech", "cloud_ocr", "cloud_tts"}
+            allowableValues = {"local_ocr", "local_tts", "cloud_ocr", "cloud_tts"}
         )
         @NotBlank(message = "权益标识不能为空")
-        @Pattern(regexp = "^(capture|speech|cloud_ocr|cloud_tts)$", message = "权益标识仅支持 capture、speech、cloud_ocr、cloud_tts")
+        @Pattern(regexp = "^(local_ocr|local_tts|cloud_ocr|cloud_tts)$", message = "权益标识仅支持 local_ocr、local_tts、cloud_ocr、cloud_tts")
         String benefitKey,
 
         @Schema(description = "补偿次数。最少1次，最多1000次。", example = "10")
@@ -226,7 +233,23 @@ public class SysCompensationApplicationController {
         @Schema(description = "补偿权益有效期天数。最少1天，最多365天。", example = "30")
         @Min(value = 1, message = "有效期天数至少为1")
         @Max(value = 365, message = "有效期天数不能超过365")
-        Integer validDays
+        Integer validDays,
+
+        @Schema(description = "补偿码过期时间。为空时默认按创建时间 + validDays 计算。", example = "2026-12-31T23:59:59Z")
+        OffsetDateTime expiresAt,
+
+        @Schema(
+            description = "领取范围：single_use=只能绑定一次；multi_device_once=多个设备可各绑定一次。",
+            example = "single_use",
+            allowableValues = {"single_use", "multi_device_once"}
+        )
+        @Pattern(regexp = "^(|single_use|multi_device_once)$", message = "领取范围仅支持 single_use、multi_device_once")
+        String claimScope,
+
+        @Schema(description = "最大领取次数。single_use 固定为1；multi_device_once 表示最多可绑定的设备数。", example = "1")
+        @Min(value = 1, message = "最大领取次数至少为1")
+        @Max(value = 100000, message = "最大领取次数不能超过100000")
+        Integer maxUses
     ) {
         @AssertTrue(message = "补偿次数不能为空")
         public boolean isCompensationCountPresent() {
@@ -238,8 +261,29 @@ public class SysCompensationApplicationController {
             return validDays != null;
         }
 
+        @AssertTrue(message = "多设备补偿码 maxUses 至少为2")
+        public boolean isMultiDeviceMaxUsesValid() {
+            return !"multi_device_once".equals(normalizedClaimScope()) || (maxUses != null && maxUses >= 2);
+        }
+
         public String normalizedBenefitKey() {
             return benefitKey == null ? null : benefitKey.trim().toLowerCase(Locale.ROOT);
+        }
+
+        public String normalizedClaimScope() {
+            if (claimScope == null || claimScope.isBlank()) {
+                return maxUses != null && maxUses > 1
+                    ? SysCompensationService.CLAIM_SCOPE_MULTI_DEVICE_ONCE
+                    : SysCompensationService.CLAIM_SCOPE_SINGLE_USE;
+            }
+            return claimScope.trim().toLowerCase(Locale.ROOT);
+        }
+
+        public Integer resolvedMaxUses() {
+            if (SysCompensationService.CLAIM_SCOPE_SINGLE_USE.equals(normalizedClaimScope())) {
+                return 1;
+            }
+            return maxUses;
         }
 
         public String normalizedCompensationCode() {

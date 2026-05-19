@@ -4,70 +4,61 @@ struct CompensationCodeView: View {
     @EnvironmentObject private var appState: AppState
     @State private var compensationCode = ""
     @State private var isSubmitting = false
-    @State private var validationMessage: String?
-    @State private var feedbackMessage: String?
-    @State private var feedbackIsSuccess = false
-    @State private var lastReceipt: CompensationRedeemReceipt?
+    @State private var resultAlert: RedeemResultAlert?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppLayout.spacingL) {
                 headerSection
                 inputSection
-                if let validationMessage {
-                    noticeCard(
-                        icon: "exclamationmark.triangle.fill",
-                        title: appState.uiText("格式需要调整", "Fix the format"),
-                        message: validationMessage,
-                        tint: AppColors.warning
-                    )
-                }
-                if let feedbackMessage {
-                    resultCard(message: feedbackMessage, isSuccess: feedbackIsSuccess, receipt: lastReceipt)
-                }
             }
             .padding()
             .adaptiveContentFrame(maxWidth: AppLayout.wideReadableMaxWidth)
         }
         .background(AppColors.background)
-        .navigationTitle(appState.uiText("权益补偿", "Compensation"))
+        .navigationTitle(compensationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .appScrollDismissesKeyboardInteractively()
-        .appKeyboardDoneToolbar(doneTitle: appState.uiText("完成", "Done"))
+        .appKeyboardDoneToolbar(doneTitle: doneText)
+        .alert(item: $resultAlert) { alert in
+            Alert(
+                title: Text(alert.title),
+                dismissButton: .default(Text(okText))
+            )
+        }
         .onChange(of: compensationCode) { _, newValue in
             let normalized = normalizeInput(newValue)
             if normalized != newValue {
                 compensationCode = normalized
                 return
             }
-            validationMessage = nil
-            feedbackMessage = nil
-            lastReceipt = nil
         }
     }
 
     private var headerSection: some View {
         MainCard {
             VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-                Text(appState.uiText("输入后端发放的补偿码，系统会自动校验格式、有效期和使用状态。", "Enter the backend-issued compensation code. The server checks the format, expiry, and usage state."))
+                Text(appState.localizedText(
+                    zhHans: "输入后端发放的补偿码，系统会自动校验格式、有效期和使用状态。",
+                    english: "Enter the backend-issued compensation code. The server checks the format, expiry, and usage state.",
+                    japanese: "バックエンドから発行された補償コードを入力してください。形式、有効期限、使用状態はサーバーで確認されます。",
+                    korean: "백엔드에서 발급한 보상 코드를 입력하세요. 형식, 만료일, 사용 상태는 서버에서 확인합니다.",
+                    spanish: "Introduce el codigo de compensacion emitido por el servidor. El servidor verificara el formato, la caducidad y el estado de uso."
+                ))
                     .font(AppTypography.body)
                     .foregroundColor(AppColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(appState.uiText("同一补偿码只能使用一次，成功后会直接补到当前权益。", "Each code can be redeemed once and will be applied to the current entitlement immediately."))
-                    .font(AppTypography.footnote)
-                    .foregroundColor(AppColors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: AppLayout.spacingS) {
-                        ruleChip(icon: "checkmark.seal.fill", text: appState.uiText("后端校验", "Server verified"), tint: AppColors.success)
-                        ruleChip(icon: "clock.fill", text: appState.uiText("未过期可用", "Not expired"), tint: AppColors.info)
-                        ruleChip(icon: "lock.fill", text: appState.uiText("单码单次", "Single use"), tint: AppColors.warning)
+                        ruleChip(icon: "checkmark.seal.fill", text: serverVerifiedText, tint: AppColors.success)
+                        ruleChip(icon: "clock.fill", text: notExpiredText, tint: AppColors.info)
+                        ruleChip(icon: "lock.fill", text: localDuplicateCheckText, tint: AppColors.warning)
                     }
                     VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-                        ruleChip(icon: "checkmark.seal.fill", text: appState.uiText("后端校验", "Server verified"), tint: AppColors.success)
-                        ruleChip(icon: "clock.fill", text: appState.uiText("未过期可用", "Not expired"), tint: AppColors.info)
-                        ruleChip(icon: "lock.fill", text: appState.uiText("单码单次", "Single use"), tint: AppColors.warning)
+                        ruleChip(icon: "checkmark.seal.fill", text: serverVerifiedText, tint: AppColors.success)
+                        ruleChip(icon: "clock.fill", text: notExpiredText, tint: AppColors.info)
+                        ruleChip(icon: "lock.fill", text: localDuplicateCheckText, tint: AppColors.warning)
                     }
                 }
             }
@@ -77,75 +68,27 @@ struct CompensationCodeView: View {
     private var inputSection: some View {
         MainCard {
             VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                Text(appState.uiText("补偿码", "Compensation code"))
+                Text(compensationCodeText)
                     .font(AppTypography.headline)
-                TextField("输入发放的补偿码", text: $compensationCode)
+                TextField(inputPlaceholderText, text: $compensationCode)
                     .keyboardType(.asciiCapable)
                     .textInputAutocapitalization(.characters)
                     .textContentType(.oneTimeCode)
                     .autocorrectionDisabled()
                     .appInputSurface()
 
-                Text(appState.uiText("格式示例：PP-ABCDE-FGHJK-MNPQR", "Format example: PP-ABCDE-FGHJK-MNPQR"))
+                Text(formatExampleText)
                     .font(AppTypography.caption)
                     .foregroundColor(AppColors.textTertiary)
 
                 PrimaryButton(
-                    title: appState.uiText("提交补偿码", "Redeem code"),
+                    title: redeemButtonText,
                     icon: "arrow.right.circle.fill",
                     isLoading: isSubmitting,
                     isDisabled: !canSubmit
                 ) {
                     Task { await submit() }
                 }
-            }
-        }
-    }
-
-    private func resultCard(message: String, isSuccess: Bool, receipt: CompensationRedeemReceipt?) -> some View {
-        let tint = isSuccess ? AppColors.success : AppColors.error
-        return MainCard {
-            VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                Label(
-                    isSuccess ? appState.uiText("补偿成功", "Redeemed") : appState.uiText("补偿失败", "Redeem failed"),
-                    systemImage: isSuccess ? "checkmark.seal.fill" : "xmark.octagon.fill"
-                )
-                .font(AppTypography.headline)
-                .foregroundColor(tint)
-
-                Text(message)
-                    .font(AppTypography.body)
-                    .foregroundColor(AppColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let receipt {
-                    VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-                        detailRow(title: appState.uiText("权益类型", "Benefit type"), value: benefitLabel(for: receipt))
-                        detailRow(title: appState.uiText("补偿内容", "Benefit summary"), value: receipt.benefitSummary)
-                        if let validUntil = receipt.validUntil {
-                            detailRow(title: appState.uiText("有效期", "Valid until"), value: formatDate(validUntil))
-                        }
-                        if let state = receipt.accountState {
-                            detailRow(title: appState.uiText("当前套餐", "Current plan"), value: state.entitlement.planName)
-                            detailRow(title: appState.uiText("当前权益", "Current entitlement"), value: entitlementDetail(for: receipt, state: state))
-                        }
-                    }
-                    .padding(.top, 4)
-                }
-            }
-        }
-    }
-
-    private func noticeCard(icon: String, title: String, message: String, tint: Color) -> some View {
-        MainCard {
-            VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-                Label(title, systemImage: icon)
-                    .font(AppTypography.headline)
-                    .foregroundColor(tint)
-                Text(message)
-                    .font(AppTypography.bodySmall)
-                    .foregroundColor(AppColors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -168,44 +111,25 @@ struct CompensationCodeView: View {
         .clipShape(Capsule())
     }
 
-    private func detailRow(title: String, value: String) -> some View {
-        HStack(alignment: .top, spacing: AppLayout.spacingS) {
-            Text(title)
-                .font(AppTypography.caption)
-                .foregroundColor(AppColors.textTertiary)
-                .frame(width: 84, alignment: .leading)
-            Text(value)
-                .font(AppTypography.bodySmall)
-                .foregroundColor(AppColors.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
     private var canSubmit: Bool {
-        !isSubmitting && isCodeValid(normalizedCode(compensationCode))
+        !isSubmitting && !compensationCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func submit() async {
         let normalized = normalizedCode(compensationCode)
         guard isCodeValid(normalized) else {
-            validationMessage = appState.uiText("请检查补偿码格式，示例为 PP-ABCDE-FGHJK-MNPQR。", "Check the code format. Example: PP-ABCDE-FGHJK-MNPQR.")
+            resultAlert = RedeemResultAlert(title: redeemFailedText)
             return
         }
         isSubmitting = true
         defer { isSubmitting = false }
-        validationMessage = nil
-        feedbackMessage = nil
-        lastReceipt = nil
 
-        guard let receipt = await appState.redeemCompensationCode(normalized) else {
-            feedbackIsSuccess = false
-            feedbackMessage = appState.errorMessage ?? appState.uiText("补偿失败，请稍后重试。", "Redemption failed. Try again later.")
+        guard await appState.redeemCompensationCode(normalized) != nil else {
+            resultAlert = RedeemResultAlert(title: redeemFailedText)
             return
         }
 
-        feedbackIsSuccess = receipt.status == "applied"
-        feedbackMessage = receipt.message ?? appState.uiText("补偿成功，权益已到账。", "Redeemed successfully. Benefits have been applied.")
-        lastReceipt = receipt
+        resultAlert = RedeemResultAlert(title: redeemSuccessText)
         compensationCode = ""
     }
 
@@ -229,39 +153,57 @@ struct CompensationCodeView: View {
         code.range(of: #"^PP-(?:[A-Z2-9]{5}-){2}[A-Z2-9]{5}$"#, options: .regularExpression) != nil
     }
 
-    private func formatDate(_ value: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        guard let date = formatter.date(from: value) else { return value }
-        let display = DateFormatter()
-        display.locale = Locale.current
-        display.dateFormat = "yyyy-MM-dd HH:mm"
-        return display.string(from: date)
+    private var compensationTitle: String {
+        appState.localizedText(zhHans: "权益补偿", english: "Compensation", japanese: "補償", korean: "보상", spanish: "Compensacion")
     }
 
-    private func benefitLabel(for receipt: CompensationRedeemReceipt) -> String {
-        switch receipt.benefitType {
-        case "plan":
-            return appState.uiText("方案权益", "Plan benefit")
-        case "usage_credit":
-            return appState.uiText("次数补偿", "Usage credit")
-        default:
-            return receipt.benefitType
-        }
+    private var doneText: String {
+        appState.localizedText(zhHans: "完成", english: "Done", japanese: "完了", korean: "완료", spanish: "Listo")
     }
 
-    private func entitlementDetail(for receipt: CompensationRedeemReceipt, state: AccountState) -> String {
-        if let serviceType = receipt.serviceType {
-            if serviceType == "cloud_ocr" || serviceType == "cloud_tts" {
-                let snapshot = appState.cloudUsageState
-                let remaining = serviceType == "cloud_ocr" ? snapshot?.ocr.remainingCount : snapshot?.tts.remainingCount
-                return appState.uiText("云端剩余 \(remaining ?? 0) 次", "Cloud remaining \(remaining ?? 0)")
-            }
-            let remaining = serviceType == "speech" ? state.quota.speechRemaining : state.quota.captureRemaining
-            return appState.uiText("剩余 \(remaining) 次", "Remaining \(remaining)")
-        }
-        if let validUntil = receipt.validUntil {
-            return appState.uiText("到期 \(formatDate(validUntil))", "Expires \(formatDate(validUntil))")
-        }
-        return appState.uiText("已更新到当前权益", "Applied to the current entitlement")
+    private var okText: String {
+        appState.localizedText(zhHans: "知道了", english: "OK", japanese: "OK", korean: "확인", spanish: "Aceptar")
     }
+
+    private var serverVerifiedText: String {
+        appState.localizedText(zhHans: "后端校验", english: "Server verified", japanese: "サーバー確認", korean: "서버 확인", spanish: "Verificado")
+    }
+
+    private var notExpiredText: String {
+        appState.localizedText(zhHans: "未过期可用", english: "Not expired", japanese: "有効期限内", korean: "만료 전", spanish: "No caducado")
+    }
+
+    private var localDuplicateCheckText: String {
+        appState.localizedText(zhHans: "本机防重复", english: "Local duplicate check", japanese: "端末内の重複防止", korean: "기기 중복 방지", spanish: "Evita duplicados")
+    }
+
+    private var compensationCodeText: String {
+        appState.localizedText(zhHans: "补偿码", english: "Compensation code", japanese: "補償コード", korean: "보상 코드", spanish: "Codigo de compensacion")
+    }
+
+    private var inputPlaceholderText: String {
+        appState.localizedText(zhHans: "输入发放的补偿码", english: "Enter the issued code", japanese: "発行されたコードを入力", korean: "발급된 코드를 입력", spanish: "Introduce el codigo emitido")
+    }
+
+    private var formatExampleText: String {
+        appState.localizedText(zhHans: "格式示例：PP-ABCDE-FGHJK-MNPQR", english: "Format example: PP-ABCDE-FGHJK-MNPQR", japanese: "形式例：PP-ABCDE-FGHJK-MNPQR", korean: "형식 예: PP-ABCDE-FGHJK-MNPQR", spanish: "Ejemplo de formato: PP-ABCDE-FGHJK-MNPQR")
+    }
+
+    private var redeemButtonText: String {
+        appState.localizedText(zhHans: "提交补偿码", english: "Redeem code", japanese: "コードを交換", korean: "코드 교환", spanish: "Canjear codigo")
+    }
+
+    private var redeemFailedText: String {
+        appState.localizedText(zhHans: "补偿兑换失败", english: "Redemption failed", japanese: "補償コード交換に失敗しました", korean: "보상 코드 교환 실패", spanish: "No se pudo canjear la compensacion")
+    }
+
+    private var redeemSuccessText: String {
+        appState.localizedText(zhHans: "补偿兑换成功", english: "Redeemed successfully", japanese: "補償コードを交換しました", korean: "보상 코드 교환 완료", spanish: "Compensacion canjeada")
+    }
+
+}
+
+private struct RedeemResultAlert: Identifiable {
+    let id = UUID()
+    let title: String
 }

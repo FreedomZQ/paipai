@@ -9,15 +9,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ReadingDailyQuotaConfigService {
-    public static final String FEATURE_CAPTURE = "capture";
-    public static final String FEATURE_SPEECH = "speech";
+    public static final String FEATURE_LOCAL_OCR = "local_ocr";
+    public static final String FEATURE_LOCAL_TTS = "local_tts";
     public static final String FEATURE_CLOUD_OCR = "cloud_ocr";
     public static final String FEATURE_CLOUD_TTS = "cloud_tts";
 
     private static final String APP_CODE = ReadingAppModule.APP_CODE;
     private static final String FREE_PLAN = "free";
-    private static final int DEFAULT_CAPTURE_LIMIT = 5;
-    private static final int DEFAULT_SPEECH_LIMIT = 10;
+    private static final int DEFAULT_LOCAL_OCR_LIMIT = 5;
+    private static final int DEFAULT_LOCAL_TTS_LIMIT = 10;
 
     private final ReadingDailyQuotaConfigMapper quotaConfigMapper;
 
@@ -52,10 +52,10 @@ public class ReadingDailyQuotaConfigService {
         if (FEATURE_CLOUD_OCR.equals(featureCode) || FEATURE_CLOUD_TTS.equals(featureCode)) {
             return 0;
         }
-        if (FEATURE_SPEECH.equals(featureCode)) {
-            return DEFAULT_SPEECH_LIMIT;
+        if (FEATURE_LOCAL_TTS.equals(featureCode)) {
+            return DEFAULT_LOCAL_TTS_LIMIT;
         }
-        return DEFAULT_CAPTURE_LIMIT;
+        return DEFAULT_LOCAL_OCR_LIMIT;
     }
 
     private String blankToDefault(String value, String defaultValue) {
@@ -63,10 +63,10 @@ public class ReadingDailyQuotaConfigService {
     }
 
     private String normalizeFeatureCode(String featureCode) {
-        String normalized = blankToDefault(featureCode, FEATURE_CAPTURE);
+        String normalized = blankToDefault(featureCode, FEATURE_LOCAL_OCR);
         return switch (normalized) {
-            case "ocr", "capture", "image_text_recognition", "image_ocr", "picture_ocr", "photo_ocr" -> FEATURE_CAPTURE;
-            case "speech", "tts", "read_aloud", "voice_reading", "text_to_speech", "speech_synthesis" -> FEATURE_SPEECH;
+            case "ocr", "local_ocr", "image_text_recognition", "image_ocr", "picture_ocr", "photo_ocr" -> FEATURE_LOCAL_OCR;
+            case "local_tts", "tts", "read_aloud", "voice_reading", "text_to_speech", "speech_synthesis" -> FEATURE_LOCAL_TTS;
             default -> normalized;
         };
     }

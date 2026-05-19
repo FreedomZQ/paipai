@@ -1,7 +1,6 @@
 package com.apphub.backend.sys.app.controller;
 
 import com.apphub.backend.apps.common.AppModuleRegistry;
-import com.apphub.backend.sys.powersync.support.PowerSyncAppAdapterRegistry;
 import com.apphub.backend.sys.app.config.AppCatalogProperties;
 import com.apphub.backend.sys.app.service.AppAppleReadinessService;
 import com.apphub.backend.sys.app.service.AppDefinitionService;
@@ -51,9 +50,6 @@ class SystemOpsTokenFilterWebMvcTest {
 
     @MockBean
     private AppModuleRegistry appModuleRegistry;
-
-    @MockBean
-    private PowerSyncAppAdapterRegistry powerSyncAppAdapterRegistry;
 
     @MockBean
     private SysRemoteConfigService sysRemoteConfigService;

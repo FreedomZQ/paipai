@@ -36,9 +36,9 @@ struct OnboardingView: View {
                 ),
                 kind: .features([
                     OnboardingFeature(icon: "📋", title: appState.uiText("最小必要", "Minimal collection"), description: appState.uiText("默认本地使用，不上传孩子图片、原文、录音或诊断日志。", "Local use is the default; child images, text, audio, and diagnostics are not uploaded.")),
-                    OnboardingFeature(icon: "☁️", title: appState.uiText("家长开启云能力", "Parent-enabled cloud"), description: appState.uiText("云同步、购买恢复和未来云能力需要家长授权后才启用。", "Cloud sync, purchase restore, and future cloud features require parent authorization.")),
-                    OnboardingFeature(icon: "🛡️", title: appState.uiText("第三方处理受控", "Controlled processors"), description: appState.uiText("未来云处理会按能力单独同意，并避免业务后端保存儿童内容。", "Future cloud processing requires separate consent and avoids storing child content on the business backend.")),
-                    OnboardingFeature(icon: "⚙️", title: appState.uiText("自主可控", "Full control"), description: appState.uiText("家长可查看、导出、删除云端账号数据；本机学习数据由设备内删除入口控制。", "Parents can view, export, and delete cloud account data; local learning data is controlled on device."))
+                    OnboardingFeature(icon: "☁️", title: appState.uiText("家长开启云能力", "Parent-enabled cloud"), description: appState.uiText("购买恢复和可选云端识图/朗读需要家长授权后才启用。", "Purchase restore and optional cloud OCR/speech require parent authorization.")),
+                    OnboardingFeature(icon: "🛡️", title: appState.uiText("第三方处理受控", "Controlled processors"), description: appState.uiText("可选云端处理会按能力单独同意，并避免业务后端保存儿童内容。", "Optional cloud processing requires separate consent and avoids storing child content on the business backend.")),
+                    OnboardingFeature(icon: "⚙️", title: appState.uiText("自主可控", "Full control"), description: appState.uiText("家长可查看和删除账号数据；本机学习数据由设备内删除入口控制。", "Parents can view and delete account data; local learning data is controlled on device."))
                 ])
             ),
             OnboardingPage(
@@ -58,12 +58,12 @@ struct OnboardingView: View {
                 icon: "🔒",
                 title: appState.uiText("低打扰、低收集，本地优先", "Low interruption, low collection, local-first"),
                 description: appState.uiText(
-                    "相机/相册只用于你主动拍摄或选择内容；学习内容优先保存在设备本地。云端 OCR、云同步和会员权益都会经过后端校验。",
-                    "Camera/photo access is used only when you capture or select content. Learning content is local-first. Cloud OCR, cloud sync, and paid entitlements are verified by the backend."
+                    "相机/相册只用于你主动拍摄或选择内容；学习内容优先保存在设备本地。云端 OCR 和会员权益都会经过后端校验。",
+                    "Camera/photo access is used only when you capture or select content. Learning content is local-first. Cloud OCR and paid entitlements are verified by the backend."
                 ),
                 kind: .features([
                     OnboardingFeature(icon: "📱", title: appState.uiText("多设备适配", "Adaptive layout"), description: appState.uiText("页面按 iPhone、iPad 和 Mac 窗口宽度自动收拢或居中展示。", "Screens adapt to iPhone, iPad, and Mac window widths.")),
-                    OnboardingFeature(icon: "🛡️", title: appState.uiText("家长账号", "Parent account"), description: appState.uiText("本地使用无需登录；购买、同步、补偿和删除云端账号时再使用 Apple 登录。", "Local use does not require sign-in; Apple sign-in is used for purchases, sync, compensation, and cloud account deletion.")),
+                    OnboardingFeature(icon: "🛡️", title: appState.uiText("家长账号", "Parent account"), description: appState.uiText("本地使用和补偿权益无需登录；删除云端账号时再使用 Apple 登录。", "Local use and compensation benefits do not require sign-in; Apple sign-in is only used for cloud account deletion.")),
                     OnboardingFeature(icon: "💳", title: appState.uiText("权益校验", "Entitlements"), description: appState.uiText("免费/付费权益以后端返回为准，扣款金额以 Apple 确认弹窗为准。", "Free/paid entitlements follow the backend result; Apple confirms final charges."))
                 ])
             )
@@ -508,16 +508,16 @@ struct PrivacyConsentView: View {
                             SectionView(
                                 title: appState.uiText("数据收集说明", "What we collect"),
                                 content: appState.uiText(
-                                    "默认本地模式不创建后端账号，不上传孩子图片、OCR 原文、录音、句卡正文或诊断日志。\n\n家长开启账号能力后，仅为账号、安全、权益、购买恢复、云同步或删除请求处理必要数据；低敏诊断需要家长单独开启。",
-                                    "The default local mode does not create a backend account or upload child images, OCR text, audio, card text, or diagnostics.\n\nAfter a parent enables account features, only data needed for account, security, entitlements, purchase restore, cloud sync, or deletion requests is processed. Low-sensitivity diagnostics require separate parent opt-in."
+                                    "默认本地模式不创建后端账号，不上传孩子图片、OCR 原文、录音、句卡正文或诊断日志。\n\n家长开启账号能力后，仅为账号、安全、权益、购买恢复、删除请求处理必要数据；低敏诊断需要家长单独开启。",
+                                    "The default local mode does not create a backend account or upload child images, OCR text, audio, card text, or diagnostics.\n\nAfter a parent enables account features, only data needed for account, security, entitlements, purchase restore, deletion requests is processed. Low-sensitivity diagnostics require separate parent opt-in."
                                 )
                             )
 
                             SectionView(
-                                title: appState.uiText("数据存储与同步", "Storage & sync"),
+                                title: appState.uiText("数据存储", "Storage"),
                                 content: appState.uiText(
-                                    "• 学习内容默认保存在本机\n• Apple 登录只代表家长账号，不创建孩子登录身份\n• 云同步默认关闭，开启前需要家长确认和同意范围\n• 删除云端账号不会自动擦除本机学习数据，可在设备内单独清理",
-                                    "• Learning content is saved on this device by default\n• Apple sign-in represents the parent account, not a child identity\n• Cloud sync is off by default and requires parent confirmation and scoped consent\n• Deleting the cloud account does not automatically erase local learning data; clear it separately on device"
+                                    "• 学习内容默认保存在本机\n• Apple 登录只代表家长账号，不创建孩子登录身份\n• 删除账号不会自动擦除本机学习数据，可在设备内单独清理",
+                                    "• Learning content is saved on this device by default\n• Apple sign-in represents the parent account, not a child identity\n• Account deletion does not automatically erase local learning data; clear it separately on device"
                                 )
                             )
 
@@ -614,8 +614,8 @@ struct AppleSignInRequiredView: View {
                                 .fixedSize(horizontal: false, vertical: true)
 
                             Text(appState.uiText(
-                                "拍拍伴读默认使用本地匿名模式，不上传儿童内容。购买、云同步、补偿、恢复购买或删除云端账号时，再由家长使用 Apple 登录授权。",
-                                "Paipai uses local anonymous mode by default and does not upload child content. A parent signs in with Apple only for purchases, cloud sync, compensation, purchase restore, or cloud account deletion."
+                                "拍拍伴读默认使用本地匿名模式，不上传儿童内容。补偿权益无需登录；删除云端账号时，再由家长使用 Apple 登录授权。",
+                                "Paipai uses local anonymous mode by default and does not upload child content. Compensation benefits do not require sign-in; Apple sign-in is only used for cloud account deletion."
                             ))
                             .font(AppTypography.bodyLarge)
                             .foregroundColor(AppColors.textSecondary)

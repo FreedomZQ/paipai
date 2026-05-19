@@ -203,9 +203,9 @@ struct CaptureView: View {
                     await endUsageSessionIfNeeded()
                 }
             }
-            .onChange(of: appState.requestDismissCaptureCover) { _, shouldDismiss in
+            .onChange(of: appState.requestDismissLocalOcrCover) { _, shouldDismiss in
                 guard shouldDismiss else { return }
-                appState.requestDismissCaptureCover = false
+                appState.requestDismissLocalOcrCover = false
                 // 关闭外层 fullScreenCover，返回伴读乐园页
                 dismiss()
             }
@@ -530,9 +530,9 @@ struct CaptureView: View {
 
     private func recordInitialCaptureConsent(granted: Bool) {
         let defaults = AppScopedDefaults()
-        defaults.set(true, forKey: AppDefaultKey.capturePermissionRequested)
-        defaults.set(granted, forKey: AppDefaultKey.capturePermissionGranted)
-        defaults.set(!granted, forKey: AppDefaultKey.capturePermissionDenied)
+        defaults.set(true, forKey: AppDefaultKey.localOcrPermissionRequested)
+        defaults.set(granted, forKey: AppDefaultKey.localOcrPermissionGranted)
+        defaults.set(!granted, forKey: AppDefaultKey.localOcrPermissionDenied)
     }
 
     private func requestDevicePermissionsAndContinue() {
@@ -1612,7 +1612,7 @@ struct OCRConfirmView: View {
             appState.selectedTab = .readingPark
             // 关闭外层 fullScreenCover（CaptureView）后
             // NavigationStack 会整体拆除，无需单独 pop 当前页。
-            appState.requestDismissCaptureCover = true
+            appState.requestDismissLocalOcrCover = true
         } label: {
             Label(appState.uiText("返回伴读乐园", "Back to Learning Park"), systemImage: "tent.fill")
                 .font(AppTypography.footnote.weight(.semibold))
@@ -1867,7 +1867,7 @@ struct OCRConfirmView: View {
         do {
             let preparedImage = try await prepareImageIfNeeded()
 
-            let quotaValidation = await appState.validateCaptureQuotaBeforeRecognition(requiredAmount: 1)
+            let quotaValidation = await appState.validateLocalOcrQuotaBeforeRecognition(requiredAmount: 1)
             guard quotaValidation.isAllowed else {
                 await MainActor.run {
                     errorMessage = quotaValidation.message
@@ -1897,7 +1897,7 @@ struct OCRConfirmView: View {
                 }
                 return
             }
-            _ = await appState.recordCaptureUsage(source: "device_ocr")
+            _ = await appState.recordLocalOcrUsage(source: "device_ocr")
         } catch {
             await MainActor.run {
                 switch error {

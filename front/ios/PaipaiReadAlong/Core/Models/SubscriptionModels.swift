@@ -6,9 +6,8 @@ struct Plan: Codable, Hashable, Identifiable {
     let code: String
     let displayName: String
     let childLimit: Int
-    let dailyCaptureLimit: Int
+    let dailyLocalOcrLimit: Int
     let localCardLimit: Int
-    let cloudSyncEnabled: Bool
     let advancedVoiceEnabled: Bool
     let appStoreProductId: String?
     let highlight: Bool?
@@ -24,24 +23,22 @@ struct Plan: Codable, Hashable, Identifiable {
         var highlights: [String] = []
         if childLimit > 1 { highlights.append("多孩子") }
         if historyEnabled { highlights.append("历史回顾") }
-        if cloudSyncEnabled { highlights.append("云同步") }
         if advancedVoiceEnabled { highlights.append("高级朗读") }
         return highlights.isEmpty ? "基础功能免费使用" : highlights.joined(separator: "、")
     }
     var isPopular: Bool { highlight ?? false }
 
     static let defaultPlans: [Plan] = [
-        Plan(code: "free", displayName: "免费版", childLimit: 1, dailyCaptureLimit: 3, localCardLimit: 20, cloudSyncEnabled: false, advancedVoiceEnabled: false, appStoreProductId: nil, highlight: false, displayPrice: "¥0", originalPrice: nil, badgeText: nil, historyEnabled: false, supportedLocales: AppLocaleCatalog.supportedInterfaceLocales, supportedLearningTrackCodes: ["zh_to_en", "en_to_zh"]),
-        Plan(code: "family_multi_child_lifetime", displayName: "高级版", childLimit: 5, dailyCaptureLimit: 50, localCardLimit: 800, cloudSyncEnabled: true, advancedVoiceEnabled: true, appStoreProductId: "com.paipai.readalong.family.multi_child.lifetime", highlight: true, displayPrice: "¥68", originalPrice: "¥98", badgeText: "推荐", historyEnabled: true, supportedLocales: AppLocaleCatalog.supportedInterfaceLocales, supportedLearningTrackCodes: ["zh_to_en", "en_to_zh"])
+        Plan(code: "free", displayName: "免费版", childLimit: 1, dailyLocalOcrLimit: 3, localCardLimit: 20, advancedVoiceEnabled: false, appStoreProductId: nil, highlight: false, displayPrice: "¥0", originalPrice: nil, badgeText: nil, historyEnabled: false, supportedLocales: AppLocaleCatalog.supportedInterfaceLocales, supportedLearningTrackCodes: ["zh_to_en", "en_to_zh"]),
+        Plan(code: "family_multi_child_lifetime", displayName: "高级版", childLimit: 5, dailyLocalOcrLimit: 50, localCardLimit: 800, advancedVoiceEnabled: true, appStoreProductId: "com.paipai.readalong.family.multi_child.lifetime", highlight: true, displayPrice: "¥68", originalPrice: "¥98", badgeText: "推荐", historyEnabled: true, supportedLocales: AppLocaleCatalog.supportedInterfaceLocales, supportedLearningTrackCodes: ["zh_to_en", "en_to_zh"])
     ]
 
     init(
         code: String,
         displayName: String,
         childLimit: Int,
-        dailyCaptureLimit: Int,
+        dailyLocalOcrLimit: Int,
         localCardLimit: Int,
-        cloudSyncEnabled: Bool,
         advancedVoiceEnabled: Bool,
         appStoreProductId: String?,
         highlight: Bool?,
@@ -55,9 +52,8 @@ struct Plan: Codable, Hashable, Identifiable {
         self.code = code
         self.displayName = displayName
         self.childLimit = childLimit
-        self.dailyCaptureLimit = dailyCaptureLimit
+        self.dailyLocalOcrLimit = dailyLocalOcrLimit
         self.localCardLimit = localCardLimit
-        self.cloudSyncEnabled = cloudSyncEnabled
         self.advancedVoiceEnabled = advancedVoiceEnabled
         self.appStoreProductId = appStoreProductId
         self.highlight = highlight
@@ -74,9 +70,8 @@ struct Plan: Codable, Hashable, Identifiable {
         case productCode
         case displayName
         case childLimit
-        case dailyCaptureLimit
+        case dailyLocalOcrLimit
         case localCardLimit
-        case cloudSyncEnabled
         case advancedVoiceEnabled
         case appStoreProductId
         case highlight
@@ -95,9 +90,8 @@ struct Plan: Codable, Hashable, Identifiable {
             ?? "free"
         displayName = try container.decodeIfPresent(String.self, forKey: .displayName) ?? code
         childLimit = try container.decodeIfPresent(Int.self, forKey: .childLimit) ?? 1
-        dailyCaptureLimit = try container.decodeIfPresent(Int.self, forKey: .dailyCaptureLimit) ?? 3
+        dailyLocalOcrLimit = try container.decodeIfPresent(Int.self, forKey: .dailyLocalOcrLimit) ?? 3
         localCardLimit = try container.decodeIfPresent(Int.self, forKey: .localCardLimit) ?? 20
-        cloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .cloudSyncEnabled) ?? false
         advancedVoiceEnabled = try container.decodeIfPresent(Bool.self, forKey: .advancedVoiceEnabled) ?? false
         appStoreProductId = try container.decodeIfPresent(String.self, forKey: .appStoreProductId)
         highlight = try container.decodeIfPresent(Bool.self, forKey: .highlight)
@@ -114,9 +108,8 @@ struct Plan: Codable, Hashable, Identifiable {
         try container.encode(code, forKey: .code)
         try container.encode(displayName, forKey: .displayName)
         try container.encode(childLimit, forKey: .childLimit)
-        try container.encode(dailyCaptureLimit, forKey: .dailyCaptureLimit)
+        try container.encode(dailyLocalOcrLimit, forKey: .dailyLocalOcrLimit)
         try container.encode(localCardLimit, forKey: .localCardLimit)
-        try container.encode(cloudSyncEnabled, forKey: .cloudSyncEnabled)
         try container.encode(advancedVoiceEnabled, forKey: .advancedVoiceEnabled)
         try container.encodeIfPresent(appStoreProductId, forKey: .appStoreProductId)
         try container.encodeIfPresent(highlight, forKey: .highlight)
@@ -234,9 +227,9 @@ struct CreditProduct: Codable, Hashable, Identifiable {
 
     var localizedCategoryName: String {
         switch packageType ?? serviceType {
-        case "voice_count_pack", "speech", "cloud_tts":
+        case "voice_count_pack", "local_tts", "cloud_tts":
             return "语音朗读"
-        case "image_recognition_pack", "capture", "cloud_ocr":
+        case "image_recognition_pack", "local_ocr", "cloud_ocr":
             return "图片识别文字"
         case "child_limit_extension", "child_profile":
             return "孩子数量上限"

@@ -1,10 +1,9 @@
 import Foundation
-import PowerSync
 
 final class EntitlementRecordRepository {
-    private let database: PowerSyncDatabaseProtocol
+    private let database: LocalDatabase
 
-    init(database: PowerSyncDatabaseProtocol) {
+    init(database: LocalDatabase) {
         self.database = database
     }
 
@@ -14,12 +13,13 @@ final class EntitlementRecordRepository {
         let offset = (safePage - 1) * safePageSize
         let normalizedServiceType = normalizedServiceType(serviceType)
         let normalizedStatusFilter = normalizedStatusFilter(statusFilter)
-        let now = SyncClock.nowString()
+        let now = AppClock.nowString()
         var whereClause = "app_code = ? AND account_id = ?"
         var parameters: [Any?] = [AppIdentity.appCode, accountId]
         if let normalizedServiceType {
-            whereClause += " AND service_type = ?"
-            parameters.append(normalizedServiceType)
+            let aliases = serviceTypeAliases(for: normalizedServiceType)
+            whereClause += " AND service_type IN (\(placeholders(count: aliases.count)))"
+            parameters.append(contentsOf: aliases)
         }
         if let normalizedStatusFilter {
             switch normalizedStatusFilter {
@@ -35,7 +35,7 @@ final class EntitlementRecordRepository {
         }
 
         let total = (try? await database.getOptional(
-            sql: "SELECT COUNT(*) AS total FROM \(ReadingSyncTableName.entitlementRecordCache) WHERE \(whereClause)",
+            sql: "SELECT COUNT(*) AS total FROM \(ReadingLocalTableName.entitlementRecordCache) WHERE \(whereClause)",
             parameters: parameters
         ) { cursor in
             try cursor.getIntOptional(name: "total") ?? 0
@@ -44,19 +44,20 @@ final class EntitlementRecordRepository {
         var pageParameters = parameters
         pageParameters.append(safePageSize)
         pageParameters.append(offset)
-        let records = (try? await database.getAll(
+        let records: [EntitlementRecord] = (try? await database.getAll(
             sql: """
                 SELECT record_id, service_type, grant_type, acquire_method, total_count, used_count, remaining_count, acquired_at, expires_at, product_code
-                FROM \(ReadingSyncTableName.entitlementRecordCache)
+                FROM \(ReadingLocalTableName.entitlementRecordCache)
                 WHERE \(whereClause)
                 ORDER BY acquired_at DESC, record_id DESC
                 LIMIT ? OFFSET ?
                 """,
             parameters: pageParameters
         ) { cursor in
-            EntitlementRecord(
+            let rawServiceType = try cursor.getString(name: "service_type")
+            return EntitlementRecord(
                 id: try cursor.getString(name: "record_id"),
-                serviceType: try cursor.getString(name: "service_type"),
+                serviceType: self.normalizedServiceType(rawServiceType) ?? rawServiceType,
                 grantType: try cursor.getString(name: "grant_type"),
                 acquireMethod: try cursor.getString(name: "acquire_method"),
                 totalCount: try cursor.getIntOptional(name: "total_count") ?? 0,
@@ -78,20 +79,21 @@ final class EntitlementRecordRepository {
 
     func loadActiveCreditSummary(accountId: String, serviceType: String, now: String) async -> EntitlementUsageSummary {
         let normalizedServiceType = normalizedServiceType(serviceType) ?? serviceType
+        let aliases = serviceTypeAliases(for: normalizedServiceType)
         return (try? await database.getOptional(
             sql: """
                 SELECT
                     COALESCE(SUM(total_count), 0) AS total_count,
                     COALESCE(SUM(used_count), 0) AS used_count,
                     COALESCE(SUM(remaining_count), 0) AS remaining_count
-                FROM \(ReadingSyncTableName.entitlementRecordCache)
+                FROM \(ReadingLocalTableName.entitlementRecordCache)
                 WHERE app_code = ?
                   AND account_id = ?
-                  AND service_type = ?
+                  AND service_type IN (\(placeholders(count: aliases.count)))
                   AND LOWER(COALESCE(grant_type, '')) NOT IN ('daily_gift', 'daily_grant')
                   AND (COALESCE(expires_at, '') = '' OR expires_at > ?)
                 """,
-            parameters: [AppIdentity.appCode, accountId, normalizedServiceType, now]
+            parameters: [AppIdentity.appCode, accountId] + aliases + [now]
         ) { cursor in
             let total = max(try cursor.getIntOptional(name: "total_count") ?? 0, 0)
             let used = min(max(try cursor.getIntOptional(name: "used_count") ?? 0, 0), total)
@@ -106,17 +108,24 @@ final class EntitlementRecordRepository {
     }
 
     func replaceAll(accountId: String, records: [EntitlementRecord], syncedAt: String) async {
+        let localCompensationRecords = await loadLocalCompensationRecords(accountId: accountId)
+        let incomingKeys = Set(records.compactMap { record -> String? in
+            guard let productCode = record.productCode, !productCode.isEmpty else { return nil }
+            let serviceType = normalizedServiceType(record.serviceType) ?? record.serviceType
+            return compensationKey(serviceType: serviceType, compensationCode: productCode)
+        })
         _ = try? await database.execute(
             sql: """
-                DELETE FROM \(ReadingSyncTableName.entitlementRecordCache)
+                DELETE FROM \(ReadingLocalTableName.entitlementRecordCache)
                 WHERE app_code = ? AND account_id = ?
                 """,
             parameters: [AppIdentity.appCode, accountId]
         )
         for record in records {
+            let serviceType = normalizedServiceType(record.serviceType) ?? record.serviceType
             _ = try? await database.execute(
                 sql: """
-                    INSERT OR REPLACE INTO \(ReadingSyncTableName.entitlementRecordCache)
+                    INSERT OR REPLACE INTO \(ReadingLocalTableName.entitlementRecordCache)
                     (id, app_code, account_id, record_id, service_type, grant_type, acquire_method, total_count, used_count, remaining_count, acquired_at, expires_at, product_code, synced_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
@@ -125,7 +134,7 @@ final class EntitlementRecordRepository {
                     AppIdentity.appCode,
                     accountId,
                     record.id,
-                    record.serviceType,
+                    serviceType,
                     record.grantType,
                     record.acquireMethod,
                     record.totalCount,
@@ -138,15 +147,24 @@ final class EntitlementRecordRepository {
                 ]
             )
         }
+        for record in localCompensationRecords where !incomingKeys.contains(compensationKey(serviceType: record.serviceType, compensationCode: record.productCode ?? "")) {
+            await upsertCachedRecord(accountId: accountId, record: record, syncedAt: syncedAt)
+        }
     }
 
-    func upsertDailyGrant(accountId: String, serviceType: String, totalCount: Int, usedCount: Int, quotaDate: String, acquiredAt: String, expiresAt: String, syncedAt: String) async {
-        let safeTotal = max(totalCount, 0)
-        let safeUsed = min(max(usedCount, 0), safeTotal)
-        let recordId = dailyGrantRecordId(accountId: accountId, serviceType: serviceType, quotaDate: quotaDate)
+    func upsertCompensationRedeemReceipt(accountId: String, receipt: CompensationRedeemReceipt, syncedAt: String) async {
+        guard let serviceType = normalizedServiceType(receipt.serviceType),
+              let grantCount = receipt.grantCount,
+              grantCount > 0 else {
+            return
+        }
+        if await hasCompensationRecord(accountId: accountId, serviceType: serviceType, compensationCode: receipt.compensationCode) {
+            return
+        }
+        let recordId = "compensation#\(receipt.compensationCode)#\(serviceType)"
         _ = try? await database.execute(
             sql: """
-                INSERT OR REPLACE INTO \(ReadingSyncTableName.entitlementRecordCache)
+                INSERT OR REPLACE INTO \(ReadingLocalTableName.entitlementRecordCache)
                 (id, app_code, account_id, record_id, service_type, grant_type, acquire_method, total_count, used_count, remaining_count, acquired_at, expires_at, product_code, synced_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -156,6 +174,36 @@ final class EntitlementRecordRepository {
                 accountId,
                 recordId,
                 serviceType,
+                "compensation_code",
+                "补偿兑换",
+                grantCount,
+                0,
+                grantCount,
+                receipt.redeemedAt ?? syncedAt,
+                receipt.validUntil ?? "",
+                receipt.compensationCode,
+                syncedAt
+            ]
+        )
+    }
+
+    func upsertDailyGrant(accountId: String, serviceType: String, totalCount: Int, usedCount: Int, quotaDate: String, acquiredAt: String, expiresAt: String, syncedAt: String) async {
+        let normalizedServiceType = normalizedServiceType(serviceType) ?? serviceType
+        let safeTotal = max(totalCount, 0)
+        let safeUsed = min(max(usedCount, 0), safeTotal)
+        let recordId = dailyGrantRecordId(accountId: accountId, serviceType: normalizedServiceType, quotaDate: quotaDate)
+        _ = try? await database.execute(
+            sql: """
+                INSERT OR REPLACE INTO \(ReadingLocalTableName.entitlementRecordCache)
+                (id, app_code, account_id, record_id, service_type, grant_type, acquire_method, total_count, used_count, remaining_count, acquired_at, expires_at, product_code, synced_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            parameters: [
+                cacheId(accountId: accountId, recordId: recordId),
+                AppIdentity.appCode,
+                accountId,
+                recordId,
+                normalizedServiceType,
                 "daily_grant",
                 "每日赠送",
                 safeTotal,
@@ -175,7 +223,7 @@ final class EntitlementRecordRepository {
         let existing = try? await database.getOptional(
             sql: """
                 SELECT used_count
-                FROM \(ReadingSyncTableName.entitlementRecordCache)
+                FROM \(ReadingLocalTableName.entitlementRecordCache)
                 WHERE app_code = ? AND account_id = ? AND record_id = ?
                 """,
             parameters: [AppIdentity.appCode, accountId, recordId]
@@ -203,7 +251,7 @@ final class EntitlementRecordRepository {
         let existing = try? await database.getOptional(
             sql: """
                 SELECT record_id, total_count, used_count
-                FROM \(ReadingSyncTableName.entitlementRecordCache)
+                FROM \(ReadingLocalTableName.entitlementRecordCache)
                 WHERE app_code = ?
                   AND account_id = ?
                   AND service_type = ?
@@ -237,7 +285,7 @@ final class EntitlementRecordRepository {
         let nextUsed = min(max(existing.usedCount + amount, 0), safeTotal)
         _ = try? await database.execute(
             sql: """
-                UPDATE \(ReadingSyncTableName.entitlementRecordCache)
+                UPDATE \(ReadingLocalTableName.entitlementRecordCache)
                 SET total_count = ?,
                     used_count = ?,
                     remaining_count = ?,
@@ -260,18 +308,19 @@ final class EntitlementRecordRepository {
 
     func hasAuthoritativeDailyGift(accountId: String, serviceType: String, quotaDate: String) async -> Bool {
         let normalizedServiceType = normalizedServiceType(serviceType) ?? serviceType
+        let aliases = serviceTypeAliases(for: normalizedServiceType)
         let expectedRecordId = "daily-\(normalizedServiceType)-\(quotaDate)"
         let count = (try? await database.getOptional(
             sql: """
                 SELECT COUNT(*) AS total
-                FROM \(ReadingSyncTableName.entitlementRecordCache)
+                FROM \(ReadingLocalTableName.entitlementRecordCache)
                 WHERE app_code = ?
                   AND account_id = ?
-                  AND service_type = ?
+                  AND service_type IN (\(placeholders(count: aliases.count)))
                   AND grant_type = 'daily_gift'
                   AND record_id = ?
                 """,
-            parameters: [AppIdentity.appCode, accountId, normalizedServiceType, expectedRecordId]
+            parameters: [AppIdentity.appCode, accountId] + aliases + [expectedRecordId]
         ) { cursor in
             try cursor.getIntOptional(name: "total") ?? 0
         }) ?? 0
@@ -280,9 +329,81 @@ final class EntitlementRecordRepository {
 
     func clear(accountId: String) async {
         _ = try? await database.execute(
-            sql: "DELETE FROM \(ReadingSyncTableName.entitlementRecordCache) WHERE app_code = ? AND account_id = ?",
+            sql: "DELETE FROM \(ReadingLocalTableName.entitlementRecordCache) WHERE app_code = ? AND account_id = ?",
             parameters: [AppIdentity.appCode, accountId]
         )
+    }
+
+    private func loadLocalCompensationRecords(accountId: String) async -> [EntitlementRecord] {
+        (try? await database.getAll(
+            sql: """
+                SELECT record_id, service_type, grant_type, acquire_method, total_count, used_count, remaining_count, acquired_at, expires_at, product_code
+                FROM \(ReadingLocalTableName.entitlementRecordCache)
+                WHERE app_code = ?
+                  AND account_id = ?
+                  AND grant_type = 'compensation_code'
+                """,
+            parameters: [AppIdentity.appCode, accountId]
+        ) { cursor in
+            let rawServiceType = try cursor.getString(name: "service_type")
+            return EntitlementRecord(
+                id: try cursor.getString(name: "record_id"),
+                serviceType: self.normalizedServiceType(rawServiceType) ?? rawServiceType,
+                grantType: try cursor.getString(name: "grant_type"),
+                acquireMethod: try cursor.getString(name: "acquire_method"),
+                totalCount: try cursor.getIntOptional(name: "total_count") ?? 0,
+                usedCount: try cursor.getIntOptional(name: "used_count") ?? 0,
+                remainingCount: try cursor.getIntOptional(name: "remaining_count") ?? 0,
+                acquiredAt: try cursor.getStringOptional(name: "acquired_at") ?? "",
+                expiresAt: try cursor.getStringOptional(name: "expires_at") ?? "",
+                productCode: try cursor.getStringOptional(name: "product_code")
+            )
+        }) ?? []
+    }
+
+    private func upsertCachedRecord(accountId: String, record: EntitlementRecord, syncedAt: String) async {
+        let serviceType = normalizedServiceType(record.serviceType) ?? record.serviceType
+        _ = try? await database.execute(
+            sql: """
+                INSERT OR REPLACE INTO \(ReadingLocalTableName.entitlementRecordCache)
+                (id, app_code, account_id, record_id, service_type, grant_type, acquire_method, total_count, used_count, remaining_count, acquired_at, expires_at, product_code, synced_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            parameters: [
+                cacheId(accountId: accountId, recordId: record.id),
+                AppIdentity.appCode,
+                accountId,
+                record.id,
+                serviceType,
+                record.grantType,
+                record.acquireMethod,
+                record.totalCount,
+                record.usedCount,
+                record.remainingCount,
+                record.acquiredAt,
+                record.expiresAt,
+                record.productCode,
+                syncedAt
+            ]
+        )
+    }
+
+    private func hasCompensationRecord(accountId: String, serviceType: String, compensationCode: String) async -> Bool {
+        let aliases = serviceTypeAliases(for: serviceType)
+        let count = (try? await database.getOptional(
+            sql: """
+                SELECT COUNT(*) AS total
+                FROM \(ReadingLocalTableName.entitlementRecordCache)
+                WHERE app_code = ?
+                  AND account_id = ?
+                  AND service_type IN (\(placeholders(count: aliases.count)))
+                  AND product_code = ?
+                """,
+            parameters: [AppIdentity.appCode, accountId] + aliases + [compensationCode]
+        ) { cursor in
+            try cursor.getIntOptional(name: "total") ?? 0
+        }) ?? 0
+        return count > 0
     }
 
     private func normalizedServiceType(_ serviceType: String?) -> String? {
@@ -291,7 +412,37 @@ final class EntitlementRecordRepository {
               serviceType != "all" else {
             return nil
         }
-        return serviceType
+        switch serviceType {
+        case "capture", "local_capture", "ocr", "local_ocr":
+            return "local_ocr"
+        case "speech", "local_speech", "tts", "local_tts", "device_tts":
+            return "local_tts"
+        case "cloud_ocr", "cloud_capture":
+            return "cloud_ocr"
+        case "cloud_tts", "cloud_speech":
+            return "cloud_tts"
+        default:
+            return serviceType
+        }
+    }
+
+    private func serviceTypeAliases(for serviceType: String) -> [String] {
+        switch normalizedServiceType(serviceType) ?? serviceType {
+        case "local_ocr":
+            return ["local_ocr", "capture", "local_capture", "ocr"]
+        case "local_tts":
+            return ["local_tts", "speech", "local_speech", "tts", "device_tts"]
+        case "cloud_ocr":
+            return ["cloud_ocr", "cloud_capture"]
+        case "cloud_tts":
+            return ["cloud_tts", "cloud_speech"]
+        default:
+            return [serviceType]
+        }
+    }
+
+    private func placeholders(count: Int) -> String {
+        Array(repeating: "?", count: max(count, 1)).joined(separator: ", ")
     }
 
     private func normalizedStatusFilter(_ statusFilter: String?) -> String? {
@@ -311,6 +462,10 @@ final class EntitlementRecordRepository {
 
     private func cacheId(accountId: String, recordId: String) -> String {
         "\(accountId)#\(recordId)"
+    }
+
+    private func compensationKey(serviceType: String, compensationCode: String) -> String {
+        "\(normalizedServiceType(serviceType) ?? serviceType)#\(compensationCode)"
     }
 
     private func dailyGrantRecordId(accountId: String, serviceType: String, quotaDate: String) -> String {

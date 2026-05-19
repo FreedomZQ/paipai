@@ -4,10 +4,10 @@ struct HomeView: View {
     @EnvironmentObject var appState: AppState
     @State private var showReview = false
     @State private var selectedCardListRoute: ReviewCardListRoute?
-    @State private var showSpeechQuotaAlert = false
-    @State private var speechQuotaAlertMessage = ""
+    @State private var showLocalTtsQuotaAlert = false
+    @State private var localTtsQuotaAlertMessage = ""
     @State private var showEntitlementInfo = false
-    @State private var areSpeechResourcesReady = false
+    @State private var areLocalTtsResourcesReady = false
     @ScaledMetric(relativeTo: .caption) private var entitlementIconSize: CGFloat = 13
     @ScaledMetric(relativeTo: .caption2) private var entitlementLinkSize: CGFloat = 10
 
@@ -22,28 +22,28 @@ struct HomeView: View {
         )
     }
 
-    private var captureUsed: Int {
-        appState.entitlementDisplaySummary(serviceType: "capture").usedCount
+    private var localOcrUsed: Int {
+        appState.entitlementDisplaySummary(serviceType: "local_ocr").usedCount
     }
 
-    private var captureTotal: Int {
-        appState.entitlementDisplaySummary(serviceType: "capture").totalCount
+    private var localOcrTotal: Int {
+        appState.entitlementDisplaySummary(serviceType: "local_ocr").totalCount
     }
 
-    private var speechUsed: Int {
-        appState.entitlementDisplaySummary(serviceType: "speech").usedCount
+    private var localTtsUsed: Int {
+        appState.entitlementDisplaySummary(serviceType: "local_tts").usedCount
     }
 
-    private var speechTotal: Int {
-        appState.entitlementDisplaySummary(serviceType: "speech").totalCount
+    private var localTtsTotal: Int {
+        appState.entitlementDisplaySummary(serviceType: "local_tts").totalCount
     }
 
     private var ocrEntitlementSummary: (used: Int, total: Int) {
-        return (captureUsed, captureTotal)
+        return (localOcrUsed, localOcrTotal)
     }
 
-    private var speechEntitlementSummary: (used: Int, total: Int) {
-        return (speechUsed, speechTotal)
+    private var localTtsEntitlementSummary: (used: Int, total: Int) {
+        return (localTtsUsed, localTtsTotal)
     }
 
     private var childEntitlementSummary: (used: Int, total: Int) {
@@ -63,7 +63,7 @@ struct HomeView: View {
     }
 
     private var savedCardCount: Int {
-        // 句卡删除后本地 PowerSync 表会先更新；优先使用本地统计，避免后端摘要延迟导致首页总数短暂回跳。
+        // 句卡删除后本地表会先更新；优先使用本地统计，避免后端摘要延迟导致首页总数短暂回跳。
         if appState.readingAchievementStats.childId == currentChild.id {
             return appState.readingAchievementStats.savedCardCount
         }
@@ -131,18 +131,18 @@ struct HomeView: View {
                 EntitlementRecordsView()
                     .environmentObject(appState)
             }
-            .alert(appState.uiText("发音权益已用完", "Pronunciation quota used up"), isPresented: $showSpeechQuotaAlert) {
+            .alert(appState.uiText("发音权益已用完", "Pronunciation quota used up"), isPresented: $showLocalTtsQuotaAlert) {
                 Button(appState.uiText("关闭", "Close"), role: .cancel) {
-                    showSpeechQuotaAlert = false
+                    showLocalTtsQuotaAlert = false
                 }
             } message: {
-                Text(speechQuotaAlertMessage)
+                Text(localTtsQuotaAlertMessage)
             }
             .task {
                 await appState.bootstrapIfNeeded()
-                areSpeechResourcesReady = false
-                await appState.preloadSpeechResourcesForCurrentContext(reason: "home")
-                areSpeechResourcesReady = true
+                areLocalTtsResourcesReady = false
+                await appState.preloadLocalTtsResourcesForCurrentContext(reason: "home")
+                areLocalTtsResourcesReady = true
                 await appState.refreshParentData()
                 await appState.refreshReviewData()
                 await appState.refreshHomeData()
@@ -186,8 +186,8 @@ struct HomeView: View {
                     CompactUsageItem(
                         icon: "speaker.wave.2.fill",
                         label: appState.uiText("朗读", "Read"),
-                        used: speechEntitlementSummary.used,
-                        total: max(speechEntitlementSummary.total, 1),
+                        used: localTtsEntitlementSummary.used,
+                        total: max(localTtsEntitlementSummary.total, 1),
                         textScale: textScale
                     )
                     CompactUsageItem(
@@ -397,22 +397,22 @@ struct HomeView: View {
                                 text: card.text,
                                 translation: card.supportHint.isEmpty ? nil : card.supportHint,
                                 isCompact: true,
-                                isPlaybackEnabled: areSpeechResourcesReady,
+                                isPlaybackEnabled: areLocalTtsResourcesReady,
                                 onPlay: {
-                                    guard areSpeechResourcesReady else { return }
+                                    guard areLocalTtsResourcesReady else { return }
                                     Task {
-                                        let didPlay = await appState.playSourceSpeech(text: card.text)
+                                        let didPlay = await appState.playSourceLocalTts(text: card.text)
                                         await MainActor.run {
-                                            handleSpeechQuotaResult(didPlay: didPlay)
+                                            handleLocalTtsQuotaResult(didPlay: didPlay)
                                         }
                                     }
                                 },
                                 onPlayTranslation: card.supportHint.isEmpty ? nil : {
-                                    guard areSpeechResourcesReady else { return }
+                                    guard areLocalTtsResourcesReady else { return }
                                     Task {
-                                        let didPlay = await appState.playTargetSpeech(text: card.supportHint)
+                                        let didPlay = await appState.playTargetLocalTts(text: card.supportHint)
                                         await MainActor.run {
-                                            handleSpeechQuotaResult(didPlay: didPlay)
+                                            handleLocalTtsQuotaResult(didPlay: didPlay)
                                         }
                                     }
                                 }
@@ -426,17 +426,17 @@ struct HomeView: View {
         }
     }
 
-    private func handleSpeechQuotaResult(didPlay: Bool) {
-        guard !didPlay, appState.isSpeechQuotaExhausted else { return }
-        speechQuotaAlertMessage = appState.speechQuotaExhaustedMessage
+    private func handleLocalTtsQuotaResult(didPlay: Bool) {
+        guard !didPlay, appState.isLocalTtsQuotaExhausted else { return }
+        localTtsQuotaAlertMessage = appState.localTtsQuotaExhaustedMessage
             ?? appState.uiText(
                 "今日发音权益已用完，暂时无法继续发音。请让家长在家长区查看权益并补充次数后再发音。",
                 "Today's pronunciation quota is used up, so playback is temporarily unavailable. Please ask a parent to review benefits and add quota from the parent area before playing audio again."
             )
-        appState.isSpeechQuotaExhausted = false
-        appState.speechQuotaExhaustedMessage = nil
+        appState.isLocalTtsQuotaExhausted = false
+        appState.localTtsQuotaExhaustedMessage = nil
         appState.errorMessage = nil
-        showSpeechQuotaAlert = true
+        showLocalTtsQuotaAlert = true
     }
 
     private var emptyRecentCardsView: some View {
@@ -551,7 +551,7 @@ struct ReviewCardListView: View {
                 }
             }
             .sorted { lhs, rhs in
-                (SyncClock.date(from: lhs.updatedAt) ?? .distantPast) > (SyncClock.date(from: rhs.updatedAt) ?? .distantPast)
+                (AppClock.date(from: lhs.updatedAt) ?? .distantPast) > (AppClock.date(from: rhs.updatedAt) ?? .distantPast)
             }
     }
 
@@ -825,7 +825,7 @@ private extension ReviewCard {
     var isSavedToday: Bool {
         let savedAt = createdAt ?? updatedAt
         guard let savedAt,
-              let savedDate = SyncClock.date(from: savedAt) else {
+              let savedDate = AppClock.date(from: savedAt) else {
             return false
         }
         return Calendar.current.isDateInToday(savedDate)

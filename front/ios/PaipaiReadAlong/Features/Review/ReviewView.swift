@@ -14,10 +14,10 @@ struct ReviewView: View {
     @State private var usageSessionActive = false
     @State private var usageChildId = ""
     @State private var hasLoadedCards = false
-    @State private var showSpeechQuotaAlert = false
-    @State private var speechQuotaAlertMessage = ""
-    @State private var areSpeechResourcesReady = false
-    @State private var selectedSpeed: SpeechSpeed = .normal
+    @State private var showLocalTtsQuotaAlert = false
+    @State private var localTtsQuotaAlertMessage = ""
+    @State private var areLocalTtsResourcesReady = false
+    @State private var selectedSpeed: LocalTtsSpeed = .normal
     /// 待二次确认删除的句卡；非空时展示中文确认弹窗。
     @State private var cardPendingDeletion: ReviewCard?
     /// 删除成功后的视觉反馈弹窗，用户确认后返回上一层句卡列表。
@@ -29,7 +29,7 @@ struct ReviewView: View {
     init(initialCardId: String? = nil, showsAllLearningCards: Bool = false) {
         self.initialCardId = initialCardId
         self.showsAllLearningCards = showsAllLearningCards
-        _selectedSpeed = State(initialValue: SpeechSpeed.persistedSelection())
+        _selectedSpeed = State(initialValue: LocalTtsSpeed.persistedSelection())
     }
 
     var body: some View {
@@ -74,12 +74,12 @@ struct ReviewView: View {
         .navigationTitle(appState.uiText("今日复习", "Today's Review"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
-        .alert(appState.uiText("朗读权益已用完", "Read-aloud quota used up"), isPresented: $showSpeechQuotaAlert) {
+        .alert(appState.uiText("朗读权益已用完", "Read-aloud quota used up"), isPresented: $showLocalTtsQuotaAlert) {
             Button(appState.uiText("关闭", "Close"), role: .cancel) {
-                showSpeechQuotaAlert = false
+                showLocalTtsQuotaAlert = false
             }
         } message: {
-            Text(speechQuotaAlertMessage)
+            Text(localTtsQuotaAlertMessage)
         }
         .alert(appState.uiText("删除当前句卡？", "Delete this card?"), isPresented: Binding(get: {
             cardPendingDeletion != nil
@@ -115,9 +115,9 @@ struct ReviewView: View {
         }
         .task {
             await appState.bootstrapIfNeeded()
-            areSpeechResourcesReady = false
-            await appState.preloadSpeechResourcesForCurrentContext(reason: "review")
-            areSpeechResourcesReady = true
+            areLocalTtsResourcesReady = false
+            await appState.preloadLocalTtsResourcesForCurrentContext(reason: "review")
+            areLocalTtsResourcesReady = true
             usageChildId = appState.selectedChild.id
             await startUsageSessionIfNeeded()
             await appState.refreshReviewData()
@@ -292,8 +292,8 @@ struct ReviewView: View {
                 .padding(.vertical, 4)
 
             SpeakerButton(isCompact: true, tint: AppColors.primary, action: action)
-                .disabled(!areSpeechResourcesReady)
-                .opacity(areSpeechResourcesReady ? 1 : 0.45)
+                .disabled(!areLocalTtsResourcesReady)
+                .opacity(areLocalTtsResourcesReady ? 1 : 0.45)
         }
         .frame(maxWidth: .infinity)
     }
@@ -358,8 +358,8 @@ struct ReviewView: View {
 
     private var speedSelector: some View {
         VStack(spacing: AppLayout.spacingS) {
-            Picker(appState.uiText("朗读速度", "Speech speed"), selection: $selectedSpeed) {
-                ForEach(SpeechSpeed.allCases) { speed in
+            Picker(appState.uiText("朗读速度", "Local TTS speed"), selection: $selectedSpeed) {
+                ForEach(LocalTtsSpeed.allCases) { speed in
                     Text(speedTitle(speed)).tag(speed)
                 }
             }
@@ -382,7 +382,7 @@ struct ReviewView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func speedTitle(_ speed: SpeechSpeed) -> String {
+    private func speedTitle(_ speed: LocalTtsSpeed) -> String {
         switch speed {
         case .extraSlow: return appState.uiText("很慢 (0.5x)", "Very slow (0.5x)")
         case .normal: return appState.uiText("正常速度 (1.0x)", "Normal (1.0x)")
@@ -494,30 +494,30 @@ struct ReviewView: View {
     }
 
     private func playOriginal(_ card: ReviewCard) {
-        guard areSpeechResourcesReady else { return }
+        guard areLocalTtsResourcesReady else { return }
         Task {
-            let didPlay = await appState.playSpeech(
+            let didPlay = await appState.playLocalTts(
                 text: card.text,
-                languageCode: appState.speechLanguageCode(for: originalLanguageCode(for: card)),
+                languageCode: appState.localTtsLanguageCode(for: originalLanguageCode(for: card)),
                 rate: selectedSpeed.rate
             )
             await MainActor.run {
-                handleSpeechQuotaResult(didPlay: didPlay)
+                handleLocalTtsQuotaResult(didPlay: didPlay)
             }
         }
     }
 
     private func playTranslation(_ card: ReviewCard) {
-        guard areSpeechResourcesReady else { return }
+        guard areLocalTtsResourcesReady else { return }
         guard !card.supportHint.isEmpty else { return }
         Task {
-            let didPlay = await appState.playSpeech(
+            let didPlay = await appState.playLocalTts(
                 text: card.supportHint,
-                languageCode: appState.speechLanguageCode(for: translationLanguageCode(for: card)),
+                languageCode: appState.localTtsLanguageCode(for: translationLanguageCode(for: card)),
                 rate: selectedSpeed.rate
             )
             await MainActor.run {
-                handleSpeechQuotaResult(didPlay: didPlay)
+                handleLocalTtsQuotaResult(didPlay: didPlay)
             }
         }
     }
@@ -542,17 +542,17 @@ struct ReviewView: View {
         return languageCode
     }
 
-    private func handleSpeechQuotaResult(didPlay: Bool) {
-        guard !didPlay, appState.isSpeechQuotaExhausted else { return }
-        speechQuotaAlertMessage = appState.speechQuotaExhaustedMessage
+    private func handleLocalTtsQuotaResult(didPlay: Bool) {
+        guard !didPlay, appState.isLocalTtsQuotaExhausted else { return }
+        localTtsQuotaAlertMessage = appState.localTtsQuotaExhaustedMessage
             ?? appState.uiText(
                 "今日发音权益已用完，暂时无法继续发音。请让家长在家长区查看权益并补充次数后再发音。",
                 "Today's pronunciation quota is used up, so playback is temporarily unavailable. Please ask a parent to review benefits and add quota from the parent area before playing audio again."
             )
-        appState.isSpeechQuotaExhausted = false
-        appState.speechQuotaExhaustedMessage = nil
+        appState.isLocalTtsQuotaExhausted = false
+        appState.localTtsQuotaExhaustedMessage = nil
         appState.errorMessage = nil
-        showSpeechQuotaAlert = true
+        showLocalTtsQuotaAlert = true
     }
 
     private func applyReviewCards(_ loadedCards: [ReviewCard]) {
@@ -563,7 +563,7 @@ struct ReviewView: View {
             cards = loadedCards
                 .filter { !$0.isDeleted && $0.proficiency < 3 }
                 .sorted { lhs, rhs in
-                    (SyncClock.date(from: lhs.updatedAt) ?? .distantPast) > (SyncClock.date(from: rhs.updatedAt) ?? .distantPast)
+                    (AppClock.date(from: lhs.updatedAt) ?? .distantPast) > (AppClock.date(from: rhs.updatedAt) ?? .distantPast)
                 }
             currentCardIndex = min(currentCardIndex, max(cards.count - 1, 0))
             saveCurrentPageIfNeeded()
@@ -571,7 +571,7 @@ struct ReviewView: View {
             cards = loadedCards.filter { card in
                 guard card.proficiency < 3 else { return false }
                 guard let nextReviewAt = card.nextReviewAt else { return true }
-                return (SyncClock.date(from: nextReviewAt) ?? Date()) <= Date()
+                return (AppClock.date(from: nextReviewAt) ?? Date()) <= Date()
             }
             currentCardIndex = min(currentCardIndex, max(cards.count - 1, 0))
         }
@@ -719,7 +719,7 @@ struct ReviewCompletionView: View {
                             Label(appState.uiText("想把复习节奏延续下去？", "Want to keep this rhythm going?"), systemImage: "chart.line.uptrend.xyaxis")
                                 .font(AppTypography.headline)
                                 .foregroundColor(AppColors.textPrimary)
-                            Text(appState.uiText("高级版可解锁更多句卡、多个孩子档案、云同步和周报历史。具体价格以 Apple 确认弹窗为准。", "Premium unlocks more cards, multiple child profiles, cloud sync, and weekly report history. Apple confirms the final price."))
+                            Text(appState.uiText("高级版可解锁更多句卡、多个孩子档案和周报历史。具体价格以 Apple 确认弹窗为准。", "Premium unlocks more cards, multiple child profiles and weekly report history. Apple confirms the final price."))
                                 .font(AppTypography.footnote)
                                 .foregroundColor(AppColors.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)

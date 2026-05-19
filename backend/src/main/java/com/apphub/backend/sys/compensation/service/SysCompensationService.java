@@ -24,16 +24,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Service
@@ -43,6 +39,8 @@ public class SysCompensationService {
     public static final String STATUS_VOIDED = "voided";
     public static final String BENEFIT_PLAN = "plan";
     public static final String BENEFIT_USAGE_CREDIT = "usage_credit";
+    public static final String CLAIM_SCOPE_SINGLE_USE = "single_use";
+    public static final String CLAIM_SCOPE_MULTI_DEVICE_ONCE = "multi_device_once";
     private static final Pattern CODE_PATTERN = Pattern.compile("^PP-(?:[A-Z2-9]{5}-){2}[A-Z2-9]{5}$");
     private static final char[] CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
     private static final int CODE_BODY_LENGTH = 15;
@@ -99,15 +97,18 @@ public class SysCompensationService {
         entity.setServiceType(resolveServiceType(normalizedBenefitType, request.serviceType()));
         entity.setGrantCount(resolveGrantCount(normalizedBenefitType, request.grantCount()));
         entity.setGrantValidDays(request.grantValidDays());
+        entity.setGrantValidUntilAt(resolveGrantValidUntilAt(now, request.grantValidUntilAt(), request.grantValidDays()));
         entity.setExpiresAt(resolveExpiresAt(now, request.expiresAt(), request.grantValidDays()));
-        entity.setMaxUses(1);
+        entity.setClaimScope(resolveClaimScope(request.claimScope(), request.maxUses()));
+        entity.setMaxUses(resolveMaxUses(entity.getClaimScope(), request.maxUses()));
         entity.setUsedCount(0);
         entity.setStatus(STATUS_UNUSED);
         entity.setMetadataJson(toJson(Map.of(
             "note", blankToNull(request.note()) == null ? "" : request.note(),
-            "benefitType", normalizedBenefitType
+            "benefitType", normalizedBenefitType,
+            "claimScope", entity.getClaimScope(),
+            "maxUses", entity.getMaxUses()
         )));
-        entity.setCreatedByUserId(operatorUserId);
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
         codeMapper.insert(entity);
@@ -158,7 +159,7 @@ public class SysCompensationService {
     }
 
     @Transactional
-    public CompensationRedeemResultView redeem(String appCode, Long userId, String rawCompensationCode) {
+    public CompensationRedeemResultView redeem(String appCode, Long userId, String claimKey, String rawCompensationCode) {
         requireApp(appCode);
         String compensationCode = normalizeCode(rawCompensationCode);
         if (!CODE_PATTERN.matcher(compensationCode).matches()) {
@@ -172,21 +173,42 @@ public class SysCompensationService {
         if (entity.getExpiresAt() != null && !entity.getExpiresAt().isAfter(now)) {
             throw new ResponseStatusException(HttpStatus.GONE, "补偿码已过期");
         }
-        if (!STATUS_UNUSED.equals(entity.getStatus()) || (entity.getUsedCount() != null && entity.getUsedCount() >= safe(entity.getMaxUses()))) {
+        OffsetDateTime validUntilAt = resolveGrantExpireAt(now, entity);
+        if (validUntilAt == null && BENEFIT_USAGE_CREDIT.equals(entity.getBenefitType())) {
+            validUntilAt = now.plusDays(30);
+        }
+        if (validUntilAt != null && !validUntilAt.isAfter(now)) {
+            throw new ResponseStatusException(HttpStatus.GONE, "补偿权益已到期");
+        }
+        if (STATUS_VOIDED.equals(entity.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "补偿码已作废");
+        }
+        if (!STATUS_UNUSED.equals(entity.getStatus()) || safe(entity.getUsedCount()) >= safe(entity.getMaxUses())) {
             if (STATUS_VOIDED.equals(entity.getStatus())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "补偿码已作废");
             }
             throw new ResponseStatusException(HttpStatus.CONFLICT, "补偿码已使用");
         }
+        String normalizedClaimKey = claimKey == null || claimKey.isBlank()
+            ? null
+            : sha256HashService.hash(appCode + ":compensation-claim:" + claimKey.trim());
+        if (normalizedClaimKey != null && redemptionMapper.selectCount(new LambdaQueryWrapper<SysCompensationRedemptionEntity>()
+            .eq(SysCompensationRedemptionEntity::getAppCode, appCode)
+            .eq(SysCompensationRedemptionEntity::getCompensationCodeId, entity.getId())
+            .eq(SysCompensationRedemptionEntity::getClaimKey, normalizedClaimKey)) > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前设备已兑换过该补偿码");
+        }
+
+        int nextUsedCount = safe(entity.getUsedCount()) + 1;
+        String nextStatus = nextUsedCount >= safe(entity.getMaxUses()) ? STATUS_USED : STATUS_UNUSED;
         int affected = codeMapper.update(
             null,
             new LambdaUpdateWrapper<SysCompensationCodeEntity>()
                 .eq(SysCompensationCodeEntity::getId, entity.getId())
                 .eq(SysCompensationCodeEntity::getStatus, STATUS_UNUSED)
                 .eq(SysCompensationCodeEntity::getUsedCount, safe(entity.getUsedCount()))
-                .set(SysCompensationCodeEntity::getStatus, STATUS_USED)
-                .set(SysCompensationCodeEntity::getUsedCount, safe(entity.getUsedCount()) + 1)
-                .set(SysCompensationCodeEntity::getUsedByUserId, userId)
+                .set(SysCompensationCodeEntity::getStatus, nextStatus)
+                .set(SysCompensationCodeEntity::getUsedCount, nextUsedCount)
                 .set(SysCompensationCodeEntity::getUsedAt, now)
                 .set(SysCompensationCodeEntity::getUpdatedAt, now)
         );
@@ -194,10 +216,10 @@ public class SysCompensationService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "补偿码已使用");
         }
 
-        String benefitSummary = applyBenefit(appCode, userId, entity, now);
+        String benefitSummary = applyBenefit(appCode, userId, entity, now, validUntilAt);
         SysCompensationRedemptionEntity record = new SysCompensationRedemptionEntity();
         record.setAppCode(appCode);
-        record.setUserId(userId);
+        record.setClaimKey(normalizedClaimKey);
         record.setCompensationCodeId(entity.getId());
         record.setCompensationCode(entity.getCompensationCode());
         record.setBenefitType(entity.getBenefitType());
@@ -207,7 +229,7 @@ public class SysCompensationService {
         record.setServiceType(entity.getServiceType());
         record.setGrantCount(entity.getGrantCount());
         record.setRedeemAt(now);
-        record.setValidUntilAt(resolveGrantExpireAt(now, entity));
+        record.setValidUntilAt(validUntilAt);
         record.setStatus("applied");
         record.setResultMessage("补偿成功");
         record.setBeforeJson("{}");
@@ -226,23 +248,22 @@ public class SysCompensationService {
             entity.getEntitlementCode(),
             entity.getServiceType(),
             entity.getGrantCount(),
-            record.getValidUntilAt() == null ? null : record.getValidUntilAt().toString(),
+            validUntilAt == null ? null : validUntilAt.toString(),
             now.toString(),
             "补偿成功",
             null
         );
     }
 
-    private String applyBenefit(String appCode, Long userId, SysCompensationCodeEntity entity, OffsetDateTime now) {
+    private String applyBenefit(String appCode, Long userId, SysCompensationCodeEntity entity, OffsetDateTime now, OffsetDateTime validUntilAt) {
         if (BENEFIT_USAGE_CREDIT.equals(entity.getBenefitType())) {
             String serviceType = blankToNull(entity.getServiceType());
             if (serviceType == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "补偿码缺少次数类型");
             }
             int grantCount = safe(entity.getGrantCount());
-            int validDays = entity.getGrantValidDays() == null ? 30 : Math.max(entity.getGrantValidDays(), 1);
-            readingCloudUsageService.grantPurchase(userId, serviceType, entity.getCompensationCode(), grantCount, validDays, entity.getCompensationCode());
-            return "补偿 " + grantCount + " 次 " + serviceLabel(serviceType) + "，有效期至 " + now.plusDays(validDays);
+            readingCloudUsageService.grantPurchaseUntil(userId, serviceType, entity.getCompensationCode(), grantCount, validUntilAt, entity.getCompensationCode());
+            return "补偿 " + grantCount + " 次 " + serviceLabel(serviceType) + "，有效期至 " + validUntilAt;
         }
 
         if (BENEFIT_PLAN.equals(entity.getBenefitType())) {
@@ -267,7 +288,7 @@ public class SysCompensationService {
             grant.setSourceRef(entity.getCompensationCode());
             grant.setStatus("active");
             grant.setStartsAt(now);
-            grant.setExpiresAt(resolveGrantExpireAt(now, entity));
+            grant.setExpiresAt(validUntilAt);
             grant.setReason("补偿码兑换");
             grant.setOperatorUserId(null);
             grant.setMetadataJson(entity.getMetadataJson());
@@ -281,10 +302,27 @@ public class SysCompensationService {
     }
 
     private OffsetDateTime resolveGrantExpireAt(OffsetDateTime now, SysCompensationCodeEntity entity) {
-        if (entity.getGrantValidDays() != null && entity.getGrantValidDays() > 0) {
-            return now.plusDays(entity.getGrantValidDays());
+        OffsetDateTime grantEnd = entity.getGrantValidDays() != null && entity.getGrantValidDays() > 0
+            ? now.plusDays(entity.getGrantValidDays())
+            : null;
+        OffsetDateTime hardEnd = entity.getGrantValidUntilAt() == null ? entity.getExpiresAt() : entity.getGrantValidUntilAt();
+        if (grantEnd == null) {
+            return hardEnd;
         }
-        return entity.getExpiresAt();
+        if (hardEnd == null) {
+            return grantEnd;
+        }
+        return grantEnd.isBefore(hardEnd) ? grantEnd : hardEnd;
+    }
+
+    private OffsetDateTime resolveGrantValidUntilAt(OffsetDateTime now, OffsetDateTime grantValidUntilAt, Integer grantValidDays) {
+        if (grantValidUntilAt != null) {
+            return grantValidUntilAt;
+        }
+        if (grantValidDays != null && grantValidDays > 0) {
+            return now.plusDays(grantValidDays);
+        }
+        return null;
     }
 
     private CompensationCodeView toView(SysCompensationCodeEntity entity) {
@@ -299,15 +337,15 @@ public class SysCompensationService {
             entity.getServiceType(),
             entity.getGrantCount(),
             entity.getGrantValidDays(),
+            entity.getGrantValidUntilAt(),
             entity.getExpiresAt(),
+            entity.getClaimScope(),
             entity.getMaxUses(),
             entity.getUsedCount(),
             entity.getStatus(),
-            entity.getUsedByUserId(),
             entity.getUsedAt(),
             entity.getVoidReason(),
             metadata,
-            entity.getCreatedByUserId(),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );
@@ -420,6 +458,28 @@ public class SysCompensationService {
         return null;
     }
 
+    private String resolveClaimScope(String claimScope, Integer maxUses) {
+        String normalized = blankToNull(claimScope);
+        if (normalized == null) {
+            return maxUses != null && maxUses > 1 ? CLAIM_SCOPE_MULTI_DEVICE_ONCE : CLAIM_SCOPE_SINGLE_USE;
+        }
+        normalized = normalized.toLowerCase(Locale.ROOT);
+        if (CLAIM_SCOPE_SINGLE_USE.equals(normalized) || CLAIM_SCOPE_MULTI_DEVICE_ONCE.equals(normalized)) {
+            return normalized;
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "补偿码领取范围不正确");
+    }
+
+    private int resolveMaxUses(String claimScope, Integer maxUses) {
+        if (CLAIM_SCOPE_SINGLE_USE.equals(claimScope)) {
+            return 1;
+        }
+        if (maxUses == null || maxUses < 2) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "多设备补偿码 maxUses 至少为 2");
+        }
+        return maxUses;
+    }
+
     private void requireApp(String appCode) {
         AppDefinition definition = appDefinitionService.get(appCode).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "应用不存在"));
         if (definition == null) {
@@ -451,8 +511,8 @@ public class SysCompensationService {
             return "次数";
         }
         return switch (serviceType) {
-            case ReadingCloudUsageService.LOCAL_CAPTURE -> "拍读";
-            case ReadingCloudUsageService.LOCAL_SPEECH -> "朗读";
+            case ReadingCloudUsageService.LOCAL_OCR -> "拍读";
+            case ReadingCloudUsageService.LOCAL_TTS -> "朗读";
             case ReadingCloudUsageService.CLOUD_OCR -> "云端 OCR";
             case ReadingCloudUsageService.CLOUD_TTS -> "云端朗读";
             default -> serviceType;

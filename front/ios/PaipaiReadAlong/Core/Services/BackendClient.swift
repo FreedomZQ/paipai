@@ -62,6 +62,7 @@ final class BackendClient {
     private let sessionStore: SessionStoring
     private let appCode: String
     private let routes: BackendRoute.AppScoped
+    private let anonymousInstallationId: String
     let baseURL: URL
     private(set) var currentSession: StoredAuthSession?
 
@@ -81,6 +82,7 @@ final class BackendClient {
         self.sessionStore = sessionStore
         self.appCode = routes.appCode
         self.routes = routes
+        self.anonymousInstallationId = BackendClient.loadOrCreateAnonymousInstallationId()
         self.currentSession = sessionStore.load()
     }
 
@@ -431,62 +433,6 @@ final class BackendClient {
     }
 
 
-    func powerSyncBootstrap(
-        installationId: String,
-        deviceId: String?,
-        clientPlatform: String?,
-        deviceModel: String?,
-        appVersion: String?,
-        cloudSyncEnabled: Bool,
-        powersyncClientId: String?
-    ) async throws -> PowerSyncBootstrapView {
-        let envelope: Envelope<PowerSyncBootstrapView> = try await send(
-            path: routes.powerSyncBootstrap,
-            method: "POST",
-            body: PowerSyncBootstrapRequestPayload(
-                installationId: installationId,
-                deviceId: deviceId,
-                clientPlatform: clientPlatform,
-                deviceModel: deviceModel,
-                appVersion: appVersion,
-                cloudSyncEnabled: cloudSyncEnabled,
-                powersyncClientId: powersyncClientId
-            ),
-            requiresAuth: true
-        )
-        return envelope.data
-    }
-
-    func powerSyncToken(installationId: String) async throws -> PowerSyncTokenView {
-        let envelope: Envelope<PowerSyncTokenView> = try await send(
-            path: routes.powerSyncToken,
-            method: "POST",
-            body: PowerSyncTokenRequestPayload(installationId: installationId),
-            requiresAuth: true
-        )
-        return envelope.data
-    }
-
-    func powerSyncRebuild(installationId: String, reason: String?) async throws -> PowerSyncRebuildView {
-        let envelope: Envelope<PowerSyncRebuildView> = try await send(
-            path: routes.powerSyncRebuild,
-            method: "POST",
-            body: PowerSyncRebuildRequestPayload(installationId: installationId, reason: reason),
-            requiresAuth: true
-        )
-        return envelope.data
-    }
-
-    func powerSyncUpload(installationId: String, changes: [PowerSyncChangeItemPayload]) async throws -> PowerSyncUploadResult {
-        let envelope: Envelope<PowerSyncUploadResult> = try await send(
-            path: routes.powerSyncUpload,
-            method: "POST",
-            body: PowerSyncUploadEnvelopePayload(installationId: installationId, changes: changes),
-            requiresAuth: true
-        )
-        return envelope.data
-    }
-
     func reportDeviceEvent(
         eventType: String,
         bundleId: String? = Bundle.main.bundleIdentifier,
@@ -535,7 +481,7 @@ final class BackendClient {
                 languageCode: languageCode,
                 amount: amount,
                 idempotencyKey: idempotencyKey,
-                occurredAt: SyncClock.nowString()
+                occurredAt: AppClock.nowString()
             ),
             requiresAuth: true
         )
@@ -601,7 +547,7 @@ final class BackendClient {
             path: "/api/v1/account/compensation/redeem",
             method: "POST",
             body: CompensationRedeemPayload(compensationCode: compensationCode),
-            requiresAuth: true
+            requiresAuth: false
         )
         return envelope.data
     }
@@ -714,6 +660,7 @@ final class BackendClient {
         request.httpMethod = method
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(anonymousInstallationId, forHTTPHeaderField: "X-Paipai-Anonymous-Id")
         if requiresAuth {
             guard let accessToken = currentSession?.accessToken else {
                 throw BackendError.authRequired
@@ -721,6 +668,17 @@ final class BackendClient {
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         }
         return request
+    }
+
+    private static func loadOrCreateAnonymousInstallationId() -> String {
+        let defaults = AppScopedDefaults()
+        if let existing = defaults.string(forKey: AppDefaultKey.anonymousInstallationId),
+           !existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return existing
+        }
+        let created = "ios-\(UUID().uuidString.lowercased())"
+        defaults.set(created, forKey: AppDefaultKey.anonymousInstallationId)
+        return created
     }
 
     private static func defaultBaseURL() -> URL {

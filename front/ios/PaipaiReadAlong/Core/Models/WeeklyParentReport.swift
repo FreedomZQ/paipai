@@ -210,7 +210,7 @@ struct WeeklyReportModule: Codable, Hashable, Identifiable {
     let code: String
     let title: String
     let access: String
-    let payload: [String: PowerSyncPayloadValue]
+    let payload: [String: LocalPayloadValue]
 
     var id: String { code }
 
@@ -226,7 +226,7 @@ struct WeeklyReportModule: Codable, Hashable, Identifiable {
         code = try container.decodeIfPresent(String.self, forKey: .code) ?? UUID().uuidString
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? code
         access = try container.decodeIfPresent(String.self, forKey: .access) ?? "hidden"
-        payload = try container.decodeIfPresent([String: PowerSyncPayloadValue].self, forKey: .payload) ?? [:]
+        payload = try container.decodeIfPresent([String: LocalPayloadValue].self, forKey: .payload) ?? [:]
     }
 
     var isVisible: Bool { access.lowercased() == "full" }

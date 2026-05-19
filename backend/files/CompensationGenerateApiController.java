@@ -66,7 +66,7 @@ public class SysCompensationApplicationController {
         summary = "提交补偿申请并生成补偿记录",
         description = """
             后台或运营系统提交补偿申请信息，后端完成参数校验、管理 token 校验，并生成一个未使用的补偿码记录。
-            当前接口生成 usage_credit 类型补偿，权益标识沿用现有系统标识：capture、speech、cloud_ocr、cloud_tts。
+            当前接口生成 usage_credit 类型补偿，权益标识沿用现有系统标识：local_ocr、local_tts、cloud_ocr、cloud_tts。
             生成成功后返回补偿码、有效期、权益类型、次数和状态，用户可在 App 家长区兑换。
             """
     )
@@ -210,12 +210,12 @@ public class SysCompensationApplicationController {
         String remark,
 
         @Schema(
-            description = "权益标识，沿用现有系统标识：capture=本地拍读/识别，speech=本地朗读，cloud_ocr=云端OCR，cloud_tts=云端语音朗读。",
+            description = "权益标识，沿用现有系统标识：local_ocr=本地拍读/识别，local_tts=本地朗读，cloud_ocr=云端OCR，cloud_tts=云端语音朗读。",
             example = "cloud_tts",
-            allowableValues = {"capture", "speech", "cloud_ocr", "cloud_tts"}
+            allowableValues = {"local_ocr", "local_tts", "cloud_ocr", "cloud_tts"}
         )
         @NotBlank(message = "权益标识不能为空")
-        @Pattern(regexp = "^(capture|speech|cloud_ocr|cloud_tts)$", message = "权益标识仅支持 capture、speech、cloud_ocr、cloud_tts")
+        @Pattern(regexp = "^(local_ocr|local_tts|cloud_ocr|cloud_tts)$", message = "权益标识仅支持 local_ocr、local_tts、cloud_ocr、cloud_tts")
         String benefitKey,
 
         @Schema(description = "补偿次数。最少1次，最多1000次。", example = "10")

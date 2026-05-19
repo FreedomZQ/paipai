@@ -126,29 +126,29 @@ class ReadingCompatServiceTest {
         );
         org.mockito.Mockito.lenient().when(usagePolicyService.currentPolicy())
             .thenReturn(new ReadingUsagePolicyService.UsagePolicyView(30, 7, "client_local", 24));
-        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("premium_lite_monthly"), eq(ReadingDailyQuotaConfigService.FEATURE_CAPTURE)))
+        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("premium_lite_monthly"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR)))
             .thenReturn(12);
-        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("premium_lite_monthly"), eq(ReadingDailyQuotaConfigService.FEATURE_SPEECH)))
+        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("premium_lite_monthly"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS)))
             .thenReturn(24);
-        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("family_multi_child_lifetime"), eq(ReadingDailyQuotaConfigService.FEATURE_CAPTURE)))
+        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("family_multi_child_lifetime"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR)))
             .thenReturn(50);
-        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("family_multi_child_lifetime"), eq(ReadingDailyQuotaConfigService.FEATURE_SPEECH)))
+        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("family_multi_child_lifetime"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS)))
             .thenReturn(100);
-        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("free"), eq(ReadingDailyQuotaConfigService.FEATURE_CAPTURE)))
+        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("free"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR)))
             .thenReturn(5);
-        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("free"), eq(ReadingDailyQuotaConfigService.FEATURE_SPEECH)))
+        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("free"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS)))
             .thenReturn(10);
         org.mockito.Mockito.lenient().when(weeklyReportSnapshotService.load(any(), any(), any(), any(), any()))
             .thenReturn(Optional.empty());
         org.mockito.Mockito.lenient().when(sysRemoteConfigService.loadNamespace("paipai_readingcompanion", "reading_plan_catalog"))
             .thenReturn(new RemoteConfigNamespaceView("paipai_readingcompanion", "reading_plan_catalog", dynamicPlanCatalog()));
         org.mockito.Mockito.lenient().when(childProfileMapper.countActiveByUser(42L)).thenReturn(2);
-        org.mockito.Mockito.lenient().when(deviceEventMapper.countByUserEventBetween(eq("paipai_readingcompanion"), eq(42L), eq("capture_ocr"), any(OffsetDateTime.class), any(OffsetDateTime.class))).thenReturn(4);
-        org.mockito.Mockito.lenient().when(deviceEventMapper.countByUserEventBetween(eq("paipai_readingcompanion"), eq(42L), eq("speech_play"), any(OffsetDateTime.class), any(OffsetDateTime.class))).thenReturn(0);
-        org.mockito.Mockito.lenient().when(cloudUsageService.activeCreditBalance(eq(42L), eq(ReadingCloudUsageService.LOCAL_CAPTURE)))
-            .thenReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_CAPTURE, 0, 0, 0));
-        org.mockito.Mockito.lenient().when(cloudUsageService.activeCreditBalance(eq(42L), eq(ReadingCloudUsageService.LOCAL_SPEECH)))
-            .thenReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_SPEECH, 0, 0, 0));
+        org.mockito.Mockito.lenient().when(deviceEventMapper.countByUserEventBetween(eq("paipai_readingcompanion"), eq(42L), eq("local_ocr"), any(OffsetDateTime.class), any(OffsetDateTime.class))).thenReturn(4);
+        org.mockito.Mockito.lenient().when(deviceEventMapper.countByUserEventBetween(eq("paipai_readingcompanion"), eq(42L), eq("local_tts"), any(OffsetDateTime.class), any(OffsetDateTime.class))).thenReturn(0);
+        org.mockito.Mockito.lenient().when(cloudUsageService.activeCreditBalance(eq(42L), eq(ReadingCloudUsageService.LOCAL_OCR)))
+            .thenReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_OCR, 0, 0, 0));
+        org.mockito.Mockito.lenient().when(cloudUsageService.activeCreditBalance(eq(42L), eq(ReadingCloudUsageService.LOCAL_TTS)))
+            .thenReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_TTS, 0, 0, 0));
     }
 
     @Test
@@ -168,12 +168,12 @@ class ReadingCompatServiceTest {
         assertThat(state.entitlement().planName()).isEqualTo("轻量月付版");
         assertThat(state.entitlement().childLimit()).isEqualTo(3);
         assertThat(state.entitlement().remainingChildSlots()).isEqualTo(1);
-        assertThat(state.entitlement().dailyCaptureLimit()).isEqualTo(12);
+        assertThat(state.entitlement().dailyLocalOcrLimit()).isEqualTo(12);
         assertThat(state.entitlement().localCardLimit()).isEqualTo(120);
         assertThat(state.entitlement().premiumActive()).isTrue();
-        assertThat(state.quota().captureLimit()).isEqualTo(12);
-        assertThat(state.quota().captureUsed()).isEqualTo(4);
-        assertThat(state.quota().captureRemaining()).isEqualTo(8);
+        assertThat(state.quota().localOcrLimit()).isEqualTo(12);
+        assertThat(state.quota().localOcrUsed()).isEqualTo(4);
+        assertThat(state.quota().localOcrRemaining()).isEqualTo(8);
     }
 
     @Test
@@ -185,19 +185,19 @@ class ReadingCompatServiceTest {
                 0,
                 List.of()
             ));
-        given(cloudUsageService.activeCreditBalance(42L, ReadingCloudUsageService.LOCAL_CAPTURE))
-            .willReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_CAPTURE, 10, 2, 8));
-        given(cloudUsageService.activeCreditBalance(42L, ReadingCloudUsageService.LOCAL_SPEECH))
-            .willReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_SPEECH, 6, 1, 5));
+        given(cloudUsageService.activeCreditBalance(42L, ReadingCloudUsageService.LOCAL_OCR))
+            .willReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_OCR, 10, 2, 8));
+        given(cloudUsageService.activeCreditBalance(42L, ReadingCloudUsageService.LOCAL_TTS))
+            .willReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_TTS, 6, 1, 5));
 
         ReadingCompatService.AccountStateView state = service.accountState(42L, "apple");
 
-        assertThat(state.quota().captureLimit()).isEqualTo(15);
-        assertThat(state.quota().captureUsed()).isEqualTo(6);
-        assertThat(state.quota().captureRemaining()).isEqualTo(9);
-        assertThat(state.quota().speechLimit()).isEqualTo(16);
-        assertThat(state.quota().speechUsed()).isEqualTo(1);
-        assertThat(state.quota().speechRemaining()).isEqualTo(15);
+        assertThat(state.quota().localOcrLimit()).isEqualTo(15);
+        assertThat(state.quota().localOcrUsed()).isEqualTo(6);
+        assertThat(state.quota().localOcrRemaining()).isEqualTo(9);
+        assertThat(state.quota().localTtsLimit()).isEqualTo(16);
+        assertThat(state.quota().localTtsUsed()).isEqualTo(1);
+        assertThat(state.quota().localTtsRemaining()).isEqualTo(15);
     }
 
     @Test
@@ -209,19 +209,19 @@ class ReadingCompatServiceTest {
                 0,
                 List.of()
             ));
-        given(cloudUsageService.activeCreditBalance(42L, ReadingCloudUsageService.LOCAL_CAPTURE))
-            .willReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_CAPTURE, 3, 1, 2));
-        given(cloudUsageService.activeCreditBalance(42L, ReadingCloudUsageService.LOCAL_SPEECH))
-            .willReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_SPEECH, 4, 2, 2));
+        given(cloudUsageService.activeCreditBalance(42L, ReadingCloudUsageService.LOCAL_OCR))
+            .willReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_OCR, 3, 1, 2));
+        given(cloudUsageService.activeCreditBalance(42L, ReadingCloudUsageService.LOCAL_TTS))
+            .willReturn(new ReadingCloudUsageService.CreditGrantBalance(ReadingCloudUsageService.LOCAL_TTS, 4, 2, 2));
 
         ReadingCompatService.AccountStateView state = service.accountState(42L, "apple");
 
-        assertThat(state.quota().captureLimit()).isEqualTo(8);
-        assertThat(state.quota().captureUsed()).isEqualTo(5);
-        assertThat(state.quota().captureRemaining()).isEqualTo(3);
-        assertThat(state.quota().speechLimit()).isEqualTo(14);
-        assertThat(state.quota().speechUsed()).isEqualTo(2);
-        assertThat(state.quota().speechRemaining()).isEqualTo(12);
+        assertThat(state.quota().localOcrLimit()).isEqualTo(8);
+        assertThat(state.quota().localOcrUsed()).isEqualTo(5);
+        assertThat(state.quota().localOcrRemaining()).isEqualTo(3);
+        assertThat(state.quota().localTtsLimit()).isEqualTo(14);
+        assertThat(state.quota().localTtsUsed()).isEqualTo(2);
+        assertThat(state.quota().localTtsRemaining()).isEqualTo(12);
     }
 
     @Test
@@ -233,10 +233,10 @@ class ReadingCompatServiceTest {
                 0,
                 List.of()
             ));
-        given(cloudUsageService.recentCreditEntitlements(42L, ReadingCloudUsageService.LOCAL_SPEECH, 60))
+        given(cloudUsageService.recentCreditEntitlements(42L, ReadingCloudUsageService.LOCAL_TTS, 60))
             .willReturn(List.of(new ReadingCloudUsageService.ActiveEntitlementView(
                 "gift-1",
-                ReadingCloudUsageService.LOCAL_SPEECH,
+                ReadingCloudUsageService.LOCAL_TTS,
                 "gift",
                 "后台赠送",
                 6,
@@ -247,7 +247,7 @@ class ReadingCompatServiceTest {
                 null
             )));
 
-        ReadingCompatService.EntitlementRecordPageView page = service.entitlementRecords(user(), "speech", 1, 20);
+        ReadingCompatService.EntitlementRecordPageView page = service.entitlementRecords(user(), "local_tts", 1, 20);
 
         assertThat(page.records()).hasSize(2);
         assertThat(page.records())
@@ -281,7 +281,7 @@ class ReadingCompatServiceTest {
                 List.of()
             ));
 
-        ReadingCompatService.EntitlementRecordPageView page = service.entitlementRecords(user(), "speech", "Asia/Shanghai", 1, 20);
+        ReadingCompatService.EntitlementRecordPageView page = service.entitlementRecords(user(), "local_tts", "Asia/Shanghai", 1, 20);
 
         ReadingCloudUsageService.ActiveEntitlementView record = page.records().get(0);
         OffsetDateTime acquiredAt = OffsetDateTime.parse(record.acquiredAt());
@@ -431,8 +431,7 @@ class ReadingCompatServiceTest {
                 "enc:v1:aesgcm:keychain:abc123",
                 "辅助提示",
                 "en",
-                "ja",
-                true
+                "ja"
             )
         );
 
@@ -456,8 +455,6 @@ class ReadingCompatServiceTest {
         card.setTextPreview("Good night.");
         card.setSupportHint("晚安。");
         card.setProficiency(1);
-        card.setSyncEnabled(true);
-        card.setStorageMode("server_synced");
         card.setSourceLanguageCode("en");
         card.setTargetLanguageCode("zh-Hans");
         given(reviewCardMapper.selectDueByUser(eq(42L), any(OffsetDateTime.class), eq(20)))
@@ -518,19 +515,19 @@ class ReadingCompatServiceTest {
         given(sysBillingService.getEntitlements("paipai_readingcompanion", 42L))
             .willReturn(new EntitlementOverviewView("paipai_readingcompanion", 42L, 0, List.of()));
 
-        org.mockito.Mockito.when(deviceEventMapper.countByUserEventBetween(eq("paipai_readingcompanion"), eq(42L), eq("capture_ocr"), any(OffsetDateTime.class), any(OffsetDateTime.class)))
-            .thenAnswer(invocation -> (int) events.stream().filter(event -> "capture_ocr".equals(event.getEventType())).count());
-        org.mockito.Mockito.when(deviceEventMapper.countByUserEventBetween(eq("paipai_readingcompanion"), eq(42L), eq("speech_play"), any(OffsetDateTime.class), any(OffsetDateTime.class)))
-            .thenAnswer(invocation -> (int) events.stream().filter(event -> "speech_play".equals(event.getEventType())).count());
+        org.mockito.Mockito.when(deviceEventMapper.countByUserEventBetween(eq("paipai_readingcompanion"), eq(42L), eq("local_ocr"), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+            .thenAnswer(invocation -> (int) events.stream().filter(event -> "local_ocr".equals(event.getEventType())).count());
+        org.mockito.Mockito.when(deviceEventMapper.countByUserEventBetween(eq("paipai_readingcompanion"), eq(42L), eq("local_tts"), any(OffsetDateTime.class), any(OffsetDateTime.class)))
+            .thenAnswer(invocation -> (int) events.stream().filter(event -> "local_tts".equals(event.getEventType())).count());
         org.mockito.Mockito.when(deviceEventMapper.countByUserEventAndIdempotencyBetween(
             eq("paipai_readingcompanion"),
             eq(42L),
-            eq("capture_ocr"),
+            eq("local_ocr"),
             eq(idempotencyKey),
             any(OffsetDateTime.class),
             any(OffsetDateTime.class)
         )).thenAnswer(invocation -> (int) events.stream()
-            .filter(event -> "capture_ocr".equals(event.getEventType()))
+            .filter(event -> "local_ocr".equals(event.getEventType()))
             .filter(event -> event.getPayloadJson() != null && event.getPayloadJson().contains(idempotencyKey))
             .count());
         org.mockito.Mockito.doAnswer(invocation -> {
@@ -550,15 +547,15 @@ class ReadingCompatServiceTest {
         ReadingCompatService.AccountStateView first = service.recordQuotaUsage(user(), request);
         ReadingCompatService.AccountStateView second = service.recordQuotaUsage(user(), request);
 
-        assertThat(first.quota().captureUsed()).isEqualTo(1);
-        assertThat(first.quota().captureRemaining()).isEqualTo(first.quota().captureLimit() - 1);
-        assertThat(second.quota().captureUsed()).isEqualTo(1);
-        assertThat(second.quota().captureRemaining()).isEqualTo(second.quota().captureLimit() - 1);
+        assertThat(first.quota().localOcrUsed()).isEqualTo(1);
+        assertThat(first.quota().localOcrRemaining()).isEqualTo(first.quota().localOcrLimit() - 1);
+        assertThat(second.quota().localOcrUsed()).isEqualTo(1);
+        assertThat(second.quota().localOcrRemaining()).isEqualTo(second.quota().localOcrLimit() - 1);
         verify(deviceEventMapper, org.mockito.Mockito.times(1)).insert(org.mockito.ArgumentMatchers.any(SysUserDeviceEventEntity.class));
         verify(deviceEventMapper, org.mockito.Mockito.times(2)).countByUserEventAndIdempotencyBetween(
             eq("paipai_readingcompanion"),
             eq(42L),
-            eq("capture_ocr"),
+            eq("local_ocr"),
             eq(idempotencyKey),
             any(OffsetDateTime.class),
             any(OffsetDateTime.class)
@@ -590,7 +587,7 @@ class ReadingCompatServiceTest {
             "displayName", "免费版",
             "entitlementCode", "free",
             "childLimit", 1,
-            "dailyCaptureLimit", 3,
+            "dailyLocalOcrLimit", 3,
             "localCardLimit", 20,
             "premiumActive", false
         ));
@@ -599,9 +596,8 @@ class ReadingCompatServiceTest {
             Map.entry("displayName", "轻量月付版"),
             Map.entry("entitlementCode", "premium_lite_access"),
             Map.entry("childLimit", 3),
-            Map.entry("dailyCaptureLimit", 12),
+            Map.entry("dailyLocalOcrLimit", 12),
             Map.entry("localCardLimit", 120),
-            Map.entry("cloudSyncEnabled", true),
             Map.entry("advancedVoiceEnabled", true),
             Map.entry("premiumActive", true),
             Map.entry("appStoreProductId", "com.paipai.readalong.premium.lite.monthly"),
@@ -622,9 +618,8 @@ class ReadingCompatServiceTest {
                 "com.paipai.readalong.family.multi_child.lifetime"
             )),
             Map.entry("childLimit", 5),
-            Map.entry("dailyCaptureLimit", 50),
+            Map.entry("dailyLocalOcrLimit", 50),
             Map.entry("localCardLimit", 800),
-            Map.entry("cloudSyncEnabled", true),
             Map.entry("advancedVoiceEnabled", true),
             Map.entry("premiumActive", true),
             Map.entry("appStoreProductId", "com.paipai.readalong.family.multi_child.lifetime"),

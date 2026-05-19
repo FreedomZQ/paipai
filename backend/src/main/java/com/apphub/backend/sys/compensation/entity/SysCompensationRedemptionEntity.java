@@ -22,7 +22,7 @@ public class SysCompensationRedemptionEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String appCode;
-    private Long userId;
+    private String claimKey;
     private Long compensationCodeId;
     private String compensationCode;
     private String benefitType;

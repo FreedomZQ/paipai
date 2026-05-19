@@ -123,7 +123,7 @@ class ReadingBillingCompatControllerWebMvcTest {
         return new ReadingCompatService.AccountStateView(
             "101",
             "demo",
-            new ReadingCompatService.AccountEntitlementView("free", "免费版", "free", 3, 10, 1, 0, 1, 0, false, false, false, null, true, false, "single_child", "child", 0, false, false, false, "backend_sys_billing", Map.of()),
+            new ReadingCompatService.AccountEntitlementView("free", "免费版", "free", 3, 10, 1, 0, 1, 0, false, false, null, true, false, "single_child", "child", 0, false, false, false, "backend_sys_billing", Map.of()),
             new ReadingCompatService.DailyQuotaView("2026-04-16", 3, 0, 3, 10, 0, 10)
         );
     }

@@ -131,30 +131,30 @@ struct DailyQuotaUsageRecord: Codable, Hashable, Identifiable {
     /// YYYY-MM-DD 本地时区日期
     let usageDate: String
     /// 当日设备端（离线）OCR 次数
-    var captureLocalCount: Int
+    var localOcrCount: Int
     /// 当日云端 OCR 次数
-    var captureCloudCount: Int
+    var cloudOcrCount: Int
     /// 当日设备端（离线）语音朗读次数
-    var speechLocalCount: Int
+    var localTtsCount: Int
     /// 当日云端语音朗读次数
-    var speechCloudCount: Int
+    var cloudTtsCount: Int
 
     /// 当日 OCR 总次数（设备端 + 云端）
-    var captureTotalCount: Int { captureLocalCount + captureCloudCount }
+    var localOcrTotalCount: Int { localOcrCount + cloudOcrCount }
     /// 当日语音朗读总次数（设备端 + 云端）
-    var speechTotalCount: Int { speechLocalCount + speechCloudCount }
+    var localTtsTotalCount: Int { localTtsCount + cloudTtsCount }
 
     init(
         usageDate: String,
-        captureLocalCount: Int = 0,
-        captureCloudCount: Int = 0,
-        speechLocalCount: Int = 0,
-        speechCloudCount: Int = 0
+        localOcrCount: Int = 0,
+        cloudOcrCount: Int = 0,
+        localTtsCount: Int = 0,
+        cloudTtsCount: Int = 0
     ) {
         self.usageDate = usageDate
-        self.captureLocalCount = captureLocalCount
-        self.captureCloudCount = captureCloudCount
-        self.speechLocalCount = speechLocalCount
-        self.speechCloudCount = speechCloudCount
+        self.localOcrCount = localOcrCount
+        self.cloudOcrCount = cloudOcrCount
+        self.localTtsCount = localTtsCount
+        self.cloudTtsCount = cloudTtsCount
     }
 }

@@ -25,7 +25,7 @@ spring:
       db: 0
       timeout: 3s
   flyway:
-    # 开发环境启动时自动执行 migration，确保结构与代码同步
+    # 开发环境启动时自动执行首发基线，确保结构与代码同步
     enabled: true
     locations: classpath:db/first_version
     validate-on-migrate: true

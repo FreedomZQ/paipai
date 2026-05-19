@@ -12,7 +12,7 @@ import java.util.Optional;
  * 拍拍伴读 app module。
  *
  * 对外 appCode 故意与内部 reading 领域名分离：
- * - appCode: 参与 auth / billing / entitlement / PowerSync 隔离。
+ * - appCode: 参与 auth / billing / entitlement 隔离。
  * - internalDomain/tablePrefix: 保留当前物理实现命名空间。
  */
 @Component

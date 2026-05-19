@@ -2,7 +2,6 @@ package com.apphub.backend.sys.app.controller;
 
 import com.apphub.backend.apps.common.AppModule;
 import com.apphub.backend.apps.common.AppModuleRegistry;
-import com.apphub.backend.apps.common.AppPowerSyncAdapter;
 import com.apphub.backend.sys.app.config.AppCatalogProperties;
 import com.apphub.backend.sys.app.model.AppDefinition;
 import com.apphub.backend.sys.app.service.AppDefinitionService;
@@ -13,7 +12,6 @@ import com.apphub.backend.sys.auth.service.PublicAuthAccessPolicyService;
 import com.apphub.backend.sys.auth.service.SysAuthDataService;
 import com.apphub.backend.sys.configcenter.model.RemoteConfigNamespaceView;
 import com.apphub.backend.sys.configcenter.service.SysRemoteConfigService;
-import com.apphub.backend.sys.powersync.support.PowerSyncAppAdapterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,18 +69,12 @@ class SystemControllerWebMvcTest {
     private AppModuleRegistry appModuleRegistry;
 
     @MockBean
-    private PowerSyncAppAdapterRegistry powerSyncAppAdapterRegistry;
-
-    @MockBean
     private SysRemoteConfigService sysRemoteConfigService;
 
     @BeforeEach
     void setUp() {
         AppModule readingModule = appModule("paipai_readingcompanion", "reading", "reading_", "/api/v1");
         org.mockito.BDDMockito.given(appModuleRegistry.activeModules()).willReturn(List.of(readingModule));
-        org.mockito.BDDMockito.given(powerSyncAppAdapterRegistry.activeAdapters()).willReturn(List.of(
-            appPowerSyncAdapter(readingModule, "child_profile", "review_card", "review_event", "usage_session", "user_preference")
-        ));
         org.mockito.BDDMockito.given(sysRemoteConfigService.loadNamespace("paipai_readingcompanion", "release_ios"))
             .willReturn(new RemoteConfigNamespaceView(
                 "paipai_readingcompanion",
@@ -149,27 +141,6 @@ class SystemControllerWebMvcTest {
             @Override
             public java.util.Optional<com.apphub.backend.sys.app.model.AppDefinition> definition() {
                 return java.util.Optional.empty();
-            }
-        };
-    }
-
-    private AppPowerSyncAdapter appPowerSyncAdapter(AppModule module, String... entityTypes) {
-        return new AppPowerSyncAdapter() {
-            @Override
-            public AppModule appModule() {
-                return module;
-            }
-
-            @Override
-            public List<SyncEntitySpec> entities() {
-                return java.util.Arrays.stream(entityTypes)
-                    .map(entityType -> new SyncEntitySpec(entityType, "userId", true, true, true, "cloudSyncEnabled", "recordVersion"))
-                    .toList();
-            }
-
-            @Override
-            public com.apphub.backend.sys.powersync.model.PowerSyncUploadResult applyBatch(Long userId, String installationId, List<com.apphub.backend.sys.powersync.model.PowerSyncChangeItem> changes) {
-                return new com.apphub.backend.sys.powersync.model.PowerSyncUploadResult(List.of(), List.of());
             }
         };
     }
@@ -521,12 +492,10 @@ class SystemControllerWebMvcTest {
             .andExpect(jsonPath("$.data.checks[0].status").value("warning"))
             .andExpect(jsonPath("$.data.checks[0].currentValue").value("missing"))
             .andExpect(jsonPath("$.data.checks[0].expectedValue").value("configured"))
-            .andExpect(jsonPath("$.data.checks[2].key").value("powerSyncAdapterTemplates"))
-            .andExpect(jsonPath("$.data.checks[2].status").value("ready"))
-            .andExpect(jsonPath("$.data.checks[5].key").value("publicSurface"))
-            .andExpect(jsonPath("$.data.checks[5].currentValue").value("5 endpoints"))
-            .andExpect(jsonPath("$.data.checks[6].key").value("releaseScope"))
-            .andExpect(jsonPath("$.data.checks[6].currentValue").value("included=[paipai_readingcompanion], excluded=[]"))
+            .andExpect(jsonPath("$.data.checks[4].key").value("publicSurface"))
+            .andExpect(jsonPath("$.data.checks[4].currentValue").value("5 endpoints"))
+            .andExpect(jsonPath("$.data.checks[5].key").value("releaseScope"))
+            .andExpect(jsonPath("$.data.checks[5].currentValue").value("included=[paipai_readingcompanion], excluded=[]"))
             .andExpect(jsonPath("$.data.apps", hasSize(1)))
             .andExpect(jsonPath("$.data.apps[0].appCode").value("paipai_readingcompanion"))
             .andExpect(jsonPath("$.data.apps[0].blockers").isArray());

@@ -8,8 +8,7 @@ enum PaipaiAppIdentity {
     static let appCode = AppIdentity.appCode
     static let fallbackBundleIdentifier = AppIdentity.fallbackBundleIdentifier
     static var bundleIdentifier: String { AppIdentity.bundleIdentifier }
-    static let powerSyncPathSegment = AppIdentity.powerSyncPathSegment
-    static let powerSyncDatabaseFilename = AppIdentity.powerSyncDatabaseFilename
+    static let localDatabaseFilename = AppIdentity.localDatabaseFilename
     static let storageNamespace = AppIdentity.storageNamespace
     static let apiBaseURLInfoDictionaryKey = AppIdentity.apiBaseURLInfoDictionaryKey
 }

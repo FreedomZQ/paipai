@@ -1,16 +1,15 @@
 import Foundation
-import PowerSync
 
 final class UsageSessionRepository {
-    private let database: PowerSyncDatabaseProtocol
+    private let database: LocalDatabase
 
-    init(database: PowerSyncDatabaseProtocol) {
+    init(database: LocalDatabase) {
         self.database = database
     }
 
     func loadAll() async -> [UsageSessionRecord] {
         (try? await database.getAll(
-            sql: "SELECT id, child_id, source_page, started_at, ended_at, duration_seconds, client_platform, device_model, deleted_at, updated_at FROM \(ReadingSyncTableName.usageSession) ORDER BY COALESCE(updated_at, started_at, '') DESC",
+            sql: "SELECT id, child_id, source_page, started_at, ended_at, duration_seconds, client_platform, device_model, deleted_at, updated_at FROM \(ReadingLocalTableName.usageSession) ORDER BY COALESCE(updated_at, started_at, '') DESC",
             parameters: []
         ) { cursor in
             UsageSessionRecord(
@@ -34,7 +33,7 @@ final class UsageSessionRepository {
         if let existing = all.first(where: { $0.id == sessionId && $0.endedAt == nil }) {
             return existing
         }
-        let now = SyncClock.nowString()
+        let now = AppClock.nowString()
         let record = UsageSessionRecord(
             id: sessionId,
             childId: childId,
@@ -49,7 +48,7 @@ final class UsageSessionRepository {
         )
         _ = try? await database.execute(
             sql: """
-                INSERT OR REPLACE INTO \(ReadingSyncTableName.usageSession)
+                INSERT OR REPLACE INTO \(ReadingLocalTableName.usageSession)
                 (id, app_code, child_id, source_page, started_at, ended_at, duration_seconds, client_platform, device_model, deleted_at, created_at, updated_at)
                 VALUES (?, '\(AppIdentity.appCode)', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -74,10 +73,10 @@ final class UsageSessionRepository {
     func endSession(sessionId: String) async -> UsageSessionRecord? {
         let sessions = await loadAll()
         guard let existing = sessions.first(where: { $0.id == sessionId }) else { return nil }
-        let endedAt = SyncClock.nowString()
-        let durationSeconds = max(1, Int((SyncClock.date(from: endedAt)?.timeIntervalSince(SyncClock.date(from: existing.startedAt) ?? Date()) ?? 1).rounded()))
+        let endedAt = AppClock.nowString()
+        let durationSeconds = max(1, Int((AppClock.date(from: endedAt)?.timeIntervalSince(AppClock.date(from: existing.startedAt) ?? Date()) ?? 1).rounded()))
         _ = try? await database.execute(
-            sql: "UPDATE \(ReadingSyncTableName.usageSession) SET ended_at = ?, duration_seconds = ?, updated_at = ? WHERE id = ?",
+            sql: "UPDATE \(ReadingLocalTableName.usageSession) SET ended_at = ?, duration_seconds = ?, updated_at = ? WHERE id = ?",
             parameters: [endedAt, durationSeconds, endedAt, sessionId]
         )
         let refreshed = await loadAll()
@@ -85,15 +84,15 @@ final class UsageSessionRepository {
     }
 
     @discardableResult
-    func tickSession(sessionId: String, at timestamp: String = SyncClock.nowString()) async -> UsageSessionRecord? {
+    func tickSession(sessionId: String, at timestamp: String = AppClock.nowString()) async -> UsageSessionRecord? {
         let sessions = await loadAll()
         guard let existing = sessions.first(where: { $0.id == sessionId }) else { return nil }
         guard existing.endedAt == nil else { return existing }
-        let startDate = SyncClock.date(from: existing.startedAt) ?? Date()
-        let tickDate = SyncClock.date(from: timestamp) ?? Date()
+        let startDate = AppClock.date(from: existing.startedAt) ?? Date()
+        let tickDate = AppClock.date(from: timestamp) ?? Date()
         let durationSeconds = max(1, Int(floor(tickDate.timeIntervalSince(startDate) / 60.0) * 60))
         _ = try? await database.execute(
-            sql: "UPDATE \(ReadingSyncTableName.usageSession) SET duration_seconds = ?, updated_at = ? WHERE id = ?",
+            sql: "UPDATE \(ReadingLocalTableName.usageSession) SET duration_seconds = ?, updated_at = ? WHERE id = ?",
             parameters: [durationSeconds, timestamp, sessionId]
         )
         let refreshed = await loadAll()
@@ -105,12 +104,12 @@ final class UsageSessionRepository {
         let loaded = await loadAll()
         let active = meteredUsageSessions(from: loaded)
         let today = Date()
-        let todayString = SyncClock.dateOnly(from: today)
+        let todayString = AppClock.dateOnly(from: today)
         let calendar = Calendar(identifier: .gregorian)
         let weekStart = calendar.date(byAdding: .day, value: -7, to: today) ?? today
-        let todaySessions = active.filter { SyncClock.dateOnly(from: SyncClock.date(from: $0.startedAt) ?? today) == todayString }
+        let todaySessions = active.filter { AppClock.dateOnly(from: AppClock.date(from: $0.startedAt) ?? today) == todayString }
         let total = active.reduce(0) { $0 + $1.durationSeconds }
-        let weekly = active.filter { (SyncClock.date(from: $0.startedAt) ?? .distantPast) >= weekStart }.reduce(0) { $0 + $1.durationSeconds }
+        let weekly = active.filter { (AppClock.date(from: $0.startedAt) ?? .distantPast) >= weekStart }.reduce(0) { $0 + $1.durationSeconds }
         let lastUsed = active.compactMap { $0.endedAt ?? $0.updatedAt ?? $0.startedAt }.sorted().last
         return FamilyUsageSummary(
             usageDate: todayString,
@@ -132,20 +131,20 @@ final class UsageSessionRepository {
         let loaded = await loadAll()
         let all = meteredUsageSessions(from: loaded)
         let today = Date()
-        let todayString = SyncClock.dateOnly(from: today)
+        let todayString = AppClock.dateOnly(from: today)
         let calendar = Calendar(identifier: .gregorian)
         let weekStart = calendar.date(byAdding: .day, value: -7, to: today) ?? today
         var result: [String: ChildUsageSummary] = [:]
         for child in children {
             let sessions = all.filter { $0.childId == child.id }
-            let todaySessions = sessions.filter { SyncClock.dateOnly(from: SyncClock.date(from: $0.startedAt) ?? today) == todayString }
+            let todaySessions = sessions.filter { AppClock.dateOnly(from: AppClock.date(from: $0.startedAt) ?? today) == todayString }
             result[child.id] = ChildUsageSummary(
                 childId: child.id,
                 childName: child.nickname,
                 usageDate: todayString,
                 todayDurationSeconds: todaySessions.reduce(0) { $0 + $1.durationSeconds },
                 totalDurationSeconds: sessions.reduce(0) { $0 + $1.durationSeconds },
-                weeklyDurationSeconds: sessions.filter { (SyncClock.date(from: $0.startedAt) ?? .distantPast) >= weekStart }.reduce(0) { $0 + $1.durationSeconds },
+                weeklyDurationSeconds: sessions.filter { (AppClock.date(from: $0.startedAt) ?? .distantPast) >= weekStart }.reduce(0) { $0 + $1.durationSeconds },
                 todaySessionCount: todaySessions.count,
                 lastUsedAt: sessions.compactMap { $0.endedAt ?? $0.updatedAt ?? $0.startedAt }.sorted().last,
                 recentDailyUsage: recentDailyUsage(sessions, recentSummaryDays: recentSummaryDays),
@@ -165,7 +164,7 @@ final class UsageSessionRepository {
                     && session.durationSeconds > 0
                     && Self.achievementSourcePages.contains(session.sourcePage)
             }
-        let activeDates = Set(sessions.map { SyncClock.dateOnly(from: SyncClock.date(from: $0.startedAt) ?? Date()) })
+        let activeDates = Set(sessions.map { AppClock.dateOnly(from: AppClock.date(from: $0.startedAt) ?? Date()) })
         return ReadingAchievementActivity(
             effectiveSessionCount: sessions.count,
             activeDayCount: activeDates.count,
@@ -178,9 +177,9 @@ final class UsageSessionRepository {
         let calendar = Calendar(identifier: .gregorian)
         let today = Date()
         let dates = (0..<safeDays).compactMap { calendar.date(byAdding: .day, value: -(safeDays - 1) + $0, to: today) }
-        let buckets = Dictionary(grouping: sessions) { SyncClock.dateOnly(from: SyncClock.date(from: $0.startedAt) ?? today) }
+        let buckets = Dictionary(grouping: sessions) { AppClock.dateOnly(from: AppClock.date(from: $0.startedAt) ?? today) }
         return dates.map { date in
-            let key = SyncClock.dateOnly(from: date)
+            let key = AppClock.dateOnly(from: date)
             return DailyUsagePoint(
                 usageDate: key,
                 durationSeconds: (buckets[key] ?? []).reduce(0) { $0 + $1.durationSeconds }
@@ -195,15 +194,15 @@ final class UsageSessionRepository {
     }
 
     func clear() async {
-        _ = try? await database.execute(sql: "DELETE FROM \(ReadingSyncTableName.usageSession)", parameters: [])
+        _ = try? await database.execute(sql: "DELETE FROM \(ReadingLocalTableName.usageSession)", parameters: [])
     }
 
     private func cleanupExpired(retentionDays: Int) async {
         let safeDays = min(max(retentionDays, 1), 366)
         guard let cutoff = Calendar(identifier: .gregorian).date(byAdding: .day, value: -safeDays, to: Date()) else { return }
-        let cutoffString = SyncClock.string(from: cutoff)
+        let cutoffString = AppClock.string(from: cutoff)
         _ = try? await database.execute(
-            sql: "DELETE FROM \(ReadingSyncTableName.usageSession) WHERE COALESCE(ended_at, updated_at, started_at) < ?",
+            sql: "DELETE FROM \(ReadingLocalTableName.usageSession) WHERE COALESCE(ended_at, updated_at, started_at) < ?",
             parameters: [cutoffString]
         )
     }
@@ -211,19 +210,19 @@ final class UsageSessionRepository {
     private static let achievementSourcePages: Set<String> = [
         "learning_detail",
         "review",
-        "capture"
+        "local_ocr"
     ]
 
     private static func currentStreakDays(activeDates: Set<String>) -> Int {
         guard !activeDates.isEmpty else { return 0 }
         let calendar = Calendar(identifier: .gregorian)
         let today = Date()
-        let todayKey = SyncClock.dateOnly(from: today)
+        let todayKey = AppClock.dateOnly(from: today)
         let startDate: Date
         if activeDates.contains(todayKey) {
             startDate = today
         } else if let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
-                  activeDates.contains(SyncClock.dateOnly(from: yesterday)) {
+                  activeDates.contains(AppClock.dateOnly(from: yesterday)) {
             startDate = yesterday
         } else {
             return 0
@@ -231,7 +230,7 @@ final class UsageSessionRepository {
 
         var streak = 0
         var cursor = startDate
-        while activeDates.contains(SyncClock.dateOnly(from: cursor)) {
+        while activeDates.contains(AppClock.dateOnly(from: cursor)) {
             streak += 1
             guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
             cursor = previous

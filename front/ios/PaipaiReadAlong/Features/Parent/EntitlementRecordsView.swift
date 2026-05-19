@@ -77,14 +77,14 @@ struct EntitlementRecordsView: View {
 
     private var visibleSummaries: [EntitlementUsageSummary] {
         switch selectedServiceType {
-        case "capture":
-            return [appState.entitlementDisplaySummary(serviceType: "capture")]
-        case "speech":
-            return [appState.entitlementDisplaySummary(serviceType: "speech")]
+        case "local_ocr":
+            return [appState.entitlementDisplaySummary(serviceType: "local_ocr")]
+        case "local_tts":
+            return [appState.entitlementDisplaySummary(serviceType: "local_tts")]
         default:
             return [
-                appState.entitlementDisplaySummary(serviceType: "capture"),
-                appState.entitlementDisplaySummary(serviceType: "speech")
+                appState.entitlementDisplaySummary(serviceType: "local_ocr"),
+                appState.entitlementDisplaySummary(serviceType: "local_tts")
             ]
         }
     }
@@ -92,7 +92,7 @@ struct EntitlementRecordsView: View {
     private func summaryRow(_ summary: EntitlementUsageSummary) -> some View {
         MainCard {
             HStack(spacing: AppLayout.spacingS) {
-                Image(systemName: summary.serviceType == "speech" ? "speaker.wave.2.fill" : "camera.fill")
+                Image(systemName: summary.serviceType == "local_tts" ? "speaker.wave.2.fill" : "camera.fill")
                     .font(.system(size: segmentSize * textScale, weight: .semibold))
                     .foregroundColor(AppColors.primary)
                     .frame(width: 24)
@@ -157,8 +157,8 @@ struct EntitlementRecordsView: View {
                 systemImage: "square.grid.2x2",
                 options: [
                     ("all", localizedAllText),
-                    ("capture", ocrText),
-                    ("speech", ttsText)
+                    ("local_ocr", ocrText),
+                    ("local_tts", ttsText)
                 ],
                 selection: $selectedServiceType
             )
@@ -322,9 +322,9 @@ struct EntitlementRecordsView: View {
     private func categoryName(for serviceType: String) -> String {
         switch serviceType {
         case "cloud_tts": return ttsText + " · " + appState.uiText("云端", "Cloud")
-        case "local_tts", "device_tts", "speech": return ttsText + " · " + appState.uiText("本地", "Local")
+        case "local_tts", "device_tts": return ttsText + " · " + appState.uiText("本地", "Local")
         case "cloud_ocr": return ocrText + " · " + appState.uiText("云端", "Cloud")
-        case "local_ocr", "capture": return ocrText + " · " + appState.uiText("本地", "Local")
+        case "local_ocr": return ocrText + " · " + appState.uiText("本地", "Local")
         default: return ocrText
         }
     }
@@ -335,8 +335,8 @@ struct EntitlementRecordsView: View {
 
     private var serviceFilterTitle: String {
         switch selectedServiceType {
-        case "capture": return ocrText
-        case "speech": return ttsText
+        case "local_ocr": return ocrText
+        case "local_tts": return ttsText
         default: return localizedAllText
         }
     }
@@ -367,6 +367,8 @@ struct EntitlementRecordsView: View {
 
     private func localizedAcquireMethod(_ acquireMethod: String) -> String {
         switch acquireMethod {
+        case "补偿兑换", "compensation_code":
+            return appState.localizedText(zhHans: "补偿兑换", english: "Compensation redemption", japanese: "補償コード交換", korean: "보상 코드 교환", spanish: "Canje de compensacion")
         case "每日赠送":
             return appState.localizedText(zhHans: "每日赠送", english: "Daily grant", japanese: "毎日の付与", korean: "일일 지급", spanish: "Concesion diaria")
         case "内部购买":

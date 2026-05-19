@@ -8,7 +8,7 @@ import Security
 /// `encrypted_text`；`text_preview` 保持非敏感通用占位。密钥保存在当前 App + appCode 隔离的
 /// Keychain 中，不上传到后端。这样个人开发者无需维护密钥托管服务，运维成本最低。
 ///
-/// 注意：该方案保护“本机/同步 payload 中的完整正文不明文外泄”，但不是跨设备端到端同步密钥方案。
+/// 注意：该方案保护“本机存储中的完整正文不明文外泄”，但不是跨设备端到端密钥方案。
 /// 如果用户换机且没有同一 Keychain 密钥，只能看到通用预览；后续如要多设备可读，应另行设计家长
 /// 授权的密钥迁移或账号级密钥托管，不能把本地密钥直接上传到后端。
 final class LocalTextCryptoService {
@@ -60,7 +60,7 @@ final class LocalTextCryptoService {
     }
 
     func safePreview(for plainText: String) -> String {
-        // 不把儿童阅读内容放入可同步的明文 preview。UI 展示时优先解密 encrypted_text。
+        // 不把儿童阅读内容放入明文 preview。UI 展示时优先解密 encrypted_text。
         Self.redactedPreview
     }
 

@@ -5,10 +5,8 @@ import com.apphub.backend.apps.reading.common.ReadingAuthenticatedUser;
 import com.apphub.backend.apps.reading.domain.entity.ReadingUserPreferenceEntity;
 import com.apphub.backend.apps.reading.domain.mapper.ReadingUserPreferenceMapper;
 import io.swagger.v3.oas.annotations.media.Schema;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -18,11 +16,9 @@ public class ReadingPreferenceService {
     private static final String APP_CODE = ReadingAppModule.APP_CODE;
 
     private final ReadingUserPreferenceMapper preferenceMapper;
-    private final ReadingCompatService readingCompatService;
 
-    public ReadingPreferenceService(ReadingUserPreferenceMapper preferenceMapper, ReadingCompatService readingCompatService) {
+    public ReadingPreferenceService(ReadingUserPreferenceMapper preferenceMapper) {
         this.preferenceMapper = preferenceMapper;
-        this.readingCompatService = readingCompatService;
     }
 
     public PreferenceView get(ReadingAuthenticatedUser user) {
@@ -39,7 +35,6 @@ public class ReadingPreferenceService {
             entity = new ReadingUserPreferenceEntity();
             entity.setUserId(user.userId());
             entity.setAppCode(APP_CODE);
-            entity.setCloudSyncEnabled(Boolean.FALSE);
             entity.setRecordVersion(1);
             entity.setCreatedAt(now);
             created = true;
@@ -62,15 +57,6 @@ public class ReadingPreferenceService {
         if (hasText(request.translationMode())) {
             entity.setTranslationMode(request.translationMode().trim());
         }
-        if (request.cloudSyncEnabled() != null) {
-            if (Boolean.TRUE.equals(request.cloudSyncEnabled())) {
-                ReadingCompatService.AccountStateView state = readingCompatService.accountState(user);
-                if (state == null || state.entitlement() == null || !Boolean.TRUE.equals(state.entitlement().cloudSyncEnabled())) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "POWERSYNC_DISABLED");
-                }
-            }
-            entity.setCloudSyncEnabled(request.cloudSyncEnabled());
-        }
         entity.setRecordVersion(entity.getRecordVersion() == null ? 1 : entity.getRecordVersion() + 1);
         entity.setUpdatedAt(now);
         if (created) {
@@ -91,7 +77,6 @@ public class ReadingPreferenceService {
                 "zh_to_en",
                 null,
                 "device_first",
-                false,
                 null,
                 false
             );
@@ -104,7 +89,6 @@ public class ReadingPreferenceService {
             defaultIfBlank(entity.getReadingTrackCode(), "zh_to_en"),
             entity.getTtsVoiceCode(),
             defaultIfBlank(entity.getTranslationMode(), "device_first"),
-            Boolean.TRUE.equals(entity.getCloudSyncEnabled()),
             entity.getUpdatedAt() == null ? null : entity.getUpdatedAt().toString(),
             true
         );
@@ -124,8 +108,7 @@ public class ReadingPreferenceService {
         @Schema(description = "目标语言编码。", example = "en") String targetLanguageCode,
         @Schema(description = "学习轨道编码。", example = "zh_to_en") String readingTrackCode,
         @Schema(description = "TTS 声音编码。", example = "default_female") String ttsVoiceCode,
-        @Schema(description = "翻译模式。", example = "sentence_first") String translationMode,
-        @Schema(description = "是否开启云同步。", example = "true") Boolean cloudSyncEnabled
+        @Schema(description = "翻译模式。", example = "sentence_first") String translationMode
     ) {}
 
     public record PreferenceView(
@@ -136,7 +119,6 @@ public class ReadingPreferenceService {
         String readingTrackCode,
         String ttsVoiceCode,
         String translationMode,
-        boolean cloudSyncEnabled,
         String updatedAt,
         boolean persisted
     ) {}

@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/preferences")
-@Tag(name = "拍拍伴读偏好", description = "当前用户语言、学习轨道、语音和云同步偏好接口。")
+@Tag(name = "拍拍伴读偏好", description = "当前用户语言、学习轨道和语音偏好接口。")
 public class ReadingPreferenceCompatController {
     private final ReadingAuthenticatedUserResolver userResolver;
     private final ReadingPreferenceService preferenceService;
@@ -28,7 +28,7 @@ public class ReadingPreferenceCompatController {
         this.preferenceService = preferenceService;
     }
 
-    @Operation(summary = "查询我的偏好", description = "查询当前登录用户的语言、学习轨道、语音和同步偏好。")
+    @Operation(summary = "查询我的偏好", description = "查询当前登录用户的语言、学习轨道和语音偏好。")
     @GetMapping("/me")
     public ApiResponse<ReadingPreferenceService.PreferenceView> me(@Parameter(hidden = true) HttpServletRequest request) {
         ReadingAuthenticatedUser user = userResolver.require(request);

@@ -2,7 +2,6 @@ package com.apphub.backend.sys.app.controller;
 
 import com.apphub.backend.apps.common.AppModule;
 import com.apphub.backend.apps.common.AppModuleRegistry;
-import com.apphub.backend.apps.common.AppPowerSyncAdapter;
 import com.apphub.backend.common.filter.TraceFilter;
 import com.apphub.backend.common.response.ApiResponse;
 import com.apphub.backend.sys.app.config.AppCatalogProperties;
@@ -22,8 +21,6 @@ import com.apphub.backend.sys.auth.service.PublicAuthAccessPolicyService;
 import com.apphub.backend.sys.app.service.AppAppleReadinessService;
 import com.apphub.backend.sys.configcenter.model.RemoteConfigNamespaceView;
 import com.apphub.backend.sys.configcenter.service.SysRemoteConfigService;
-import com.apphub.backend.sys.powersync.support.PowerSyncAppAdapter;
-import com.apphub.backend.sys.powersync.support.PowerSyncAppAdapterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,7 +59,6 @@ public class SystemController {
     private final SysAuthDataService authDataService;
     private final PublicAuthAccessPolicyService publicAuthAccessPolicyService;
     private final SysRemoteConfigService sysRemoteConfigService;
-    private final PowerSyncAppAdapterRegistry powerSyncAppAdapterRegistry;
 
     @Value("${spring.application.name}")
     private String applicationName;
@@ -91,8 +87,7 @@ public class SystemController {
         SysAppStoreNotificationService sysAppStoreNotificationService,
         SysAuthDataService authDataService,
         PublicAuthAccessPolicyService publicAuthAccessPolicyService,
-        SysRemoteConfigService sysRemoteConfigService,
-        PowerSyncAppAdapterRegistry powerSyncAppAdapterRegistry
+        SysRemoteConfigService sysRemoteConfigService
     ) {
         this.appCatalogProperties = appCatalogProperties;
         this.appDefinitionService = appDefinitionService;
@@ -103,7 +98,6 @@ public class SystemController {
         this.authDataService = authDataService;
         this.publicAuthAccessPolicyService = publicAuthAccessPolicyService;
         this.sysRemoteConfigService = sysRemoteConfigService;
-        this.powerSyncAppAdapterRegistry = powerSyncAppAdapterRegistry;
     }
 
     @Operation(summary = "健康检查", description = "返回最小化健康状态，生产环境不暴露敏感应用细节。")
@@ -184,7 +178,6 @@ public class SystemController {
 
         addOpsTokenCheck(checks, blockers, warnings);
         addAppModuleRegistryCheck(checks, blockers, warnings);
-        addPowerSyncAdapterTemplateCheck(checks, blockers, warnings);
         addActuatorExposureCheck(checks, blockers, warnings);
         addSwaggerExposureCheck(checks, blockers, warnings);
         addPublicSurfaceCheck(checks);
@@ -342,68 +335,6 @@ public class SystemController {
                 message,
                 "definitions=" + definitionCodes + ",modules=" + moduleCodes,
                 "1:1 app definition/module mapping"
-            ));
-        }
-    }
-
-    private void addPowerSyncAdapterTemplateCheck(
-        List<SystemReleaseGateView.ReleaseGateCheckView> checks,
-        List<String> blockers,
-        List<String> warnings
-    ) {
-        List<PowerSyncAppAdapter> adapters = powerSyncAppAdapterRegistry.activeAdapters();
-        List<String> legacyAdapters = new ArrayList<>();
-        List<String> invalidTemplates = new ArrayList<>();
-        List<String> summaries = new ArrayList<>();
-        for (PowerSyncAppAdapter adapter : adapters) {
-            if (!(adapter instanceof AppPowerSyncAdapter templateAdapter)) {
-                legacyAdapters.add(adapter.appCode());
-                continue;
-            }
-            if (templateAdapter.entities() == null || templateAdapter.entities().isEmpty()) {
-                invalidTemplates.add(templateAdapter.appCode() + ": empty entity template");
-                continue;
-            }
-            for (AppPowerSyncAdapter.SyncEntitySpec entity : templateAdapter.entities()) {
-                if (entity == null
-                    || entity.entityType() == null || entity.entityType().isBlank()
-                    || entity.ownershipField() == null || entity.ownershipField().isBlank()) {
-                    invalidTemplates.add(templateAdapter.appCode() + ": invalid entity template");
-                    break;
-                }
-            }
-            summaries.add(templateAdapter.appCode() + "=" + templateAdapter.entities().size() + " entities");
-        }
-
-        if (legacyAdapters.isEmpty() && invalidTemplates.isEmpty()) {
-            checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
-                "powerSyncAdapterTemplates",
-                "ready",
-                "Registered PowerSync adapters are template-backed and declare entity ownership metadata.",
-                summaries.isEmpty() ? "no adapters registered" : String.join(", ", summaries),
-                "AppPowerSyncAdapter + explicit entity ownership metadata"
-            ));
-            return;
-        }
-
-        String message = "legacyAdapters=" + legacyAdapters + ", invalidTemplates=" + invalidTemplates;
-        if ("prod".equalsIgnoreCase(environment)) {
-            blockers.add("PowerSync adapter template check failed: " + message);
-            checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
-                "powerSyncAdapterTemplates",
-                "blocked",
-                "PowerSync adapters must use the multi-app template contract before production release.",
-                message,
-                "AppPowerSyncAdapter + explicit entity ownership metadata"
-            ));
-        } else {
-            warnings.add("PowerSync adapter template check failed: " + message);
-            checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
-                "powerSyncAdapterTemplates",
-                "warning",
-                "PowerSync adapters should migrate to the multi-app template contract before release.",
-                message,
-                "AppPowerSyncAdapter + explicit entity ownership metadata"
             ));
         }
     }

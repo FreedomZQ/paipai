@@ -29,8 +29,6 @@ public class ReadingCloudUsageService {
     public static final String CLOUD_TTS = "cloud_tts";
     public static final String LOCAL_OCR = "local_ocr";
     public static final String LOCAL_TTS = "local_tts";
-    @Deprecated public static final String LOCAL_CAPTURE = LOCAL_OCR;
-    @Deprecated public static final String LOCAL_SPEECH = LOCAL_TTS;
     private static final String APP_CODE = ReadingAppModule.APP_CODE;
     private static final int DEFAULT_GIFT_VALID_DAYS = 30;
 
@@ -98,11 +96,19 @@ public class ReadingCloudUsageService {
 
     @Transactional
     public CloudUsageDecision grantPurchase(Long userId, String serviceType, String productCode, int amount, int validDays, String purchaseRef) {
+        int safeValidDays = Math.min(Math.max(validDays, 1), 3660);
+        return grantPurchaseUntil(userId, serviceType, productCode, amount, now().plusDays(safeValidDays), purchaseRef);
+    }
+
+    @Transactional
+    public CloudUsageDecision grantPurchaseUntil(Long userId, String serviceType, String productCode, int amount, OffsetDateTime expiresAt, String purchaseRef) {
         if (amount <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount must be greater than zero");
         }
+        if (expiresAt == null || !expiresAt.isAfter(now())) {
+            throw new ResponseStatusException(HttpStatus.GONE, "grant expiry must be in the future");
+        }
         String normalizedServiceType = normalizeServiceType(serviceType);
-        int safeValidDays = Math.min(Math.max(validDays, 1), 3660);
         if (creditGrantMapper != null && purchaseRef != null && !purchaseRef.isBlank()) {
             ReadingCloudServiceCreditGrantEntity existing = creditGrantMapper.selectBySourceRef(APP_CODE, userId, normalizedServiceType, "internal_purchase", purchaseRef.trim());
             if (existing != null) {
@@ -129,7 +135,7 @@ public class ReadingCloudUsageService {
             grant.setSourceType("internal_purchase");
             grant.setSourceRef(blankToNull(purchaseRef));
             grant.setProductCode(blankToNull(productCode));
-            grant.setExpiresAt(now().plusDays(safeValidDays));
+            grant.setExpiresAt(expiresAt);
             grant.setCreatedAt(now());
             grant.setUpdatedAt(now());
             creditGrantMapper.insert(grant);
@@ -314,8 +320,8 @@ public class ReadingCloudUsageService {
         String featureCode = switch (serviceType) {
             case CLOUD_TTS -> ReadingDailyQuotaConfigService.FEATURE_CLOUD_TTS;
             case CLOUD_OCR -> ReadingDailyQuotaConfigService.FEATURE_CLOUD_OCR;
-            case LOCAL_TTS -> ReadingDailyQuotaConfigService.FEATURE_SPEECH;
-            case LOCAL_OCR -> ReadingDailyQuotaConfigService.FEATURE_CAPTURE;
+            case LOCAL_TTS -> ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS;
+            case LOCAL_OCR -> ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR;
             default -> ReadingDailyQuotaConfigService.FEATURE_CLOUD_OCR;
         };
         if (LOCAL_OCR.equals(serviceType) || LOCAL_TTS.equals(serviceType)) {
@@ -594,23 +600,21 @@ public class ReadingCloudUsageService {
         if (CLOUD_TTS.equals(normalized)) {
             return CLOUD_TTS;
         }
-        if ("capture".equals(normalized)
+        if ("local_ocr".equals(normalized)
             || "ocr".equals(normalized)
             || "text_recognition".equals(normalized)
             || "image_ocr".equals(normalized)
             || "picture_ocr".equals(normalized)
             || "photo_ocr".equals(normalized)
-            || "device_ocr".equals(normalized)
-            || "local_ocr".equals(normalized)) {
+            || "device_ocr".equals(normalized)) {
             return LOCAL_OCR;
         }
-        if ("speech".equals(normalized)
+        if ("local_tts".equals(normalized)
             || "tts".equals(normalized)
             || "voice_reading".equals(normalized)
             || "text_to_speech".equals(normalized)
             || "speech_synthesis".equals(normalized)
-            || "device_tts".equals(normalized)
-            || "local_tts".equals(normalized)) {
+            || "device_tts".equals(normalized)) {
             return LOCAL_TTS;
         }
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported serviceType");

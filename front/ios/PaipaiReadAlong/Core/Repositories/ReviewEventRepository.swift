@@ -1,5 +1,4 @@
 import Foundation
-import PowerSync
 
 struct LocalReviewEvent: Identifiable, Codable, Hashable {
     let id: String
@@ -11,9 +10,9 @@ struct LocalReviewEvent: Identifiable, Codable, Hashable {
 }
 
 final class ReviewEventRepository {
-    private let database: PowerSyncDatabaseProtocol
+    private let database: LocalDatabase
 
-    init(database: PowerSyncDatabaseProtocol) {
+    init(database: LocalDatabase) {
         self.database = database
     }
 
@@ -24,11 +23,11 @@ final class ReviewEventRepository {
             cardId: cardId,
             eventType: eventType,
             resultLevel: resultLevel,
-            eventAt: SyncClock.nowString()
+            eventAt: AppClock.nowString()
         )
         _ = try? await database.execute(
             sql: """
-                INSERT OR REPLACE INTO \(ReadingSyncTableName.reviewEvent)
+                INSERT OR REPLACE INTO \(ReadingLocalTableName.reviewEvent)
                 (id, app_code, child_id, card_id, event_type, result_level, event_at, created_at, updated_at)
                 VALUES (?, '\(AppIdentity.appCode)', ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -46,6 +45,6 @@ final class ReviewEventRepository {
     }
 
     func clear() async {
-        _ = try? await database.execute(sql: "DELETE FROM \(ReadingSyncTableName.reviewEvent)", parameters: [])
+        _ = try? await database.execute(sql: "DELETE FROM \(ReadingLocalTableName.reviewEvent)", parameters: [])
     }
 }

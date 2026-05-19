@@ -1,11 +1,10 @@
 import Foundation
-import PowerSync
 
 final class ReviewCardRepository {
-    private let database: PowerSyncDatabaseProtocol
+    private let database: LocalDatabase
     private let textCrypto: LocalTextCryptoService
 
-    init(database: PowerSyncDatabaseProtocol, textCrypto: LocalTextCryptoService = .shared) {
+    init(database: LocalDatabase, textCrypto: LocalTextCryptoService = .shared) {
         self.database = database
         self.textCrypto = textCrypto
     }
@@ -14,10 +13,10 @@ final class ReviewCardRepository {
         (try? await database.getAll(
             sql: """
                 SELECT id, device_id, child_id, learning_track_code, learning_language_code, encrypted_text, source_text, text_preview, support_hint, translated_text,
-                       proficiency, next_review_at, sync_enabled, storage_mode, source_language_code,
+                       proficiency, next_review_at, source_language_code,
                        target_language_code, source_type, last_reviewed_at, is_review_completed, review_count,
                        deleted_at, record_version, created_at, updated_at
-                FROM \(ReadingSyncTableName.reviewCard)
+                FROM \(ReadingLocalTableName.reviewCard)
                 ORDER BY COALESCE(updated_at, created_at, '') DESC
                 """,
             parameters: []
@@ -40,8 +39,6 @@ final class ReviewCardRepository {
                 supportHint: supportHintValue ?? translatedText ?? "",
                 proficiency: try cursor.getIntOptional(name: "proficiency") ?? 0,
                 nextReviewAt: try cursor.getStringOptional(name: "next_review_at"),
-                syncEnabled: try cursor.getBooleanOptional(name: "sync_enabled"),
-                storageMode: try cursor.getStringOptional(name: "storage_mode"),
                 sourceLanguageCode: try cursor.getStringOptional(name: "source_language_code"),
                 targetLanguageCode: try cursor.getStringOptional(name: "target_language_code"),
                 sourceType: try cursor.getStringOptional(name: "source_type"),
@@ -77,10 +74,10 @@ final class ReviewCardRepository {
             .filter { $0.proficiency < 3 }
             .filter { card in
                 guard let nextReviewAt = card.nextReviewAt else { return true }
-                return (SyncClock.date(from: nextReviewAt) ?? now) <= now
+                return (AppClock.date(from: nextReviewAt) ?? now) <= now
             }
             .sorted { lhs, rhs in
-                (SyncClock.date(from: lhs.nextReviewAt) ?? .distantPast) < (SyncClock.date(from: rhs.nextReviewAt) ?? .distantPast)
+                (AppClock.date(from: lhs.nextReviewAt) ?? .distantPast) < (AppClock.date(from: rhs.nextReviewAt) ?? .distantPast)
             }
     }
 
@@ -93,15 +90,14 @@ final class ReviewCardRepository {
         text: String,
         supportHint: String?,
         sourceLanguageCode: String,
-        targetLanguageCode: String,
-        cloudSyncEnabled: Bool
+        targetLanguageCode: String
     ) async -> ReviewCard? {
         let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedHint = supportHint?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedText.isEmpty else { return nil }
         let now = Date()
-        let nowString = SyncClock.string(from: now)
-        let nextReviewAt = SyncClock.string(from: Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now)
+        let nowString = AppClock.string(from: now)
+        let nextReviewAt = AppClock.string(from: Calendar.current.date(byAdding: .day, value: 1, to: now) ?? now)
         let card = ReviewCard(
             id: UUID().uuidString.lowercased(),
             deviceId: deviceId,
@@ -112,8 +108,6 @@ final class ReviewCardRepository {
             supportHint: normalizedHint ?? "",
             proficiency: 0,
             nextReviewAt: nextReviewAt,
-            syncEnabled: cloudSyncEnabled,
-            storageMode: cloudSyncEnabled ? "server_synced" : "local_only",
             sourceLanguageCode: sourceLanguageCode,
             targetLanguageCode: targetLanguageCode,
             sourceType: "learning_page",
@@ -130,12 +124,12 @@ final class ReviewCardRepository {
         do {
             try await database.execute(
                 sql: """
-                    INSERT OR REPLACE INTO \(ReadingSyncTableName.reviewCard)
+                    INSERT OR REPLACE INTO \(ReadingLocalTableName.reviewCard)
                     (id, app_code, device_id, child_id, learning_track_code, learning_language_code, encrypted_text, text_preview, support_hint, proficiency, next_review_at,
-                     sync_enabled, storage_mode, card_status, source_text, translated_text, source_language_code, target_language_code,
+                     card_status, source_text, translated_text, source_language_code, target_language_code,
                      source_type, content_encryption_version, content_key_id, last_reviewed_at, is_review_completed, review_count,
                      deleted_at, record_version, created_at, updated_at)
-                    VALUES (?, '\(AppIdentity.appCode)', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, '\(AppIdentity.appCode)', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                 parameters: [
                     card.id,
@@ -148,8 +142,6 @@ final class ReviewCardRepository {
                     card.supportHint,
                     card.proficiency,
                     card.nextReviewAt,
-                    cloudSyncEnabled ? 1 : 0,
-                    card.storageMode,
                     nil,
                     card.supportHint,
                     card.sourceLanguageCode,
@@ -183,12 +175,12 @@ final class ReviewCardRepository {
         default:
             nextProficiency = min(current.proficiency, 2)
         }
-        let updatedAt = SyncClock.nowString()
-        let nextReviewAt = SyncClock.string(from: Calendar.current.date(byAdding: .day, value: nextProficiency >= 3 ? 7 : 1, to: Date()) ?? Date())
+        let updatedAt = AppClock.nowString()
+        let nextReviewAt = AppClock.string(from: Calendar.current.date(byAdding: .day, value: nextProficiency >= 3 ? 7 : 1, to: Date()) ?? Date())
         do {
             try await database.execute(
                 sql: """
-                    UPDATE \(ReadingSyncTableName.reviewCard)
+                    UPDATE \(ReadingLocalTableName.reviewCard)
                     SET proficiency = ?,
                         last_reviewed_at = ?,
                         next_review_at = ?,
@@ -216,16 +208,16 @@ final class ReviewCardRepository {
         return refreshed.first(where: { $0.id == cardId })
     }
 
-    /// 将单张句卡标记为已删除，保留本地记录用于 PowerSync 向后端同步删除状态。
+    /// 将单张句卡标记为已删除，保留本地记录用于本机历史统计和撤销判断。
     @discardableResult
     func softDeleteLocal(cardId: String) async -> Bool {
         let cards = await loadAll()
         guard let current = cards.first(where: { $0.id == cardId && !$0.isDeleted }) else { return false }
-        let now = SyncClock.nowString()
+        let now = AppClock.nowString()
         do {
             try await database.execute(
                 sql: """
-                    UPDATE \(ReadingSyncTableName.reviewCard)
+                    UPDATE \(ReadingLocalTableName.reviewCard)
                     SET card_status = ?,
                         deleted_at = ?,
                         record_version = ?,
@@ -247,6 +239,6 @@ final class ReviewCardRepository {
     }
 
     func clear() async {
-        _ = try? await database.execute(sql: "DELETE FROM \(ReadingSyncTableName.reviewCard)", parameters: [])
+        _ = try? await database.execute(sql: "DELETE FROM \(ReadingLocalTableName.reviewCard)", parameters: [])
     }
 }

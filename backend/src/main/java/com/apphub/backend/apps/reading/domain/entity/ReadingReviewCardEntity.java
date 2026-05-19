@@ -27,8 +27,6 @@ public class ReadingReviewCardEntity {
     private String supportHint;
     private Integer proficiency;
     private OffsetDateTime nextReviewAt;
-    private Boolean syncEnabled;
-    private String storageMode;
     private String cardStatus;
     private String sourceText;
     private String translatedText;
@@ -39,7 +37,6 @@ public class ReadingReviewCardEntity {
     private String contentKeyId;
     private OffsetDateTime lastReviewedAt;
     private OffsetDateTime deletedAt;
-    private String lastModifiedByInstallationId;
     private Integer recordVersion;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

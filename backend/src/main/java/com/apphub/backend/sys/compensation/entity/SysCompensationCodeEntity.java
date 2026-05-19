@@ -13,7 +13,7 @@ import org.apache.ibatis.type.JdbcType;
 
 /**
  * 补偿码主表实体。
- * 中文说明：保存后端生成的补偿码、关联权益和使用状态，单码单次使用。
+ * 中文说明：保存后端生成的补偿码、关联权益和使用状态，支持单次码与多设备各领一次码。
  */
 @TableName(value = "sys_compensation_code", autoResultMap = true)
 @Data
@@ -31,16 +31,16 @@ public class SysCompensationCodeEntity {
     private String serviceType;
     private Integer grantCount;
     private Integer grantValidDays;
+    private OffsetDateTime grantValidUntilAt;
     private OffsetDateTime expiresAt;
+    private String claimScope;
     private Integer maxUses;
     private Integer usedCount;
     private String status;
-    private Long usedByUserId;
     private OffsetDateTime usedAt;
     private String voidReason;
     @TableField(jdbcType = JdbcType.OTHER, typeHandler = JsonbStringTypeHandler.class)
     private String metadataJson;
-    private Long createdByUserId;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

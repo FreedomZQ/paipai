@@ -11,7 +11,7 @@ import java.util.Optional;
  * literal appCode / tablePrefix / route-prefix constants across controllers and services.
  */
 public interface AppModule {
-    /** Public appCode used by auth, billing, entitlement, PowerSync and remote config boundaries. */
+    /** Public appCode used by auth, billing, entitlement and remote config boundaries. */
     String appCode();
 
     /** Internal business-domain name, e.g. reading. This is not necessarily the public appCode. */

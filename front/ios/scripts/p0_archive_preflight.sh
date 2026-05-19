@@ -68,11 +68,9 @@ if grep -RIn "appTransactionID\|CaptureView.OCRConfirmView\|platform: \[iOS, mac
   fail "known compile-risk tokens found"
 fi
 
-BOOTSTRAP_API="$APP_DIR/Core/Sync/PowerSyncBootstrapAPI.swift"
-grep -q 'deviceId: nil' "$BOOTSTRAP_API" || fail "PowerSync bootstrap must not upload deviceId"
-grep -q 'clientPlatform: hasConsent ?' "$BOOTSTRAP_API" || fail "PowerSync bootstrap clientPlatform must be consent-gated"
-grep -q 'deviceModel: hasConsent ? device.model : nil' "$BOOTSTRAP_API" || fail "PowerSync bootstrap deviceModel must be consent-gated"
-grep -q 'appVersion: hasConsent ? device.appVersion : nil' "$BOOTSTRAP_API" || fail "PowerSync bootstrap appVersion must be consent-gated"
+if grep -R "PowerSync\\|powersync\\|云同步\\|Cloud Sync" "$APP_DIR" >/dev/null 2>&1; then
+  fail "Cloud sync implementation or UI text must not be present"
+fi
 
 grep -RIn "<<<<<<<\|=======\|>>>>>>>" "$APP_DIR" "$PROJECT_YML" && fail "merge conflict marker found"
 

@@ -113,7 +113,7 @@ import org.springframework.stereotype.Component;
  * ${APP_CODE} App 模块声明。
  *
  * 中文说明：
- * - appCode 是账号、权益、remote config、同步数据的隔离边界。
+ * - appCode 是账号、权益、remote config 和本地缓存命名空间的隔离边界。
  * - internalDomain/tablePrefix 只是当前 App 的内部业务域和物理表前缀。
  * - 新 App 不允许复用 Paipai 的 appCode、bundleId、Apple clientId 或 entitlement mapping。
  */
@@ -200,9 +200,9 @@ cat > "$OUT_DIR/docs/checklist.md" <<MD
 - [ ] App Store bundleId / appAppleId / issuerId / keyId / privateKey 通过生产配置补齐。
 - [ ] entitlement productMappings 显式配置，不依赖 productId fallback。
 - [ ] release_ios namespace 为 \`$APP_CODE\` 单独配置。
-- [ ] iOS Keychain、UserDefaults、PowerSync DB 均使用 \`$APP_CODE\` namespace。
+- [ ] iOS Keychain、UserDefaults、本地 SQLite 缓存均使用 \`$APP_CODE\` namespace。
 - [ ] 运行 \`scripts/audit-multi-app-isolation.sh\`。
-- [ ] 运行 App A / App B 隔离测试，确认 Apple subject、session、entitlement、PowerSync installation 不串线。
+- [ ] 运行 App A / App B 隔离测试，确认 Apple subject、session、entitlement、本地缓存不串线。
 MD
 
 cat > "$OUT_DIR/README.md" <<MD
@@ -218,7 +218,7 @@ cat > "$OUT_DIR/README.md" <<MD
 - tablePrefix: \`$TABLE_PREFIX\`
 - bundleId/clientId: \`$BUNDLE_ID\`
 
-低风险上线原则：先让 release gate 和静态审计通过，再接真实 Apple 登录、IAP、PowerSync 和 App Store metadata。
+低风险上线原则：先让 release gate 和静态审计通过，再接真实 Apple 登录、IAP 和 App Store metadata。
 MD
 
 echo "generated new app module skeleton: $OUT_DIR"

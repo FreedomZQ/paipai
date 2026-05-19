@@ -4,14 +4,14 @@ import Foundation
 ///
 /// P3 这里先把名字从 `PaipaiAppIdentity` 提升为更可模板化的 `AppIdentity`，
 /// 这样后续若接入第二个 App，可以直接替换实现或按 target 注入，而不是让所有底层
-/// 存储、路由、PowerSync 代码继续绑定产品名。
+/// 存储和路由代码继续绑定产品名。
 enum AppIdentity {
     /// 拍拍伴读在统一后端中的产品身份。
     ///
     /// 中文维护说明：
     /// - 这个值必须和后端 `apps/reading/app-definition.yml` 里的 `app.code` 保持一致。
     /// - 新增第二个 App 时，不要在业务代码里搜索替换字符串；应为新 target 提供自己的 AppIdentity。
-    /// - UserDefaults、Keychain、PowerSync DB、system auth / PowerSync 路由都会使用它做隔离边界。
+    /// - UserDefaults、Keychain、本地数据库和 system auth 路由都会使用它做隔离边界。
     static let appCode = "paipai_readingcompanion"
 
     /// 发布前 Info.plist 应注入真实 bundle id；这里仅作为极端情况下的兜底展示值。
@@ -22,11 +22,8 @@ enum AppIdentity {
         Bundle.main.bundleIdentifier ?? fallbackBundleIdentifier
     }
 
-    /// PowerSync app-scoped endpoint segment. This intentionally matches `appCode`.
-    static let powerSyncPathSegment = appCode
-
-    /// App-scoped local PowerSync database filename to avoid cross-app cache reuse.
-    static let powerSyncDatabaseFilename = "\(appCode)-powersync.sqlite"
+    /// App-scoped local database filename to avoid cross-app cache reuse.
+    static let localDatabaseFilename = "\(appCode)-local.sqlite"
 
     /// Shared prefix for local storage namespaces (UserDefaults / Keychain / cache metadata).
     static let storageNamespace = appCode

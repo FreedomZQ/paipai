@@ -61,15 +61,15 @@ class ReadingCloudUsageServiceTest {
         ReadingCloudServiceCreditGrantEntity expired = grant(9L, "gift", now.minusDays(2));
         expired.setAppCode("paipai_readingcompanion");
         expired.setUserId(42L);
-        expired.setServiceType(ReadingCloudUsageService.LOCAL_SPEECH);
+        expired.setServiceType(ReadingCloudUsageService.LOCAL_TTS);
         expired.setSourceType("admin");
         expired.setTotalCount(6);
         expired.setUsedCount(1);
         expired.setCreatedAt(now.minusDays(10));
-        given(mapper.selectRecentByUser(eq("paipai_readingcompanion"), eq(42L), eq(ReadingCloudUsageService.LOCAL_SPEECH), any(), any()))
+        given(mapper.selectRecentByUser(eq("paipai_readingcompanion"), eq(42L), eq(ReadingCloudUsageService.LOCAL_TTS), any(), any()))
             .willReturn(List.of(expired));
 
-        List<ReadingCloudUsageService.ActiveEntitlementView> records = service.recentCreditEntitlements(42L, ReadingCloudUsageService.LOCAL_SPEECH, 60);
+        List<ReadingCloudUsageService.ActiveEntitlementView> records = service.recentCreditEntitlements(42L, ReadingCloudUsageService.LOCAL_TTS, 60);
 
         assertThat(records).hasSize(1);
         assertThat(records.get(0).id()).isEqualTo("9");

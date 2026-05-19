@@ -65,13 +65,12 @@ struct CompensationRedeemReceipt: Codable {
 struct AccountEntitlement: Codable {
     let planCode: String
     let planName: String
-    let dailyCaptureLimit: Int
-    let dailySpeechLimit: Int
+    let dailyLocalOcrLimit: Int
+    let dailyLocalTtsLimit: Int
     let childLimit: Int
     let localCardLimit: Int
     let childCount: Int
     let remainingChildSlots: Int
-    let cloudSyncEnabled: Bool
     let advancedVoiceEnabled: Bool
     let premiumActive: Bool
     let validUntil: String?
@@ -92,13 +91,12 @@ struct AccountEntitlement: Codable {
     init(
         planCode: String,
         planName: String,
-        dailyCaptureLimit: Int,
-        dailySpeechLimit: Int,
+        dailyLocalOcrLimit: Int,
+        dailyLocalTtsLimit: Int,
         childLimit: Int,
         localCardLimit: Int,
         childCount: Int,
         remainingChildSlots: Int,
-        cloudSyncEnabled: Bool,
         advancedVoiceEnabled: Bool,
         premiumActive: Bool,
         validUntil: String?,
@@ -114,13 +112,12 @@ struct AccountEntitlement: Codable {
     ) {
         self.planCode = planCode
         self.planName = planName
-        self.dailyCaptureLimit = dailyCaptureLimit
-        self.dailySpeechLimit = dailySpeechLimit
+        self.dailyLocalOcrLimit = dailyLocalOcrLimit
+        self.dailyLocalTtsLimit = dailyLocalTtsLimit
         self.childLimit = childLimit
         self.localCardLimit = localCardLimit
         self.childCount = childCount
         self.remainingChildSlots = remainingChildSlots
-        self.cloudSyncEnabled = cloudSyncEnabled
         self.advancedVoiceEnabled = advancedVoiceEnabled
         self.premiumActive = premiumActive
         self.validUntil = validUntil
@@ -138,13 +135,14 @@ struct AccountEntitlement: Codable {
     private enum CodingKeys: String, CodingKey {
         case planCode
         case planName
+        case dailyLocalOcrLimit
+        case dailyLocalTtsLimit
         case dailyCaptureLimit
         case dailySpeechLimit
         case childLimit
         case localCardLimit
         case childCount
         case remainingChildSlots
-        case cloudSyncEnabled
         case advancedVoiceEnabled
         case premiumActive
         case validUntil
@@ -163,13 +161,16 @@ struct AccountEntitlement: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         planCode = try container.decodeIfPresent(String.self, forKey: .planCode) ?? "free"
         planName = try container.decodeIfPresent(String.self, forKey: .planName) ?? "免费版"
-        dailyCaptureLimit = try container.decodeIfPresent(Int.self, forKey: .dailyCaptureLimit) ?? 3
-        dailySpeechLimit = try container.decodeIfPresent(Int.self, forKey: .dailySpeechLimit) ?? 10
+        dailyLocalOcrLimit = try container.decodeIfPresent(Int.self, forKey: .dailyLocalOcrLimit)
+            ?? container.decodeIfPresent(Int.self, forKey: .dailyCaptureLimit)
+            ?? 3
+        dailyLocalTtsLimit = try container.decodeIfPresent(Int.self, forKey: .dailyLocalTtsLimit)
+            ?? container.decodeIfPresent(Int.self, forKey: .dailySpeechLimit)
+            ?? 10
         childLimit = try container.decodeIfPresent(Int.self, forKey: .childLimit) ?? 1
         localCardLimit = try container.decodeIfPresent(Int.self, forKey: .localCardLimit) ?? 20
         childCount = try container.decodeIfPresent(Int.self, forKey: .childCount) ?? 0
         remainingChildSlots = try container.decodeIfPresent(Int.self, forKey: .remainingChildSlots) ?? max(childLimit - childCount, 0)
-        cloudSyncEnabled = try container.decodeIfPresent(Bool.self, forKey: .cloudSyncEnabled) ?? false
         advancedVoiceEnabled = try container.decodeIfPresent(Bool.self, forKey: .advancedVoiceEnabled) ?? false
         premiumActive = try container.decodeIfPresent(Bool.self, forKey: .premiumActive) ?? false
         validUntil = try container.decodeIfPresent(String.self, forKey: .validUntil)
@@ -184,37 +185,67 @@ struct AccountEntitlement: Codable {
         verificationSource = try container.decodeIfPresent(String.self, forKey: .verificationSource)
         accessProof = try container.decodeIfPresent(BackendAccessProof.self, forKey: .accessProof)
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(planCode, forKey: .planCode)
+        try container.encode(planName, forKey: .planName)
+        try container.encode(dailyLocalOcrLimit, forKey: .dailyLocalOcrLimit)
+        try container.encode(dailyLocalTtsLimit, forKey: .dailyLocalTtsLimit)
+        try container.encode(childLimit, forKey: .childLimit)
+        try container.encode(localCardLimit, forKey: .localCardLimit)
+        try container.encode(childCount, forKey: .childCount)
+        try container.encode(remainingChildSlots, forKey: .remainingChildSlots)
+        try container.encode(advancedVoiceEnabled, forKey: .advancedVoiceEnabled)
+        try container.encode(premiumActive, forKey: .premiumActive)
+        try container.encodeIfPresent(validUntil, forKey: .validUntil)
+        try container.encode(authoritative, forKey: .authoritative)
+        try container.encode(multiChildEnabled, forKey: .multiChildEnabled)
+        try container.encode(dailyPlanScope, forKey: .dailyPlanScope)
+        try container.encode(weeklyReportScope, forKey: .weeklyReportScope)
+        try container.encode(weeklyReportHistoryWeeks, forKey: .weeklyReportHistoryWeeks)
+        try container.encode(historyEnabled, forKey: .historyEnabled)
+        try container.encode(serverVerified, forKey: .serverVerified)
+        try container.encodeIfPresent(verificationSource, forKey: .verificationSource)
+        try container.encodeIfPresent(accessProof, forKey: .accessProof)
+    }
 }
 
 struct DailyQuota: Codable {
     let quotaDate: String
-    let captureLimit: Int
-    let captureUsed: Int
-    let captureRemaining: Int
-    let speechLimit: Int
-    let speechUsed: Int
-    let speechRemaining: Int
+    let localOcrLimit: Int
+    let localOcrUsed: Int
+    let localOcrRemaining: Int
+    let localTtsLimit: Int
+    let localTtsUsed: Int
+    let localTtsRemaining: Int
 
     init(
         quotaDate: String,
-        captureLimit: Int,
-        captureUsed: Int,
-        captureRemaining: Int,
-        speechLimit: Int,
-        speechUsed: Int,
-        speechRemaining: Int
+        localOcrLimit: Int,
+        localOcrUsed: Int,
+        localOcrRemaining: Int,
+        localTtsLimit: Int,
+        localTtsUsed: Int,
+        localTtsRemaining: Int
     ) {
         self.quotaDate = quotaDate
-        self.captureLimit = captureLimit
-        self.captureUsed = captureUsed
-        self.captureRemaining = captureRemaining
-        self.speechLimit = speechLimit
-        self.speechUsed = speechUsed
-        self.speechRemaining = speechRemaining
+        self.localOcrLimit = localOcrLimit
+        self.localOcrUsed = localOcrUsed
+        self.localOcrRemaining = localOcrRemaining
+        self.localTtsLimit = localTtsLimit
+        self.localTtsUsed = localTtsUsed
+        self.localTtsRemaining = localTtsRemaining
     }
 
     private enum CodingKeys: String, CodingKey {
         case quotaDate
+        case localOcrLimit
+        case localOcrUsed
+        case localOcrRemaining
+        case localTtsLimit
+        case localTtsUsed
+        case localTtsRemaining
         case captureLimit
         case captureUsed
         case captureRemaining
@@ -232,36 +263,45 @@ struct DailyQuota: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         quotaDate = try container.decodeIfPresent(String.self, forKey: .quotaDate) ?? ""
-        captureLimit = try container.decodeIfPresent(Int.self, forKey: .captureLimit) ?? 0
-        captureUsed = try container.decodeIfPresent(Int.self, forKey: .captureUsed) ?? 0
-        captureRemaining = try container.decodeIfPresent(Int.self, forKey: .captureRemaining) ?? max(captureLimit - captureUsed, 0)
-        speechLimit = try container.decodeIfPresent(Int.self, forKey: .speechLimit)
+        localOcrLimit = try container.decodeIfPresent(Int.self, forKey: .localOcrLimit)
+            ?? container.decodeIfPresent(Int.self, forKey: .captureLimit)
+            ?? 0
+        localOcrUsed = try container.decodeIfPresent(Int.self, forKey: .localOcrUsed)
+            ?? container.decodeIfPresent(Int.self, forKey: .captureUsed)
+            ?? 0
+        localOcrRemaining = try container.decodeIfPresent(Int.self, forKey: .localOcrRemaining)
+            ?? container.decodeIfPresent(Int.self, forKey: .captureRemaining)
+            ?? max(localOcrLimit - localOcrUsed, 0)
+        localTtsLimit = try container.decodeIfPresent(Int.self, forKey: .localTtsLimit)
+            ?? container.decodeIfPresent(Int.self, forKey: .speechLimit)
             ?? container.decodeIfPresent(Int.self, forKey: .ttsLimit)
             ?? container.decodeIfPresent(Int.self, forKey: .readAloudLimit)
-            ?? captureLimit
-        speechUsed = try container.decodeIfPresent(Int.self, forKey: .speechUsed)
+            ?? localOcrLimit
+        localTtsUsed = try container.decodeIfPresent(Int.self, forKey: .localTtsUsed)
+            ?? container.decodeIfPresent(Int.self, forKey: .speechUsed)
             ?? container.decodeIfPresent(Int.self, forKey: .ttsUsed)
             ?? container.decodeIfPresent(Int.self, forKey: .readAloudUsed)
             ?? 0
-        speechRemaining = try container.decodeIfPresent(Int.self, forKey: .speechRemaining)
+        localTtsRemaining = try container.decodeIfPresent(Int.self, forKey: .localTtsRemaining)
+            ?? container.decodeIfPresent(Int.self, forKey: .speechRemaining)
             ?? container.decodeIfPresent(Int.self, forKey: .ttsRemaining)
             ?? container.decodeIfPresent(Int.self, forKey: .readAloudRemaining)
-            ?? max(speechLimit - speechUsed, 0)
+            ?? max(localTtsLimit - localTtsUsed, 0)
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(quotaDate, forKey: .quotaDate)
-        try container.encode(captureLimit, forKey: .captureLimit)
-        try container.encode(captureUsed, forKey: .captureUsed)
-        try container.encode(captureRemaining, forKey: .captureRemaining)
-        try container.encode(speechLimit, forKey: .speechLimit)
-        try container.encode(speechUsed, forKey: .speechUsed)
-        try container.encode(speechRemaining, forKey: .speechRemaining)
+        try container.encode(localOcrLimit, forKey: .localOcrLimit)
+        try container.encode(localOcrUsed, forKey: .localOcrUsed)
+        try container.encode(localOcrRemaining, forKey: .localOcrRemaining)
+        try container.encode(localTtsLimit, forKey: .localTtsLimit)
+        try container.encode(localTtsUsed, forKey: .localTtsUsed)
+        try container.encode(localTtsRemaining, forKey: .localTtsRemaining)
     }
 }
 
-struct CaptureQuotaValidation: Hashable {
+struct LocalOcrQuotaValidation: Hashable {
     let isAllowed: Bool
     let requiredAmount: Int
     let maxLimit: Int
@@ -324,7 +364,6 @@ struct RecentReviewCard: Codable, Hashable, Identifiable {
     let supportHint: String
     let proficiency: Int
     let nextReviewAt: String?
-    let storageMode: String?
     let createdAt: String?
 
     var id: String { cardId }

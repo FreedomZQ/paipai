@@ -1,18 +1,21 @@
 package com.apphub.backend.sys.entitlement.entity;
 
+import com.apphub.backend.common.mybatis.JsonbStringTypeHandler;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.OffsetDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.ibatis.type.JdbcType;
 
 /**
  * App Store 商品到统一权益码的映射。
  * 中文说明：productId 必须按 appCode + storeCode 隔离，防止多个 App 共用后端时串用商品权益。
  */
-@TableName("sys_product_entitlement_mapping")
+@TableName(value = "sys_product_entitlement_mapping", autoResultMap = true)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -26,6 +29,7 @@ public class SysProductEntitlementMappingEntity {
     private String entitlementCode;
     private String productType;
     private String status;
+    @TableField(jdbcType = JdbcType.OTHER, typeHandler = JsonbStringTypeHandler.class)
     private String metadataJson;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

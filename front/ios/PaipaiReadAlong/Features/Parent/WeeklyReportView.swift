@@ -269,8 +269,8 @@ struct WeeklyReportView: View {
                     statCard(title: reportText("阅读频率", "Reading frequency", ja: "読書頻度", ko: "읽기 빈도", es: "Frecuencia"), value: "\(report.stats.weeklyActiveDays)", unit: reportText("天", " days", ja: "日", ko: "일", es: " días"), desc: reportText("本周有伴读记录的天数", "Days with read-along records", ja: "読み聞かせ記録がある日数", ko: "함께 읽기 기록이 있는 날", es: "Días con registros"), icon: "calendar")
                     statCard(title: reportText("本周复习", "Reviews", ja: "今週の復習", ko: "이번 주 복습", es: "Repasos"), value: "\(report.stats.weeklyReviewCount)", unit: reportText("次", " times", ja: "回", ko: "회", es: " veces"), desc: reportText("句卡与阅读内容复习次数", "Sentence-card and reading review count", ja: "カードと読書内容の復習回数", ko: "문장 카드와 읽기 내용 복습 횟수", es: "Repasos de tarjetas y lectura"), icon: "sparkles")
                     statCard(title: reportText("新增句卡", "New cards", ja: "新規カード", ko: "새 카드", es: "Tarjetas nuevas"), value: "\(report.stats.weeklySavedCardCount ?? report.stats.displaySavedCardCount)", unit: reportText("张", "", ja: "枚", ko: "장", es: ""), desc: reportText("拍照识图后保存的重点句卡", "Key cards saved after recognition", ja: "認識後に保存した重要カード", ko: "인식 후 저장한 핵심 카드", es: "Tarjetas guardadas"), icon: "bookmark.fill")
-                    statCard(title: reportText("拍照识图", "Photo recognition", ja: "写真認識", ko: "사진 인식", es: "Reconocimiento"), value: "\(captureCount(report))", unit: reportText("次", " times", ja: "回", ko: "회", es: " veces"), desc: reportText("设备端与云端 OCR 使用合计", "On-device and cloud OCR total", ja: "端末内とクラウドOCRの合計", ko: "기기와 클라우드 OCR 합계", es: "OCR local y nube"), icon: "camera.fill")
-                    statCard(title: reportText("语音朗读", "Read aloud", ja: "音声読み上げ", ko: "음성 낭독", es: "Lectura en voz alta"), value: "\(speechCount(report))", unit: reportText("次", " times", ja: "回", ko: "회", es: " veces"), desc: reportText("设备端与云端语音播放合计", "On-device and cloud speech total", ja: "端末内とクラウド音声の合計", ko: "기기와 클라우드 음성 합계", es: "Voz local y nube"), icon: "speaker.wave.2.fill")
+                    statCard(title: reportText("拍照识图", "Photo recognition", ja: "写真認識", ko: "사진 인식", es: "Reconocimiento"), value: "\(localOcrCount(report))", unit: reportText("次", " times", ja: "回", ko: "회", es: " veces"), desc: reportText("设备端与云端 OCR 使用合计", "On-device and cloud OCR total", ja: "端末内とクラウドOCRの合計", ko: "기기와 클라우드 OCR 합계", es: "OCR local y nube"), icon: "camera.fill")
+                    statCard(title: reportText("语音朗读", "Read aloud", ja: "音声読み上げ", ko: "음성 낭독", es: "Lectura en voz alta"), value: "\(localTtsCount(report))", unit: reportText("次", " times", ja: "回", ko: "회", es: " veces"), desc: reportText("设备端与云端语音播放合计", "On-device and cloud speech total", ja: "端末内とクラウド音声の合計", ko: "기기와 클라우드 음성 합계", es: "Voz local y nube"), icon: "speaker.wave.2.fill")
                     statCard(title: reportText("待复习", "Due cards", ja: "復習待ち", ko: "복습 대기", es: "Pendientes"), value: "\(report.stats.reviewDueCount ?? 0)", unit: reportText("张", "", ja: "枚", ko: "장", es: ""), desc: reportText("建议下周优先处理的句卡", "Cards to prioritize next week", ja: "来週優先して扱うカード", ko: "다음 주 우선 처리할 카드", es: "Tarjetas prioritarias"), icon: "checkmark.circle.fill")
                 }
             }
@@ -738,11 +738,11 @@ struct WeeklyReportView: View {
         return values + Array(repeating: 0, count: 7 - values.count)
     }
 
-    private func captureCount(_ report: WeeklyParentReport) -> Int {
+    private func localOcrCount(_ report: WeeklyParentReport) -> Int {
         moduleInt(report, keys: ["captures", "capture_count", "ocr_count", "photo_recognition_count"])
     }
 
-    private func speechCount(_ report: WeeklyParentReport) -> Int {
+    private func localTtsCount(_ report: WeeklyParentReport) -> Int {
         moduleInt(report, keys: ["speech", "speech_count", "tts_count", "read_aloud_count"])
     }
 
@@ -899,7 +899,7 @@ struct WeeklyReportView: View {
     }
 }
 
-private extension PowerSyncPayloadValue {
+private extension LocalPayloadValue {
     var intArray: [Int] {
         guard case let .array(values) = self else { return [] }
         return values.compactMap { value in

@@ -1,21 +1,20 @@
 import Foundation
-import PowerSync
 
 final class LearningEventRepository {
-    private let database: PowerSyncDatabaseProtocol
+    private let database: LocalDatabase
 
-    init(database: PowerSyncDatabaseProtocol) {
+    init(database: LocalDatabase) {
         self.database = database
     }
 
     @discardableResult
     func append(childId: String, sourcePage: String) async -> Bool {
-        let now = SyncClock.nowString()
-        let learningDate = SyncClock.dateOnly(from: Date())
+        let now = AppClock.nowString()
+        let learningDate = AppClock.dateOnly(from: Date())
         do {
             try await database.execute(
                 sql: """
-                    INSERT INTO \(ReadingSyncTableName.learningEvent)
+                    INSERT INTO \(ReadingLocalTableName.learningEvent)
                     (id, app_code, child_id, learning_date, source_page, event_at, created_at, updated_at)
                     VALUES (?, '\(AppIdentity.appCode)', ?, ?, ?, ?, ?, ?)
                     """,
@@ -35,11 +34,11 @@ final class LearningEventRepository {
         }
     }
 
-    func count(childId: String, date: String = SyncClock.dateOnly(from: Date())) async -> Int {
+    func count(childId: String, date: String = AppClock.dateOnly(from: Date())) async -> Int {
         (try? await database.getOptional(
             sql: """
                 SELECT COUNT(*) AS count
-                FROM \(ReadingSyncTableName.learningEvent)
+                FROM \(ReadingLocalTableName.learningEvent)
                 WHERE child_id = ? AND learning_date = ?
                 """,
             parameters: [childId, date]
@@ -52,7 +51,7 @@ final class LearningEventRepository {
         (try? await database.getOptional(
             sql: """
                 SELECT COUNT(*) AS count
-                FROM \(ReadingSyncTableName.learningEvent)
+                FROM \(ReadingLocalTableName.learningEvent)
                 WHERE child_id = ?
                 """,
             parameters: [childId]
@@ -62,6 +61,6 @@ final class LearningEventRepository {
     }
 
     func clear() async {
-        _ = try? await database.execute(sql: "DELETE FROM \(ReadingSyncTableName.learningEvent)", parameters: [])
+        _ = try? await database.execute(sql: "DELETE FROM \(ReadingLocalTableName.learningEvent)", parameters: [])
     }
 }

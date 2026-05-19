@@ -759,11 +759,6 @@ struct ParentDashboardView: View {
                     )
                 }
                 SettingsNavigationLink {
-                    SyncSettingsView()
-                } label: {
-                    SettingRow(icon: "icloud.fill", title: appState.uiText("云同步", "Cloud Sync"), color: AppColors.info)
-                }
-                SettingsNavigationLink {
                     EntitlementRecordsView()
                 } label: {
                     SettingRow(icon: "list.bullet.rectangle", title: appState.uiText("权益获取记录", "Entitlement records"), color: AppColors.secondary)

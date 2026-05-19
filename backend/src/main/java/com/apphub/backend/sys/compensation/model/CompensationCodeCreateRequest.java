@@ -21,9 +21,15 @@ public record CompensationCodeCreateRequest(
     @Min(1) Integer grantCount,
     @Schema(description = "兑换后权益有效天数。", example = "30")
     @Min(1) Integer grantValidDays,
+    @Schema(description = "权益最终截止时间。为空时按创建时间 + grantValidDays 计算。", example = "2026-12-31T23:59:59Z")
+    OffsetDateTime grantValidUntilAt,
     @Schema(description = "补偿码到期时间，未传则使用 grantValidDays 计算。", example = "2026-12-31T23:59:59Z")
     OffsetDateTime expiresAt,
-    @Schema(description = "额度类型：capture / speech / cloud_ocr / cloud_tts。", example = "speech")
+    @Schema(description = "领取范围：single_use / multi_device_once。", example = "single_use")
+    String claimScope,
+    @Schema(description = "最大领取次数。single_use 固定为 1；multi_device_once 表示最多可被多少设备各领取一次。", example = "1")
+    @Min(1) Integer maxUses,
+    @Schema(description = "额度类型：local_ocr / local_tts / cloud_ocr / cloud_tts。", example = "local_tts")
     String serviceType,
     @Schema(description = "备注说明。", example = "活动补偿码")
     String note

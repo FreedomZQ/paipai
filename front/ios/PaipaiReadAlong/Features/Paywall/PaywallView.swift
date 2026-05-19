@@ -291,10 +291,10 @@ struct PaywallView: View {
                 korean: "가족 함께 읽기 리듬을 열어 보세요",
                 spanish: "Desbloquea el ritmo de lectura familiar"
             )
-        case "多孩子档案、更多拍读额度、云同步和周报历史，帮助家长长期看到孩子的进步。":
+        case "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。":
             return appState.localizedText(
                 zhHans: normalizedText,
-                english: "Child profiles, more capture credits, cloud sync, and weekly report history help parents follow each child's progress over time.",
+                english: "Child profiles, more capture credits and weekly report history help parents follow each child's progress over time.",
                 japanese: "子どもプロフィール、より多くの撮影読取枠、クラウド同期、週報履歴で、保護者が長期的な成長を確認できます。",
                 korean: "자녀 프로필, 더 많은 촬영 읽기 한도, 클라우드 동기화, 주간 리포트 기록으로 부모가 아이의 성장을 꾸준히 확인할 수 있습니다.",
                 spanish: "Los perfiles infantiles, más créditos de captura, la sincronización en la nube y el historial semanal ayudan a seguir el progreso de cada niño."
@@ -307,10 +307,10 @@ struct PaywallView: View {
                 korean: "현재 가족 혜택을 한 번 활성화하며, 최종 결제 금액은 Apple 확인 창을 기준으로 합니다.",
                 spanish: "Activa los beneficios familiares actuales una vez; Apple confirma el cargo final."
             )
-        case "学习内容默认优先保存在本机；云同步由家长主动开启。":
+        case "学习内容默认优先保存在本机。":
             return appState.localizedText(
                 zhHans: normalizedText,
-                english: "Learning content is saved on this device by default; cloud sync is enabled by a parent.",
+                english: "Learning content is saved on this device by default.",
                 japanese: "学習内容は標準でこの端末に保存され、クラウド同期は保護者が有効にします。",
                 korean: "학습 콘텐츠는 기본적으로 이 기기에 저장되며, 클라우드 동기화는 부모가 직접 켭니다.",
                 spanish: "El contenido de aprendizaje se guarda en este dispositivo por defecto; la sincronización en la nube la activa un adulto."

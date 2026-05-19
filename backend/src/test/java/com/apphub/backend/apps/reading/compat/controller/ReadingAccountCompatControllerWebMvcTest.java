@@ -59,7 +59,6 @@ class ReadingAccountCompatControllerWebMvcTest {
                     1,
                     true,
                     true,
-                    true,
                     "2026-05-22T00:00:00Z",
                     true,
                     true,

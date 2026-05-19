@@ -127,14 +127,14 @@ class SysCompensationControllerWebMvcTest {
             1,
             30,
             OffsetDateTime.parse("2026-06-01T00:00:00Z"),
+            OffsetDateTime.parse("2026-06-01T00:00:00Z"),
+            "single_use",
             1,
             0,
             "unused",
             null,
             null,
-            null,
             Map.<String, Object>of(),
-            101L,
             OffsetDateTime.parse("2026-05-01T00:00:00Z"),
             OffsetDateTime.parse("2026-05-01T00:00:00Z")
         );

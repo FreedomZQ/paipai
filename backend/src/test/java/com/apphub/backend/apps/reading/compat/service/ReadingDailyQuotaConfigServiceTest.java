@@ -18,7 +18,7 @@ class ReadingDailyQuotaConfigServiceTest {
 
     @Test
     void dailyLimitShouldNormalizeImageRecognitionAliases() {
-        when(quotaConfigMapper.selectActive(eq("paipai_readingcompanion"), eq("free"), eq("capture")))
+        when(quotaConfigMapper.selectActive(eq("paipai_readingcompanion"), eq("free"), eq("local_ocr")))
             .thenReturn(quotaEntity(8));
         ReadingDailyQuotaConfigService service = new ReadingDailyQuotaConfigService(quotaConfigMapper);
 
@@ -29,7 +29,7 @@ class ReadingDailyQuotaConfigServiceTest {
 
     @Test
     void dailyLimitShouldNormalizeSpeechAliases() {
-        when(quotaConfigMapper.selectActive(eq("paipai_readingcompanion"), eq("free"), eq("speech")))
+        when(quotaConfigMapper.selectActive(eq("paipai_readingcompanion"), eq("free"), eq("local_tts")))
             .thenReturn(quotaEntity(16));
         ReadingDailyQuotaConfigService service = new ReadingDailyQuotaConfigService(quotaConfigMapper);
 

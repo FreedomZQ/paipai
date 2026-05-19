@@ -27,10 +27,10 @@ struct AppBootstrap: Codable {
             defaultHighlight: "family_multi_child_lifetime",
             trialEnabled: false,
             headline: "解锁家庭伴读节奏",
-            subtitle: "多孩子档案、更多拍读额度、云同步和周报历史，帮助家长长期看到孩子的进步。",
+            subtitle: "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。",
             trustBullets: [
                 "一次开通当前高级版权益，具体扣款以 Apple 确认弹窗为准。",
-                "学习内容默认优先保存在本机；云同步由家长主动开启。",
+                "学习内容默认优先保存在本机。",
                 "账号删除、法务文档和客服入口均在 App 内可访问。"
             ],
             legalNotice: "权益以后端校验结果为准；价格与扣款以 Apple 确认弹窗为准。"
@@ -77,10 +77,10 @@ struct PaywallConfig: Codable {
         defaultHighlight: String,
         trialEnabled: Bool,
         headline: String = "解锁家庭伴读节奏",
-        subtitle: String = "多孩子档案、更多拍读额度、云同步和周报历史，帮助家长长期看到孩子的进步。",
+        subtitle: String = "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。",
         trustBullets: [String] = [
             "一次开通当前高级版权益，具体扣款以 Apple 确认弹窗为准。",
-            "学习内容默认优先保存在本机；云同步由家长主动开启。",
+            "学习内容默认优先保存在本机。",
             "账号删除、法务文档和客服入口均在 App 内可访问。"
         ],
         legalNotice: String = "权益以后端校验结果为准；价格与扣款以 Apple 确认弹窗为准。"
@@ -107,10 +107,10 @@ struct PaywallConfig: Codable {
         defaultHighlight = try container.decodeIfPresent(String.self, forKey: .defaultHighlight) ?? "family_multi_child_lifetime"
         trialEnabled = try container.decodeIfPresent(Bool.self, forKey: .trialEnabled) ?? false
         headline = try container.decodeIfPresent(String.self, forKey: .headline) ?? "解锁高级版伴读节奏"
-        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle) ?? "多孩子档案、更多拍读额度、云同步和周报历史，帮助家长长期看到孩子的进步。"
+        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle) ?? "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。"
         trustBullets = try container.decodeIfPresent([String].self, forKey: .trustBullets) ?? [
             "一次开通当前高级版权益，具体扣款以 Apple 确认弹窗为准。",
-            "学习内容默认优先保存在本机；云同步由家长主动开启。",
+            "学习内容默认优先保存在本机。",
             "账号删除、法务文档和客服入口均在 App 内可访问。"
         ]
         legalNotice = try container.decodeIfPresent(String.self, forKey: .legalNotice) ?? "权益以后端校验结果为准；价格与扣款以 Apple 确认弹窗为准。"

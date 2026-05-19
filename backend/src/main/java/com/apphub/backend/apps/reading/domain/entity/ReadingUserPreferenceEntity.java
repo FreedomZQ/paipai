@@ -22,8 +22,6 @@ public class ReadingUserPreferenceEntity {
     private String readingTrackCode;
     private String ttsVoiceCode;
     private String translationMode;
-    private Boolean cloudSyncEnabled;
-    private String lastModifiedByInstallationId;
     private Integer recordVersion;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;

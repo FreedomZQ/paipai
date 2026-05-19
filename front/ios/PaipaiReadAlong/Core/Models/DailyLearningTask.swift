@@ -100,7 +100,7 @@ struct DailyLearningTask: Codable, Hashable, Identifiable {
             ?? aliases.decodeIfPresent(String.self, forKey: .id)
             ?? UUID().uuidString
         childId = try container.decodeIfPresent(String.self, forKey: .childId)
-        taskType = try container.decodeIfPresent(String.self, forKey: .taskType) ?? "capture_one"
+        taskType = try container.decodeIfPresent(String.self, forKey: .taskType) ?? "local_ocr_one"
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? "今天拍 1 句"
         reason = try container.decodeIfPresent(String.self, forKey: .reason) ?? "先拍一句，给明天的复习留一个起点。"
         estimatedMinutes = try container.decodeIfPresent(Int.self, forKey: .estimatedMinutes) ?? 3
@@ -128,7 +128,7 @@ struct DailyLearningTask: Codable, Hashable, Identifiable {
         case "review_one", "keep_streak":
             return "go_review"
         default:
-            return "go_capture"
+            return "go_local_ocr"
         }
     }
 }

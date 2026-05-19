@@ -153,14 +153,14 @@ PaipaiReadAlong/
 - OCR 文字识别完全离线(Vision 框架)
 - 语音朗读完全离线(AVSpeechSynthesizer)
 - 本地数据缓存
-- 已登录且开启云同步后,网络恢复时自动同步
+- 已登录后，账号权益与购买记录可刷新
 
 ## 合规与隐私
 
 - 隐私清单文件 (PrivacyInfo.xcprivacy)
 - 隐私政策同意弹窗
 - 数据最小化原则
-- 使用记录主口径为 `UsageSessionRepository + PowerSync` 同步表；家长区展示今日、最近 7 天和累计统计，30 天留存策略仍以后端/上线验收为准
+- 使用记录主口径为 `UsageSessionRepository` 本地表；家长区展示今日、最近 7 天和累计统计，30 天留存策略仍以后端/上线验收为准
 - 付费页增长文案从后端 `reading_paywall_growth` 远程配置读取，本地保留 fallback；真实价格与扣款金额仍以 StoreKit / Apple 确认弹窗为准
 - 公告按 `scene + locale + appVersion + planCode` 拉取；公告 action 仅允许安全 scheme（全局弹窗允许 `https` / `mailto`，支持中心列表仅渲染 `https`）
 
@@ -235,7 +235,7 @@ open PaipaiReadAlong.xcodeproj
 1. 在 Mac / Xcode 16+ 环境执行 `xcodegen generate --spec project.release.yml` 与 `xcodebuild archive`，完成真机或模拟器主链路验收
 2. 用 App Store Sandbox 验证家庭版购买、恢复购买、后端权益刷新和 Paywall fallback 文案
 3. 验证 Apple 登录、账号删除验证码、法务文档链接、支持反馈、公告 action 与隐私同意链路
-4. 验证本地 OCR / 朗读 / 句卡保存 / 复习 / 家长区 usage 统计 / 可选云同步在 iPhone 与 iPad 上的完整闭环
+4. 验证本地 OCR / 朗读 / 句卡保存 / 复习 / 家长区 usage 统计 / 本地数据在 iPhone 与 iPad 上的完整闭环
 5. Mac/Catalyst 仍作为后续专项评估，不纳入当前 iOS/iPadOS 18.0+ 首发承诺
 6. 补齐单元测试和 UI 自动化测试；当前仓内静态预检不替代 Xcode 编译验收
 

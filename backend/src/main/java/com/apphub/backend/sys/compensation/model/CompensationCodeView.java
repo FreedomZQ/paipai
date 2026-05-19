@@ -13,15 +13,15 @@ public record CompensationCodeView(
     String serviceType,
     Integer grantCount,
     Integer grantValidDays,
+    OffsetDateTime grantValidUntilAt,
     OffsetDateTime expiresAt,
+    String claimScope,
     Integer maxUses,
     Integer usedCount,
     String status,
-    Long usedByUserId,
     OffsetDateTime usedAt,
     String voidReason,
     Map<String, Object> metadata,
-    Long createdByUserId,
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt
 ) {}

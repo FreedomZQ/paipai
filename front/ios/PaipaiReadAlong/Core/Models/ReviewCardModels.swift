@@ -10,8 +10,6 @@ struct ReviewCard: Identifiable, Hashable, Codable {
     var supportHint: String
     var proficiency: Int
     var nextReviewAt: String?
-    var syncEnabled: Bool?
-    var storageMode: String?
     var sourceLanguageCode: String?
     var targetLanguageCode: String?
     var sourceType: String?
@@ -37,8 +35,6 @@ struct ReviewCard: Identifiable, Hashable, Codable {
         supportHint: String,
         proficiency: Int,
         nextReviewAt: String? = nil,
-        syncEnabled: Bool? = nil,
-        storageMode: String? = nil,
         sourceLanguageCode: String? = nil,
         targetLanguageCode: String? = nil,
         sourceType: String? = nil,
@@ -59,8 +55,6 @@ struct ReviewCard: Identifiable, Hashable, Codable {
         self.supportHint = supportHint
         self.proficiency = proficiency
         self.nextReviewAt = nextReviewAt
-        self.syncEnabled = syncEnabled
-        self.storageMode = storageMode
         self.sourceLanguageCode = sourceLanguageCode
         self.targetLanguageCode = targetLanguageCode
         self.sourceType = sourceType
@@ -90,8 +84,6 @@ struct ReviewCard: Identifiable, Hashable, Codable {
             ?? ""
         proficiency = try container.decodeIfPresent(Int.self, forKey: .proficiency) ?? 0
         nextReviewAt = try container.decodeIfPresent(String.self, forKey: .nextReviewAt)
-        syncEnabled = try container.decodeIfPresent(Bool.self, forKey: .syncEnabled)
-        storageMode = try container.decodeIfPresent(String.self, forKey: .storageMode)
         sourceLanguageCode = try container.decodeIfPresent(String.self, forKey: .sourceLanguageCode)
         targetLanguageCode = try container.decodeIfPresent(String.self, forKey: .targetLanguageCode)
         sourceType = try container.decodeIfPresent(String.self, forKey: .sourceType)
@@ -115,8 +107,6 @@ struct ReviewCard: Identifiable, Hashable, Codable {
         try container.encode(supportHint, forKey: .supportHint)
         try container.encode(proficiency, forKey: .proficiency)
         try container.encodeIfPresent(nextReviewAt, forKey: .nextReviewAt)
-        try container.encodeIfPresent(syncEnabled, forKey: .syncEnabled)
-        try container.encodeIfPresent(storageMode, forKey: .storageMode)
         try container.encodeIfPresent(sourceLanguageCode, forKey: .sourceLanguageCode)
         try container.encodeIfPresent(targetLanguageCode, forKey: .targetLanguageCode)
         try container.encodeIfPresent(sourceType, forKey: .sourceType)
@@ -147,8 +137,6 @@ struct ReviewCard: Identifiable, Hashable, Codable {
         case translatedText
         case proficiency
         case nextReviewAt
-        case syncEnabled
-        case storageMode
         case sourceLanguageCode
         case targetLanguageCode
         case sourceType

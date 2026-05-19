@@ -1,5 +1,4 @@
 import Foundation
-import PowerSync
 
 /// 周报历史本地缓存。
 ///
@@ -136,11 +135,11 @@ struct WeeklyReportGenerationResult {
 }
 
 final class LocalWeeklyReportRepository {
-    private let database: PowerSyncDatabaseProtocol
+    private let database: LocalDatabase
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(database: PowerSyncDatabaseProtocol) {
+    init(database: LocalDatabase) {
         self.database = database
     }
 
@@ -157,7 +156,7 @@ final class LocalWeeklyReportRepository {
         var generatedCount = 0
         for child in children where !child.isDeleted {
             let existing = Set(await reportWeekStarts(childId: child.id))
-            for weekStart in completedWeeks where !existing.contains(SyncClock.dateOnly(from: weekStart)) {
+            for weekStart in completedWeeks where !existing.contains(AppClock.dateOnly(from: weekStart)) {
                 if await insertGeneratedReport(child: child, weekStart: weekStart, localeCode: localeCode) {
                     generatedCount += 1
                 }
@@ -174,11 +173,11 @@ final class LocalWeeklyReportRepository {
         } else {
             effectiveCutoff = cutoff
         }
-        let cutoffKey = SyncClock.dateOnly(from: effectiveCutoff)
+        let cutoffKey = AppClock.dateOnly(from: effectiveCutoff)
         return await loadRecords(
             sql: """
                 SELECT id, child_id, child_name, week_start, week_end, locale_code, report_json, open_count, generated_at, last_opened_at
-                FROM \(ReadingSyncTableName.weeklyReport)
+                FROM \(ReadingLocalTableName.weeklyReport)
                 WHERE child_id = ? AND week_start >= ?
                 ORDER BY week_start DESC
                 """,
@@ -189,12 +188,12 @@ final class LocalWeeklyReportRepository {
     func latestUnreadReport(earliestReportWeekStart: Date? = nil) async -> LocalWeeklyReportRecord? {
         var sql = """
             SELECT id, child_id, child_name, week_start, week_end, locale_code, report_json, open_count, generated_at, last_opened_at
-            FROM \(ReadingSyncTableName.weeklyReport)
+            FROM \(ReadingLocalTableName.weeklyReport)
             """
         var parameters: [Any?] = []
         if let earliestReportWeekStart {
             sql += " WHERE week_start >= ?"
-            parameters.append(SyncClock.dateOnly(from: earliestReportWeekStart))
+            parameters.append(AppClock.dateOnly(from: earliestReportWeekStart))
         }
         sql += """
 
@@ -210,10 +209,10 @@ final class LocalWeeklyReportRepository {
     }
 
     func markOpened(reportId: String) async {
-        let now = SyncClock.nowString()
+        let now = AppClock.nowString()
         _ = try? await database.execute(
             sql: """
-                UPDATE \(ReadingSyncTableName.weeklyReport)
+                UPDATE \(ReadingLocalTableName.weeklyReport)
                 SET open_count = COALESCE(open_count, 0) + 1,
                     last_opened_at = ?,
                     updated_at = ?
@@ -225,8 +224,8 @@ final class LocalWeeklyReportRepository {
 
     private func insertGeneratedReport(child: ChildProfile, weekStart: Date, localeCode: String) async -> Bool {
         guard let weekEnd = Calendar(identifier: .gregorian).date(byAdding: .day, value: 6, to: weekStart) else { return false }
-        let weekStartKey = SyncClock.dateOnly(from: weekStart)
-        let weekEndKey = SyncClock.dateOnly(from: weekEnd)
+        let weekStartKey = AppClock.dateOnly(from: weekStart)
+        let weekEndKey = AppClock.dateOnly(from: weekEnd)
         let stats = await weeklyStats(childId: child.id, weekStart: weekStart, weekEnd: weekEnd)
         let daily = await dailyUsageMinutes(childId: child.id, weekStart: weekStart)
         let report = buildReport(
@@ -241,12 +240,12 @@ final class LocalWeeklyReportRepository {
               let json = String(data: data, encoding: .utf8) else {
             return false
         }
-        let now = SyncClock.nowString()
+        let now = AppClock.nowString()
         let id = "weekly|\(child.id)|\(weekStartKey)"
         do {
             try await database.execute(
                 sql: """
-                    INSERT OR IGNORE INTO \(ReadingSyncTableName.weeklyReport)
+                    INSERT OR IGNORE INTO \(ReadingLocalTableName.weeklyReport)
                     (id, app_code, child_id, child_name, week_start, week_end, locale_code, report_json, open_count, generated_at, last_opened_at, created_at, updated_at)
                     VALUES (?, '\(AppIdentity.appCode)', ?, ?, ?, ?, ?, ?, 0, ?, NULL, ?, ?)
                     """,
@@ -289,7 +288,7 @@ final class LocalWeeklyReportRepository {
             nextWeekSuggestion: suggestion,
             suggestions: suggestions,
             disclaimer: isEnglish ? "Generated locally from on-device reading activity. No external AI analysis is used." : "本报告根据设备内阅读记录按固定规则生成，未调用外部大模型分析。",
-            generatedAt: SyncClock.nowString(),
+            generatedAt: AppClock.nowString(),
             planCode: "local",
             tier: "local",
             pageShareEnabled: true,
@@ -304,12 +303,12 @@ final class LocalWeeklyReportRepository {
     }
 
     private func weeklyStats(childId: String, weekStart: Date, weekEnd: Date) async -> WeeklyParentReportStats {
-        let start = SyncClock.string(from: weekStart)
-        let endExclusive = SyncClock.string(from: Calendar(identifier: .gregorian).date(byAdding: .day, value: 1, to: weekEnd) ?? weekEnd)
+        let start = AppClock.string(from: weekStart)
+        let endExclusive = AppClock.string(from: Calendar(identifier: .gregorian).date(byAdding: .day, value: 1, to: weekEnd) ?? weekEnd)
         let activeDays = await scalarInt(
             sql: """
                 SELECT COUNT(DISTINCT substr(started_at, 1, 10)) AS count
-                FROM \(ReadingSyncTableName.usageSession)
+                FROM \(ReadingLocalTableName.usageSession)
                 WHERE child_id = ? AND deleted_at IS NULL AND started_at >= ? AND started_at < ?
                 """,
             parameters: [childId, start, endExclusive]
@@ -317,7 +316,7 @@ final class LocalWeeklyReportRepository {
         let reviewCount = await scalarInt(
             sql: """
                 SELECT COUNT(*) AS count
-                FROM \(ReadingSyncTableName.reviewEvent)
+                FROM \(ReadingLocalTableName.reviewEvent)
                 WHERE child_id = ? AND event_at >= ? AND event_at < ?
                 """,
             parameters: [childId, start, endExclusive]
@@ -325,7 +324,7 @@ final class LocalWeeklyReportRepository {
         let weeklySaved = await scalarInt(
             sql: """
                 SELECT COUNT(*) AS count
-                FROM \(ReadingSyncTableName.reviewCard)
+                FROM \(ReadingLocalTableName.reviewCard)
                 WHERE child_id = ? AND deleted_at IS NULL AND created_at >= ? AND created_at < ?
                 """,
             parameters: [childId, start, endExclusive]
@@ -333,7 +332,7 @@ final class LocalWeeklyReportRepository {
         let savedTotal = await scalarInt(
             sql: """
                 SELECT COUNT(*) AS count
-                FROM \(ReadingSyncTableName.reviewCard)
+                FROM \(ReadingLocalTableName.reviewCard)
                 WHERE child_id = ? AND deleted_at IS NULL
                 """,
             parameters: [childId]
@@ -341,7 +340,7 @@ final class LocalWeeklyReportRepository {
         let due = await scalarInt(
             sql: """
                 SELECT COUNT(*) AS count
-                FROM \(ReadingSyncTableName.reviewCard)
+                FROM \(ReadingLocalTableName.reviewCard)
                 WHERE child_id = ? AND deleted_at IS NULL AND proficiency < 3
                 """,
             parameters: [childId]
@@ -369,10 +368,10 @@ final class LocalWeeklyReportRepository {
             let seconds = await scalarInt(
                 sql: """
                     SELECT COALESCE(SUM(duration_seconds), 0) AS count
-                    FROM \(ReadingSyncTableName.usageSession)
+                    FROM \(ReadingLocalTableName.usageSession)
                     WHERE child_id = ? AND deleted_at IS NULL AND started_at >= ? AND started_at < ?
                     """,
-                parameters: [childId, SyncClock.string(from: day), SyncClock.string(from: nextDay)]
+                parameters: [childId, AppClock.string(from: day), AppClock.string(from: nextDay)]
             )
             result.append(Int((Double(seconds) / 60.0).rounded()))
         }
@@ -381,7 +380,7 @@ final class LocalWeeklyReportRepository {
 
     private func reportWeekStarts(childId: String) async -> [String] {
         (try? await database.getAll(
-            sql: "SELECT week_start FROM \(ReadingSyncTableName.weeklyReport) WHERE child_id = ?",
+            sql: "SELECT week_start FROM \(ReadingLocalTableName.weeklyReport) WHERE child_id = ?",
             parameters: [childId]
         ) { cursor in
             try cursor.getString(name: "week_start")
@@ -443,15 +442,15 @@ final class LocalWeeklyReportRepository {
     func earliestLocalActivityDate() async -> Date? {
         let values = (try? await database.getAll(
             sql: """
-                SELECT created_at AS occurred_at FROM \(ReadingSyncTableName.childProfile) WHERE created_at IS NOT NULL
+                SELECT created_at AS occurred_at FROM \(ReadingLocalTableName.childProfile) WHERE created_at IS NOT NULL
                 UNION ALL
-                SELECT started_at AS occurred_at FROM \(ReadingSyncTableName.usageSession) WHERE started_at IS NOT NULL
+                SELECT started_at AS occurred_at FROM \(ReadingLocalTableName.usageSession) WHERE started_at IS NOT NULL
                 UNION ALL
-                SELECT event_at AS occurred_at FROM \(ReadingSyncTableName.reviewEvent) WHERE event_at IS NOT NULL
+                SELECT event_at AS occurred_at FROM \(ReadingLocalTableName.reviewEvent) WHERE event_at IS NOT NULL
                 UNION ALL
-                SELECT event_at AS occurred_at FROM \(ReadingSyncTableName.learningEvent) WHERE event_at IS NOT NULL
+                SELECT event_at AS occurred_at FROM \(ReadingLocalTableName.learningEvent) WHERE event_at IS NOT NULL
                 UNION ALL
-                SELECT created_at AS occurred_at FROM \(ReadingSyncTableName.reviewCard) WHERE created_at IS NOT NULL
+                SELECT created_at AS occurred_at FROM \(ReadingLocalTableName.reviewCard) WHERE created_at IS NOT NULL
                 ORDER BY occurred_at ASC
                 LIMIT 1
                 """,
@@ -459,14 +458,14 @@ final class LocalWeeklyReportRepository {
         ) { cursor in
             try cursor.getStringOptional(name: "occurred_at")
         }) ?? []
-        return values.compactMap { SyncClock.date(from: $0) }.first
+        return values.compactMap { AppClock.date(from: $0) }.first
     }
 
     private func deleteReportsBefore(earliestReportWeekStart: Date?) async {
         guard let earliestReportWeekStart else { return }
         _ = try? await database.execute(
-            sql: "DELETE FROM \(ReadingSyncTableName.weeklyReport) WHERE week_start < ?",
-            parameters: [SyncClock.dateOnly(from: earliestReportWeekStart)]
+            sql: "DELETE FROM \(ReadingLocalTableName.weeklyReport) WHERE week_start < ?",
+            parameters: [AppClock.dateOnly(from: earliestReportWeekStart)]
         )
     }
 
@@ -500,7 +499,7 @@ final class LocalWeeklyReportRepository {
 }
 
 private extension WeeklyReportModule {
-    static func local(code: String, title: String, payload: [String: PowerSyncPayloadValue]) -> WeeklyReportModule {
+    static func local(code: String, title: String, payload: [String: LocalPayloadValue]) -> WeeklyReportModule {
         let data = try? JSONSerialization.data(withJSONObject: [
             "code": code,
             "title": title,
@@ -518,7 +517,7 @@ private extension WeeklyReportModule {
     }
 }
 
-private extension PowerSyncPayloadValue {
+private extension LocalPayloadValue {
     var jsonValue: Any {
         switch self {
         case let .string(value): return value

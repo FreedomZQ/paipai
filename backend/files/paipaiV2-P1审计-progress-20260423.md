@@ -28,7 +28,7 @@
   - 隐私同意页移除了“使用时长记录将在 30 天后自动删除”的旧口径。
   - 文案已改成与当前法务/后端口径一致：
     - 学习内容本地优先
-    - 开启云同步或主动触发云端能力时才同步必要数据
+    - 开启已下线多端数据能力或主动触发云端能力时才同步必要数据
     - usage 聚合用于展示今日 / 最近 7 天 / 累计统计
     - 云端 OCR / TTS 仅在用户主动触发时走网络并受权益/次数控制
 
@@ -238,7 +238,7 @@
     - `ReadingCompatServiceTest`
     - `ReadingDeletionVerificationCompatControllerWebMvcTest`
     - `ReadingPreferenceServiceTest`
-    - `ReadingPowerSyncAdapterTest`
+    - `Reading已下线多端数据方案AdapterTest`
     - `ReadingPublicCompatControllerWebMvcTest`
     - `ReadingTtsCompatControllerWebMvcTest`
     - `ReadingAnnouncementServiceTest`
@@ -356,7 +356,7 @@
   - auth 路由生成与 `BackendClient` 边界校验改为共享同一前缀来源
   - 避免未来多 App 时一边升级为 app-scoped 路由，另一边仍残留手写旧前缀
 - 追加扫描未发现新的 `UserDefaults.standard` 直写漏网点
-- 追加扫描未发现新的旧式 auth / powersync 非 app-scoped 路由拼接点
+- 追加扫描未发现新的旧式 auth / removed-data-feature 非 app-scoped 路由拼接点
 - 本轮继续把一批对外暴露文案里的内部 `reading` 实现名收口：
   - iOS `CaptureView.swift` 已把“经过 reading 后端校验”改为“经过当前 App 后端校验”
   - backend `OpenApiConfig.java` 的 API 描述改为强调 multi-app / app-scoped auth,billing,sync,release gate 基线
@@ -377,7 +377,7 @@
   - backend 新增 `AppCodes.java`，开始集中承载对外 `appCode` 常量，减少散落硬编码。
   - backend 新增 `AppCompatControllerSupport.java`，把 app 是否存在、会话是否属于指定 app 的门禁逻辑抽到统一辅助层。
   - `SysAuthController.java` 已接入 `AppCompatControllerSupport`，减少未来多 App 控制器复制粘贴漂移。
-  - iOS 新增 `Core/Utilities/AppIdentity.swift`，并把一批底层 route / storage / PowerSync 默认参数改为优先消费 `AppIdentity`。
+  - iOS 新增 `Core/Utilities/AppIdentity.swift`，并把一批底层 route / storage / 已下线多端数据方案 默认参数改为优先消费 `AppIdentity`。
   - `PaipaiAppIdentity.swift` 保留为兼容薄别名，避免一次性模板化重命名带来漏改风险。
   - DB 新增 `V13__document_reading_table_prefix_as_physical_domain.sql`，通过表注释明确 `reading_` 只是物理业务域前缀，不等于对外 appCode。
 - DB 实查确认：
@@ -414,7 +414,7 @@
 
 ### P1：发布前强烈建议完成
 - 在 Mac / Xcode 环境完成 iOS 编译与基础 UI 回归
-- 在真机或至少模拟器完成登录、购买、OCR/TTS、PowerSync、账号删除链路回归
+- 在真机或至少模拟器完成登录、购买、OCR/TTS、已下线多端数据方案、账号删除链路回归
 - 继续补齐 production/release 配置源，确保 release gate 从 `blocked` 收敛到 `ready`
 
 ### P2：可继续做但不阻止当前代码收口

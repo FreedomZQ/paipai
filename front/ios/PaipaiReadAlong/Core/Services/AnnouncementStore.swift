@@ -188,7 +188,7 @@ final class AnnouncementStore {
     }
 
     private func dateKey(from date: Date) -> String {
-        SyncClock.dateOnly(from: date)
+        AppClock.dateOnly(from: date)
     }
 
     private func dailyKey(userId: String, date: String) -> String {

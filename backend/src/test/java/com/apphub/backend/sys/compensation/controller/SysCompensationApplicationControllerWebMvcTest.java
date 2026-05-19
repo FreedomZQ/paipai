@@ -44,14 +44,14 @@ class SysCompensationApplicationControllerWebMvcTest {
                 10,
                 30,
                 OffsetDateTime.parse("2026-06-15T00:00:00Z"),
+                OffsetDateTime.parse("2026-06-15T00:00:00Z"),
+                "single_use",
                 1,
                 0,
                 "unused",
                 null,
                 null,
-                null,
-                Map.of("note", "补偿事由：云端朗读服务异常补偿"),
-                null,
+                Map.<String, Object>of("note", "补偿事由：云端朗读服务异常补偿"),
                 OffsetDateTime.parse("2026-05-16T00:00:00Z"),
                 OffsetDateTime.parse("2026-05-16T00:00:00Z")
             ));

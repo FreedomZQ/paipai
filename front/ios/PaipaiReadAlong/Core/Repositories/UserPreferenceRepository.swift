@@ -1,16 +1,15 @@
 import Foundation
-import PowerSync
 
 final class UserPreferenceRepository {
-    private let database: PowerSyncDatabaseProtocol
+    private let database: LocalDatabase
 
-    init(database: PowerSyncDatabaseProtocol) {
+    init(database: LocalDatabase) {
         self.database = database
     }
 
     func current() async -> UserPreference {
         (try? await database.getOptional(
-            sql: "SELECT user_id, ui_locale, source_language_code, target_language_code, reading_track_code, tts_voice_code, translation_mode, cloud_sync_enabled, updated_at FROM \(ReadingSyncTableName.userPreference) LIMIT 1",
+            sql: "SELECT user_id, ui_locale, source_language_code, target_language_code, reading_track_code, tts_voice_code, translation_mode, updated_at FROM \(ReadingLocalTableName.userPreference) LIMIT 1",
             parameters: []
         ) { cursor in
             UserPreference(
@@ -21,7 +20,6 @@ final class UserPreferenceRepository {
                 readingTrackCode: try cursor.getStringOptional(name: "reading_track_code") ?? "zh_to_en",
                 ttsVoiceCode: try cursor.getStringOptional(name: "tts_voice_code"),
                 translationMode: try cursor.getStringOptional(name: "translation_mode") ?? "device_only",
-                cloudSyncEnabled: try cursor.getBooleanOptional(name: "cloud_sync_enabled") ?? false,
                 updatedAt: try cursor.getStringOptional(name: "updated_at"),
                 persisted: true
             )
@@ -36,11 +34,10 @@ final class UserPreferenceRepository {
         readingTrackCode: String? = nil,
         ttsVoiceCode: String? = nil,
         translationMode: String? = nil,
-        cloudSyncEnabled: Bool? = nil,
         persisted: Bool = true
     ) async -> UserPreference {
         let current = await self.current()
-        let now = SyncClock.nowString()
+        let now = AppClock.nowString()
         let next = UserPreference(
             userId: current.userId,
             uiLocale: uiLocale ?? current.uiLocale,
@@ -49,16 +46,15 @@ final class UserPreferenceRepository {
             readingTrackCode: readingTrackCode ?? current.readingTrackCode,
             ttsVoiceCode: ttsVoiceCode ?? current.ttsVoiceCode,
             translationMode: translationMode ?? current.translationMode,
-            cloudSyncEnabled: cloudSyncEnabled ?? current.cloudSyncEnabled,
             updatedAt: now,
             persisted: persisted
         )
         _ = try? await database.execute(
             sql: """
-                INSERT OR REPLACE INTO \(ReadingSyncTableName.userPreference)
+                INSERT OR REPLACE INTO \(ReadingLocalTableName.userPreference)
                 (id, app_code, ui_locale, source_language_code, target_language_code, reading_track_code, tts_voice_code,
-                 translation_mode, cloud_sync_enabled, record_version, created_at, updated_at)
-                VALUES ('me', '\(AppIdentity.appCode)', ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT record_version + 1 FROM \(ReadingSyncTableName.userPreference) WHERE id = 'me'), 1), COALESCE((SELECT created_at FROM \(ReadingSyncTableName.userPreference) WHERE id = 'me'), ?), ?)
+                 translation_mode, record_version, created_at, updated_at)
+                VALUES ('me', '\(AppIdentity.appCode)', ?, ?, ?, ?, ?, ?, COALESCE((SELECT record_version + 1 FROM \(ReadingLocalTableName.userPreference) WHERE id = 'me'), 1), COALESCE((SELECT created_at FROM \(ReadingLocalTableName.userPreference) WHERE id = 'me'), ?), ?)
                 """,
             parameters: [
                 next.uiLocale,
@@ -67,7 +63,6 @@ final class UserPreferenceRepository {
                 next.readingTrackCode,
                 next.ttsVoiceCode,
                 next.translationMode,
-                next.cloudSyncEnabled ? 1 : 0,
                 now,
                 now
             ]
@@ -76,6 +71,6 @@ final class UserPreferenceRepository {
     }
 
     func clear() async {
-        _ = try? await database.execute(sql: "DELETE FROM \(ReadingSyncTableName.userPreference)", parameters: [])
+        _ = try? await database.execute(sql: "DELETE FROM \(ReadingLocalTableName.userPreference)", parameters: [])
     }
 }

@@ -16,15 +16,6 @@ struct PaipaiReadAlongApp: App {
                 .environmentObject(appState)
                 .environmentObject(announcementManager)
                 .tint(AppColors.primary)
-                .overlay(alignment: .topTrailing) {
-                    if appState.hasCompletedOnboarding,
-                       appState.authSession != nil,
-                       appState.syncRuntimeState.cloudSyncEnabled {
-                        SyncStatusBadgeView(state: appState.syncRuntimeState)
-                            .padding(.top, 12)
-                            .padding(.trailing, 12)
-                    }
-                }
                 .overlay {
                     if appState.shouldPresentAnnouncementOverlay,
                        !announcementManager.currentAnnouncements.isEmpty {
@@ -58,8 +49,8 @@ struct PaipaiReadAlongApp: App {
                 .alert(appState.uiText("需要处理", "Needs attention"), isPresented: appErrorAlertBinding) {
                     Button(appState.uiText("知道了", "OK")) {
                         appState.errorMessage = nil
-                        appState.isSpeechQuotaExhausted = false
-                        appState.speechQuotaExhaustedMessage = nil
+                        appState.isLocalTtsQuotaExhausted = false
+                        appState.localTtsQuotaExhaustedMessage = nil
                     }
                 } message: {
                     Text(appState.errorMessage ?? "")
@@ -112,8 +103,8 @@ struct PaipaiReadAlongApp: App {
             set: { isPresented in
                 if !isPresented {
                     appState.errorMessage = nil
-                    appState.isSpeechQuotaExhausted = false
-                    appState.speechQuotaExhaustedMessage = nil
+                    appState.isLocalTtsQuotaExhausted = false
+                    appState.localTtsQuotaExhaustedMessage = nil
                 }
             }
         )
@@ -147,14 +138,14 @@ class AppState: ObservableObject {
         }
     }
     @Published var isShowingPaywall = false
-    @Published var isSpeechQuotaExhausted = false
-    @Published var speechQuotaExhaustedMessage: String?
+    @Published var isLocalTtsQuotaExhausted = false
+    @Published var localTtsQuotaExhaustedMessage: String?
     @Published var announcementOverlayRefreshToken = UUID()
     @Published var parentGateRefreshToken = UUID()
     @Published var isParentGateVerified = false
     /// 请求关闭 Capture 模块（fullScreenCover）并返回伴读乐园。
     /// 由 OCRConfirmView 等子页面触发，CaptureView 观察并执行 dismiss()。
-    @Published var requestDismissCaptureCover: Bool = false
+    @Published var requestDismissLocalOcrCover: Bool = false
 
     @Published var bootstrap: AppBootstrap = .placeholder
     @Published var authSession: StoredAuthSession?
@@ -168,7 +159,7 @@ class AppState: ObservableObject {
     @Published var selectedChild: ChildProfile = .default {
         didSet {
             guard oldValue.id != selectedChild.id || oldValue.learningTrackCode != selectedChild.learningTrackCode else { return }
-            scheduleSpeechResourcePreload(reason: "selected_child_changed")
+            scheduleLocalTtsResourcePreload(reason: "selected_child_changed")
         }
     }
     @Published var reviewCards: [ReviewCard] = []
@@ -186,7 +177,6 @@ class AppState: ObservableObject {
             AppTypographyScale.multiplier = textSizeOption.multiplier
         }
     }
-    @Published var syncRuntimeState: SyncRuntimeState = .idle
     @Published var appVersionPolicy: AppVersionPolicy?
     @Published var billingHealth: BillingHealth?
     @Published var creditProducts: [CreditProduct] = []
@@ -194,8 +184,8 @@ class AppState: ObservableObject {
     @Published var isEntitlementRecordSyncing = false
     @Published var entitlementRecordsLastSyncedAt: String?
     @Published var activeEntitlementUsageSummaries: [String: EntitlementUsageSummary] = [:]
-    @Published var localCaptureUsedToday = 0
-    @Published var localSpeechUsedToday = 0
+    @Published var localOcrUsedToday = 0
+    @Published var localTtsUsedToday = 0
     @Published var languagePackDownloadState: LanguagePackDownloadState = .idle
     @Published var isShowingLanguagePackDownloader = false
     @Published var latestUnreadWeeklyReport: LocalWeeklyReportRecord?
@@ -213,17 +203,13 @@ class AppState: ObservableObject {
     let purchaseService = AppStorePurchaseService()
     private let announcementStore = AnnouncementStore()
 
-    private let syncSettingsStore = SyncSettingsStore()
-    private let rejectionStore = PowerSyncRejectionStore()
-    private let installationStore = PowerSyncInstallationStore()
-    private let credentialStore = PowerSyncCredentialStore()
     private let weeklyReportCache = WeeklyReportLocalCache()
     private var didBootstrap = false
     private var entitlementSyncTask: Task<Void, Never>?
     private var usageTickTasks: [String: Task<Void, Never>] = [:]
-    private var speechResourcePreloadTask: Task<Void, Never>?
+    private var localTtsResourcePreloadTask: Task<Void, Never>?
     private var weeklyReportGenerationTask: Task<Void, Never>?
-    private var preloadedSpeechLanguageCodes: Set<String> = []
+    private var preloadedLocalTtsLanguageCodes: Set<String> = []
     private var appForegroundUsageSessionId: String?
     private var reviewPageIndexByChildId: [String: Int] = [:]
 
@@ -231,41 +217,19 @@ class AppState: ObservableObject {
         authSession?.account.accountId ?? "signed-out"
     }
 
-    private lazy var childRepository = ChildProfileRepository(database: powerSyncManager.db)
-    private lazy var reviewEventRepository = ReviewEventRepository(database: powerSyncManager.db)
-    private lazy var reviewCardRepository = ReviewCardRepository(database: powerSyncManager.db)
-    private lazy var learningEventRepository = LearningEventRepository(database: powerSyncManager.db)
-    private lazy var usageSessionRepository = UsageSessionRepository(database: powerSyncManager.db)
-    private lazy var userPreferenceRepository = UserPreferenceRepository(database: powerSyncManager.db)
-    private lazy var entitlementRecordRepository = EntitlementRecordRepository(database: powerSyncManager.db)
-    private lazy var localWeeklyReportRepository = LocalWeeklyReportRepository(database: powerSyncManager.db)
-    private lazy var powerSyncBootstrapAPI = PowerSyncBootstrapAPI(
-        backendClient: backendClient,
-        installationStore: installationStore,
-        syncSettingsStore: syncSettingsStore,
-        deviceInfoService: deviceInfoService
-    )
-    private lazy var powerSyncUploadAPI = PowerSyncUploadAPI(
-        backendClient: backendClient,
-        installationStore: installationStore
-    )
-    private lazy var powerSyncConnector = PowerSyncConnector(
-        bootstrapAPI: powerSyncBootstrapAPI,
-        uploadAPI: powerSyncUploadAPI,
-        credentialStore: credentialStore,
-        rejectionStore: rejectionStore,
-        installationStore: installationStore,
-        scopeProvider: { [weak self] in self?.storageScope ?? "signed-out" },
-        hasAuthenticatedSession: { [weak self] in self?.hasAuthenticatedSession ?? false }
-    )
-    private lazy var powerSyncManager = PowerSyncManager(
-        connector: powerSyncConnector,
-        rejectionStore: rejectionStore,
-        syncSettingsStore: syncSettingsStore,
-        installationStore: installationStore,
-        scopeProvider: { [weak self] in self?.storageScope ?? "signed-out" },
-        hasAuthenticatedSession: { [weak self] in self?.hasAuthenticatedSession ?? false }
-    )
+    private var localDeviceId: String {
+        "local-\(storageScope)"
+    }
+
+    private lazy var localDatabase = LocalDatabase(dbFilename: AppIdentity.localDatabaseFilename)
+    private lazy var childRepository = ChildProfileRepository(database: localDatabase)
+    private lazy var reviewEventRepository = ReviewEventRepository(database: localDatabase)
+    private lazy var reviewCardRepository = ReviewCardRepository(database: localDatabase)
+    private lazy var learningEventRepository = LearningEventRepository(database: localDatabase)
+    private lazy var usageSessionRepository = UsageSessionRepository(database: localDatabase)
+    private lazy var userPreferenceRepository = UserPreferenceRepository(database: localDatabase)
+    private lazy var entitlementRecordRepository = EntitlementRecordRepository(database: localDatabase)
+    private lazy var localWeeklyReportRepository = LocalWeeklyReportRepository(database: localDatabase)
 
     init() {
         let appDefaults = AppScopedDefaults()
@@ -308,12 +272,12 @@ class AppState: ObservableObject {
         return languagePair(for: effectiveLearningTrackCode).target
     }
 
-    var sourceSpeechLanguageCode: String {
-        speechVoiceCode(for: sourceLanguageCode)
+    var sourceLocalTtsLanguageCode: String {
+        localTtsVoiceCode(for: sourceLanguageCode)
     }
 
-    var targetSpeechLanguageCode: String {
-        speechVoiceCode(for: targetLanguageCode)
+    var targetLocalTtsLanguageCode: String {
+        localTtsVoiceCode(for: targetLanguageCode)
     }
 
     var sourceLanguageTitle: String {
@@ -324,8 +288,8 @@ class AppState: ObservableObject {
         languageTitle(for: targetLanguageCode, fallback: uiText("译文", "Translation"))
     }
 
-    func speechLanguageCode(for languageCode: String) -> String {
-        speechVoiceCode(for: languageCode)
+    func localTtsLanguageCode(for languageCode: String) -> String {
+        localTtsVoiceCode(for: languageCode)
     }
 
     func displayTitle(for languageCode: String, fallback: String? = nil) -> String {
@@ -529,9 +493,9 @@ class AppState: ObservableObject {
     func bootstrapIfNeeded() async {
         guard !didBootstrap else { return }
         didBootstrap = true
-        scheduleSpeechResourcePreload(reason: "bootstrap_begin")
+        scheduleLocalTtsResourcePreload(reason: "bootstrap_begin")
         await startup()
-        scheduleSpeechResourcePreload(reason: "bootstrap_data_ready")
+        scheduleLocalTtsResourcePreload(reason: "bootstrap_data_ready")
         await refreshLanguagePackQueueIfNeeded()
     }
 
@@ -542,7 +506,7 @@ class AppState: ObservableObject {
     /// 需要在此主动触发本地日期校验，保证用户看到的权益是今天的。
     ///
     /// 具体动作：
-    /// 1. `refreshLocalQuotaCaches()`：按本地日期将 `localCaptureUsedToday` / `localSpeechUsedToday` 重置为 0（跨天时）
+    /// 1. `refreshLocalQuotaCaches()`：按本地日期将 `localOcrUsedToday` / `localTtsUsedToday` 重置为 0（跨天时）
     /// 2. `resetCachedQuotaIfCrossedDay()`：将 cached `accountState.quota.quotaDate` 回滚到今天、used 清零
     /// 3. 尝试后端拉取最新权益（已登录时）；后端下线时前两步已保证 UI 回满
     func handleForegroundActivation() async {
@@ -555,6 +519,9 @@ class AppState: ObservableObject {
             await startAppForegroundUsageSessionIfNeeded()
             await ensureLocalWeeklyReports(reason: "foreground")
             scheduleWeeklyReportGenerationTimer()
+        } else {
+            ensureLocalDeviceAccountState()
+            await syncDailyQuotaGrantRecords(days: 1)
         }
     }
 
@@ -584,7 +551,7 @@ class AppState: ObservableObject {
 
     private func performAuthenticatedStartupRefresh(reason: String) async {
         await loadLocalCaches()
-        preloadSpeechResourcesNow(reason: "startup_local_caches")
+        preloadLocalTtsResourcesNow(reason: "startup_local_caches")
         do {
             bootstrap = try await backendClient.fetchBootstrap()
         } catch {
@@ -599,9 +566,9 @@ class AppState: ObservableObject {
         }
         authSession = backendClient.currentSession
         await loadLocalCaches()
-        preloadSpeechResourcesNow(reason: "startup_refreshed_local_caches")
+        preloadLocalTtsResourcesNow(reason: "startup_refreshed_local_caches")
         await refreshAllData()
-        scheduleSpeechResourcePreload(reason: "startup_refresh_all_data")
+        scheduleLocalTtsResourcePreload(reason: "startup_refresh_all_data")
         await synchronizeNow(reason: reason)
         await refreshBillingSurface()
         await syncEntitlementRecordsFromBackend(reason: reason, reportError: false)
@@ -627,9 +594,13 @@ class AppState: ObservableObject {
     }
 
     func refreshAccountState(force: Bool = false) async {
-        guard hasAuthenticatedSession else { return }
+        guard hasAuthenticatedSession else {
+            ensureLocalDeviceAccountState()
+            await syncDailyQuotaGrantRecords(days: 1)
+            return
+        }
         let defaults = AppScopedDefaults()
-        let today = SyncClock.dateOnly(from: Date())
+        let today = AppClock.dateOnly(from: Date())
         if !force,
            defaults.string(forKey: AppDefaultKey.accountStateLastFetchDate) == today,
            let cachedData = defaults.data(forKey: AppDefaultKey.accountStateCache),
@@ -648,9 +619,6 @@ class AppState: ObservableObject {
                 defaults.set(today, forKey: AppDefaultKey.accountStateLastFetchDate)
             }
             await refreshCloudUsageStateFromBackend()
-            if accountState?.entitlement.cloudSyncEnabled != true || accountState?.entitlement.backendVerifiedPremiumActive != true {
-                syncSettingsStore.setCloudSyncEnabled(false, scope: storageScope)
-            }
             await refreshActiveEntitlementUsageSummaries()
             alignLocalQuotaUsageWithEntitlement()
         } catch {
@@ -691,7 +659,16 @@ class AppState: ObservableObject {
 
     func refreshEntitlementRecords(serviceType: String? = nil, statusFilter: String? = nil, page: Int = 1, pageSize: Int = 20, forceBackendSync: Bool = false) async {
         guard hasAuthenticatedSession else {
-            entitlementRecordPage = nil
+            ensureLocalDeviceAccountState()
+            await syncDailyQuotaGrantRecords(days: 1)
+            entitlementRecordsLastSyncedAt = AppClock.nowString()
+            entitlementRecordPage = await entitlementRecordRepository.loadPage(
+                accountId: storageScope,
+                serviceType: serviceType,
+                statusFilter: statusFilter,
+                page: page,
+                pageSize: pageSize
+            )
             return
         }
         if forceBackendSync {
@@ -753,7 +730,7 @@ class AppState: ObservableObject {
             todayLearningCount = await learningEventRepository.count(childId: selectedChild.id)
             await refreshReadingAchievementStats()
         }
-        scheduleSpeechResourcePreload(reason: "home_data_refreshed")
+        scheduleLocalTtsResourcePreload(reason: "home_data_refreshed")
     }
 
     func refreshPlans() async {
@@ -814,7 +791,7 @@ class AppState: ObservableObject {
     }
 
     private func earliestAllowedWeeklyReportStart() async -> Date? {
-        if let accountCreatedAt = SyncClock.date(from: authSession?.account.createdAt) {
+        if let accountCreatedAt = AppClock.date(from: authSession?.account.createdAt) {
             return localWeeklyReportRepository.earliestReportWeekStart(afterAccountCreatedAt: accountCreatedAt)
         }
         let localActivityDate = await localWeeklyReportRepository.earliestLocalActivityDate()
@@ -922,7 +899,7 @@ class AppState: ObservableObject {
             appVersionPolicy = AppVersionPolicy.localFallback()
         }
         let defaults = AppScopedDefaults()
-        let today = SyncClock.dateOnly(from: Date())
+        let today = AppClock.dateOnly(from: Date())
         if appVersionPolicy == nil,
            let cachedData = defaults.data(forKey: AppDefaultKey.appVersionPolicyCache),
            let cachedPolicy = try? JSONDecoder().decode(AppVersionPolicy.self, from: cachedData),
@@ -1261,7 +1238,7 @@ class AppState: ObservableObject {
         }
         let childId = selectedChild.id
         let learningTrackCode = userPreference?.readingTrackCode ?? selectedChild.learningTrackCode
-        let deviceId = installationStore.installationId(scope: storageScope)
+        let deviceId = localDeviceId
         let resolvedSourceLanguageCode = overrideSourceLanguageCode ?? sourceLanguageCode
         let resolvedTargetLanguageCode = overrideTargetLanguageCode ?? targetLanguageCode
         let learningLanguageCode = learningLanguageCode(for: selectedChild)
@@ -1273,8 +1250,7 @@ class AppState: ObservableObject {
             text: text,
             supportHint: supportHint,
             sourceLanguageCode: resolvedSourceLanguageCode,
-            targetLanguageCode: resolvedTargetLanguageCode,
-            cloudSyncEnabled: syncSettingsStore.cloudSyncEnabled(scope: storageScope)
+            targetLanguageCode: resolvedTargetLanguageCode
         ) != nil else {
             errorMessage = uiText("句卡保存失败，请稍后重试。", "Failed to save the card. Please try again.")
             return false
@@ -1323,15 +1299,16 @@ class AppState: ObservableObject {
         return true
     }
 
-    func recordCaptureUsage(source: String) async -> Bool {
-        guard hasAuthenticatedSession else { return false }
+    func recordLocalOcrUsage(source: String) async -> Bool {
         let idempotencyKey = UUID().uuidString.lowercased()
         // 先在本地兜底 +1，避免后端返回延迟导致首页/家长中心看不到扣减的错觉。
         // 成功路径下会再用 alignLocalQuotaUsageWithEntitlement() 与服务端取 max 对齐。
-        recordLocalQuotaUsage(kind: "ocr", source: source, amount: 1)
+        ensureLocalDeviceAccountStateIfNeeded()
+        recordLocalQuotaUsage(kind: "local_ocr", source: source, amount: 1)
+        guard hasAuthenticatedSession else { return true }
         do {
             accountState = try await backendClient.recordQuotaUsage(
-                kind: "ocr",
+                kind: "local_ocr",
                 source: source,
                 languageCode: sourceLanguageCode,
                 amount: 1,
@@ -1342,7 +1319,7 @@ class AppState: ObservableObject {
             if source == "cloud_ocr" {
                 await refreshCloudUsageStateFromBackend()
             }
-            await syncEntitlementRecordsFromBackend(reason: "capture_usage", reportError: false)
+            await syncEntitlementRecordsFromBackend(reason: "local_ocr_usage", reportError: false)
             await refreshActiveEntitlementUsageSummaries()
             // 扣减成功后刷新首页汇总，确保家长中心/首页立即展示最新剩余次数。
             await refreshHomeData()
@@ -1354,14 +1331,14 @@ class AppState: ObservableObject {
             await refreshActiveEntitlementUsageSummaries()
             await refreshHomeData()
             try? await backendClient.reportDeviceEvent(
-                eventType: "capture_ocr_record_failed",
+                eventType: "local_ocr_record_failed",
                 appVersion: BackendClient.defaultAppVersion(),
                 buildNumber: BackendClient.defaultBuildNumber(),
                 locale: interfaceLocaleCode,
                 payload: [
                     "source": source,
-                    "quotaDate": SyncClock.dateOnly(from: Date()),
-                    "localUsed": "\(localCaptureUsedToday)",
+                    "quotaDate": AppClock.dateOnly(from: Date()),
+                    "localUsed": "\(localOcrUsedToday)",
                     "idempotencyKey": idempotencyKey,
                     "error": error.localizedDescription
                 ]
@@ -1370,7 +1347,7 @@ class AppState: ObservableObject {
         }
     }
 
-    func validateCaptureQuotaBeforeRecognition(requiredAmount: Int = 1) async -> CaptureQuotaValidation {
+    func validateLocalOcrQuotaBeforeRecognition(requiredAmount: Int = 1) async -> LocalOcrQuotaValidation {
         let required = max(requiredAmount, 1)
         refreshLocalQuotaCaches()
         if hasAuthenticatedSession {
@@ -1386,9 +1363,9 @@ class AppState: ObservableObject {
         }
         resetCachedQuotaIfCrossedDay()
 
-        let maxLimit = max(accountState?.quota.captureLimit ?? fallbackCaptureLimit, 0)
-        let serverUsed = max(accountState?.quota.captureUsed ?? 0, 0)
-        let usedAmount = max(serverUsed, localCaptureUsedToday)
+        let maxLimit = max(accountState?.quota.localOcrLimit ?? fallbackLocalOcrLimit, 0)
+        let serverUsed = max(accountState?.quota.localOcrUsed ?? 0, 0)
+        let usedAmount = max(serverUsed, localOcrUsedToday)
         let remainingAmount = max(maxLimit - usedAmount, 0)
 
         guard remainingAmount >= required else {
@@ -1396,7 +1373,7 @@ class AppState: ObservableObject {
                 "图片识别权益不足：本次识别需要 \(required) 次，当前剩余 \(remainingAmount) 次。请让家长在家长区查看权益并补充次数后再识别。",
                 "Not enough image recognition quota: this recognition needs \(required), and you have \(remainingAmount) left. Please ask a parent to review benefits and add quota from the parent area before recognizing."
             )
-            return CaptureQuotaValidation(
+            return LocalOcrQuotaValidation(
                 isAllowed: false,
                 requiredAmount: required,
                 maxLimit: maxLimit,
@@ -1406,7 +1383,7 @@ class AppState: ObservableObject {
             )
         }
 
-        return CaptureQuotaValidation(
+        return LocalOcrQuotaValidation(
             isAllowed: true,
             requiredAmount: required,
             maxLimit: maxLimit,
@@ -1450,6 +1427,15 @@ class AppState: ObservableObject {
             )
             await refreshAllData()
             await syncEntitlementRecordsFromBackend(reason: "purchase", reportError: false)
+            await refreshActiveEntitlementUsageSummaries()
+            entitlementRecordPage = await entitlementRecordRepository.loadPage(
+                accountId: storageScope,
+                serviceType: nil,
+                page: 1,
+                pageSize: 20
+            )
+            alignLocalQuotaUsageWithEntitlement()
+            await refreshHomeData()
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -1470,7 +1456,6 @@ class AppState: ObservableObject {
                 sourceLanguageCode: sourceLanguageCode,
                 targetLanguageCode: targetLanguageCode,
                 readingTrackCode: effectiveLearningTrackCode,
-                cloudSyncEnabled: syncSettingsStore.cloudSyncEnabled(scope: storageScope)
             )
             interfaceLocaleCode = locale
             AppScopedDefaults().set(locale, forKey: AppDefaultKey.interfaceLocale)
@@ -1531,7 +1516,6 @@ class AppState: ObservableObject {
                 sourceLanguageCode: sourceLanguageCode,
                 targetLanguageCode: targetLanguageCode,
                 readingTrackCode: effectiveLearningTrackCode,
-                cloudSyncEnabled: syncSettingsStore.cloudSyncEnabled(scope: storageScope)
             )
             await loadLocalCaches()
             alignLocalQuotaUsageWithEntitlement()
@@ -1553,7 +1537,6 @@ class AppState: ObservableObject {
             sourceLanguageCode: sourceLanguageCode,
             targetLanguageCode: targetLanguageCode,
             readingTrackCode: effectiveLearningTrackCode,
-            cloudSyncEnabled: syncSettingsStore.cloudSyncEnabled(scope: storageScope)
         )
         await loadLocalCaches()
         await reportSuccessfulLoginDeviceEvent(locale: selectedInterfaceLocale, reason: reason)
@@ -1583,7 +1566,6 @@ class AppState: ObservableObject {
         homeSummary = nil
         subscriptionStatus = nil
         entitlementRecordPage = nil
-        syncRuntimeState = .idle
         announcementOverlayRefreshToken = UUID()
     }
 
@@ -1597,25 +1579,71 @@ class AppState: ObservableObject {
     }
 
     func redeemCompensationCode(_ compensationCode: String) async -> CompensationRedeemReceipt? {
+        let normalizedCode = normalizedCompensationCode(compensationCode)
+        guard !hasRedeemedCompensationCodeLocally(normalizedCode) else {
+            errorMessage = nil
+            return nil
+        }
         do {
-            let receipt = try await backendClient.redeemCompensationCode(compensationCode)
+            let receipt = try await backendClient.redeemCompensationCode(normalizedCode)
+            if receipt.status == "applied" {
+                markCompensationCodeRedeemedLocally(normalizedCode)
+            }
             if let refreshedAccount = receipt.accountState {
                 accountState = refreshedAccount
                 cacheAccountStateForToday()
-            } else {
+            } else if hasAuthenticatedSession {
                 accountState = try? await backendClient.fetchAccountState()
                 if accountState != nil {
                     cacheAccountStateForToday()
                 }
             }
             await refreshCloudUsageStateFromBackend()
+            await syncEntitlementRecordsFromBackend(reason: "compensation_redeem", reportError: false)
+            await entitlementRecordRepository.upsertCompensationRedeemReceipt(
+                accountId: storageScope,
+                receipt: receipt,
+                syncedAt: AppClock.nowString()
+            )
             await refreshActiveEntitlementUsageSummaries()
+            entitlementRecordPage = await entitlementRecordRepository.loadPage(
+                accountId: storageScope,
+                serviceType: nil,
+                page: 1,
+                pageSize: 20
+            )
             alignLocalQuotaUsageWithEntitlement()
+            await refreshHomeData()
             return receipt
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = nil
             return nil
         }
+    }
+
+    private func normalizedCompensationCode(_ raw: String) -> String {
+        let compact = raw.uppercased().filter { $0.isLetter || $0.isNumber }
+        guard compact.count == 17, compact.hasPrefix("PP") else {
+            return raw.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let body = String(compact.dropFirst(2))
+        return "PP-\(body.prefix(5))-\(body.dropFirst(5).prefix(5))-\(body.suffix(5))"
+    }
+
+    private func hasRedeemedCompensationCodeLocally(_ code: String) -> Bool {
+        let codes = AppScopedDefaults().stringArray(forKey: AppDefaultKey.redeemedCompensationCodes) ?? []
+        return codes.contains(code)
+    }
+
+    private func markCompensationCodeRedeemedLocally(_ code: String) {
+        let defaults = AppScopedDefaults()
+        var codes = defaults.stringArray(forKey: AppDefaultKey.redeemedCompensationCodes) ?? []
+        guard !codes.contains(code) else { return }
+        codes.append(code)
+        if codes.count > 500 {
+            codes = Array(codes.suffix(500))
+        }
+        defaults.set(codes, forKey: AppDefaultKey.redeemedCompensationCodes)
     }
 
     func confirmDeletion(code: String, email: String) async -> Bool {
@@ -1636,7 +1664,6 @@ class AppState: ObservableObject {
             familyUsageSummary = nil
             childUsageSummaries = [:]
             userPreference = nil
-            syncRuntimeState = .idle
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -1645,12 +1672,12 @@ class AppState: ObservableObject {
     }
 
     @discardableResult
-    func playSpeech(text: String, language: String, rate: Float = 1.0, preferCloud: Bool = false) async -> Bool {
+    func playLocalTts(text: String, language: String, rate: Float = 1.0, preferCloud: Bool = false) async -> Bool {
         let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedText.isEmpty else { return false }
-        guard hasSpeechQuotaAvailableLocally() else {
-            isSpeechQuotaExhausted = true
-            speechQuotaExhaustedMessage = uiText(
+        guard hasLocalTtsQuotaAvailableLocally() else {
+            isLocalTtsQuotaExhausted = true
+            localTtsQuotaExhaustedMessage = uiText(
                 "今日发音权益已用完，暂时无法继续发音。请让家长在家长区查看权益并补充次数后再发音。",
                 "Today's pronunciation quota is used up, so playback is temporarily unavailable. Please ask a parent to review benefits and add quota from the parent area before playing audio again."
             )
@@ -1667,51 +1694,51 @@ class AppState: ObservableObject {
                 ?? uiText("本地发音启动失败，请检查设备音量或稍后重试。", "Local speech failed to start. Please check device volume or try again shortly.")
             return false
         }
-        recordLocalQuotaUsage(kind: "speech", source: "device_tts", amount: 1)
+        recordLocalQuotaUsage(kind: "local_tts", source: "device_tts", amount: 1)
         return true
     }
 
     @discardableResult
-    func playSourceSpeech(text: String, rate: Float = 1.0, preferCloud: Bool = false) async -> Bool {
-        await playSpeech(text: text, language: sourceSpeechLanguageCode, rate: rate, preferCloud: preferCloud)
+    func playSourceLocalTts(text: String, rate: Float = 1.0, preferCloud: Bool = false) async -> Bool {
+        await playLocalTts(text: text, language: sourceLocalTtsLanguageCode, rate: rate, preferCloud: preferCloud)
     }
 
     @discardableResult
-    func playTargetSpeech(text: String, rate: Float = 1.0, preferCloud: Bool = false) async -> Bool {
-        await playSpeech(text: text, language: targetSpeechLanguageCode, rate: rate, preferCloud: preferCloud)
+    func playTargetLocalTts(text: String, rate: Float = 1.0, preferCloud: Bool = false) async -> Bool {
+        await playLocalTts(text: text, language: targetLocalTtsLanguageCode, rate: rate, preferCloud: preferCloud)
     }
 
-    func preloadSpeechResourcesForCurrentContext(reason: String) async {
+    func preloadLocalTtsResourcesForCurrentContext(reason: String) async {
         await Task.yield()
-        let languages = speechPreloadLanguageCodes()
+        let languages = localTtsPreloadLanguageCodes()
         guard !languages.isEmpty else { return }
         await ttsService.preloadDeviceSpeechEngine(languageCodes: languages)
-        markSpeechLanguagesPreloaded(languages)
+        markLocalTtsLanguagesPreloaded(languages)
         _ = reason
     }
 
-    func preloadSpeechResources(languageCodes: [String], reason: String) async {
-        let languages = uniqueSpeechLanguageCodes(languageCodes.map { speechVoiceCode(for: $0) })
+    func preloadLocalTtsResources(languageCodes: [String], reason: String) async {
+        let languages = uniqueLocalTtsLanguageCodes(languageCodes.map { localTtsVoiceCode(for: $0) })
         guard !languages.isEmpty else { return }
         await Task.yield()
         await ttsService.preloadDeviceSpeechEngine(languageCodes: languages)
-        markSpeechLanguagesPreloaded(languages)
+        markLocalTtsLanguagesPreloaded(languages)
         _ = reason
     }
 
-    func isSpeechResourceReady(languageCode: String) -> Bool {
-        ttsService.hasCachedDeviceVoice(for: speechVoiceCode(for: languageCode))
+    func isLocalTtsResourceReady(languageCode: String) -> Bool {
+        ttsService.hasCachedDeviceVoice(for: localTtsVoiceCode(for: languageCode))
     }
 
-    private func scheduleSpeechResourcePreload(reason: String) {
-        let languages = speechPreloadLanguageCodesToLoad()
+    private func scheduleLocalTtsResourcePreload(reason: String) {
+        let languages = localTtsPreloadLanguageCodesToLoad()
         guard !languages.isEmpty else { return }
-        speechResourcePreloadTask?.cancel()
-        speechResourcePreloadTask = Task { @MainActor [weak self] in
+        localTtsResourcePreloadTask?.cancel()
+        localTtsResourcePreloadTask = Task { @MainActor [weak self] in
             guard let self, !Task.isCancelled else { return }
             await Task.yield()
             await self.ttsService.preloadDeviceSpeechEngine(languageCodes: languages)
-            self.markSpeechLanguagesPreloaded(languages)
+            self.markLocalTtsLanguagesPreloaded(languages)
             try? await Task.sleep(nanoseconds: 80_000_000)
             if !Task.isCancelled {
                 _ = reason
@@ -1719,15 +1746,15 @@ class AppState: ObservableObject {
         }
     }
 
-    private func preloadSpeechResourcesNow(reason: String) {
-        let languages = speechPreloadLanguageCodesToLoad()
+    private func preloadLocalTtsResourcesNow(reason: String) {
+        let languages = localTtsPreloadLanguageCodesToLoad()
         guard !languages.isEmpty else { return }
         ttsService.preloadDeviceVoices(languageCodes: languages)
-        markSpeechLanguagesPreloaded(languages)
+        markLocalTtsLanguagesPreloaded(languages)
         _ = reason
     }
 
-    private func speechPreloadLanguageCodes() -> [String] {
+    private func localTtsPreloadLanguageCodes() -> [String] {
         let activeChildren = children.filter { !$0.isDeleted }
         let trackCodes = activeChildren.isEmpty
             ? [effectiveLearningTrackCode]
@@ -1735,27 +1762,27 @@ class AppState: ObservableObject {
         var languageCodes: [String] = []
         for trackCode in trackCodes {
             let pair = languagePair(for: trackCode)
-            languageCodes.append(speechVoiceCode(for: pair.source))
-            languageCodes.append(speechVoiceCode(for: pair.target))
+            languageCodes.append(localTtsVoiceCode(for: pair.source))
+            languageCodes.append(localTtsVoiceCode(for: pair.target))
         }
-        languageCodes.append(speechVoiceCode(for: interfaceLocaleCode))
-        return uniqueSpeechLanguageCodes(languageCodes)
+        languageCodes.append(localTtsVoiceCode(for: interfaceLocaleCode))
+        return uniqueLocalTtsLanguageCodes(languageCodes)
     }
 
-    private func speechPreloadLanguageCodesToLoad() -> [String] {
-        speechPreloadLanguageCodes().filter { language in
-            !preloadedSpeechLanguageCodes.contains(language) &&
+    private func localTtsPreloadLanguageCodesToLoad() -> [String] {
+        localTtsPreloadLanguageCodes().filter { language in
+            !preloadedLocalTtsLanguageCodes.contains(language) &&
             !ttsService.hasCachedDeviceVoice(for: language)
         }
     }
 
-    private func markSpeechLanguagesPreloaded(_ languageCodes: [String]) {
-        for languageCode in uniqueSpeechLanguageCodes(languageCodes) {
-            preloadedSpeechLanguageCodes.insert(languageCode)
+    private func markLocalTtsLanguagesPreloaded(_ languageCodes: [String]) {
+        for languageCode in uniqueLocalTtsLanguageCodes(languageCodes) {
+            preloadedLocalTtsLanguageCodes.insert(languageCode)
         }
     }
 
-    private func uniqueSpeechLanguageCodes(_ languageCodes: [String]) -> [String] {
+    private func uniqueLocalTtsLanguageCodes(_ languageCodes: [String]) -> [String] {
         var result: [String] = []
         for code in languageCodes {
             let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1766,18 +1793,18 @@ class AppState: ObservableObject {
     }
 
     @discardableResult
-    func playSpeech(text: String, languageCode: String, rate: Float = 1.0, preferCloud: Bool = false) async -> Bool {
-        await playSpeech(text: text, language: speechLanguageCode(for: languageCode), rate: rate, preferCloud: preferCloud)
+    func playLocalTts(text: String, languageCode: String, rate: Float = 1.0, preferCloud: Bool = false) async -> Bool {
+        await playLocalTts(text: text, language: localTtsLanguageCode(for: languageCode), rate: rate, preferCloud: preferCloud)
     }
 
-    private func hasSpeechQuotaAvailableLocally() -> Bool {
+    private func hasLocalTtsQuotaAvailableLocally() -> Bool {
         refreshLocalQuotaCaches()
         // 跨天场景：即使后端拉取失败，也要把 cached 权益按新一天回满，
-        // 防止用 accountState.quota.speechUsed（昨日值）误判为仍有残量或已用完。
+        // 防止用 accountState.quota.localTtsUsed（昨日值）误判为仍有残量或已用完。
         resetCachedQuotaIfCrossedDay()
-        let serverUsed = accountState?.quota.speechUsed ?? 0
-        let serverLimit = accountState?.quota.speechLimit ?? fallbackSpeechLimit
-        let effectiveUsed = max(serverUsed, localSpeechUsedToday)
+        let serverUsed = accountState?.quota.localTtsUsed ?? 0
+        let serverLimit = accountState?.quota.localTtsLimit ?? fallbackLocalTtsLimit
+        let effectiveUsed = max(serverUsed, localTtsUsedToday)
         return effectiveUsed < serverLimit
     }
 
@@ -1786,28 +1813,32 @@ class AppState: ObservableObject {
         // 本地日期变更时先把 cached accountState.quota 回滚到今天，
         // 再与本地使用量对齐，确保后端下线跨天后权益能自动回满。
         resetCachedQuotaIfCrossedDay()
-        let today = SyncClock.dateOnly(from: Date())
+        let today = AppClock.dateOnly(from: Date())
         let defaults = AppScopedDefaults()
         if let captureQuota = accountState?.quota {
-            let activeCreditUsed = activeEntitlementUsageSummaries["capture"]?.usedCount ?? 0
-            let used = max(captureQuota.captureUsed, localCaptureUsedToday, activeCreditUsed)
-            localCaptureUsedToday = used
-            accountState = accountStateWithLocalUsage(captureUsed: used, speechUsed: nil)
-            defaults.set(today, forKey: AppDefaultKey.localCaptureQuotaDate)
-            defaults.set(used, forKey: AppDefaultKey.localCaptureUsed)
+            let activeCreditUsed = activeEntitlementUsageSummaries["local_ocr"]?.usedCount ?? 0
+            let used = max(captureQuota.localOcrUsed, localOcrUsedToday, activeCreditUsed)
+            localOcrUsedToday = used
+            accountState = accountStateWithLocalUsage(localOcrUsed: used, localTtsUsed: nil)
+            defaults.set(today, forKey: AppDefaultKey.localOcrQuotaDate)
+            defaults.set(used, forKey: AppDefaultKey.localOcrUsed)
         }
-        if let speechQuota = accountState?.quota {
-            let activeCreditUsed = activeEntitlementUsageSummaries["speech"]?.usedCount ?? 0
-            let used = max(speechQuota.speechUsed, localSpeechUsedToday, activeCreditUsed)
-            localSpeechUsedToday = used
-            accountState = accountStateWithLocalUsage(captureUsed: nil, speechUsed: used)
-            defaults.set(today, forKey: AppDefaultKey.localSpeechQuotaDate)
-            defaults.set(used, forKey: AppDefaultKey.localSpeechUsed)
+        if let localTtsQuota = accountState?.quota {
+            let activeCreditUsed = activeEntitlementUsageSummaries["local_tts"]?.usedCount ?? 0
+            let used = max(localTtsQuota.localTtsUsed, localTtsUsedToday, activeCreditUsed)
+            localTtsUsedToday = used
+            accountState = accountStateWithLocalUsage(localOcrUsed: nil, localTtsUsed: used)
+            defaults.set(today, forKey: AppDefaultKey.localTtsQuotaDate)
+            defaults.set(used, forKey: AppDefaultKey.localTtsUsed)
         }
         cacheAccountStateForToday()
     }
 
     private func loadCachedAccountStateForOfflineUse() {
+        guard hasAuthenticatedSession else {
+            ensureLocalDeviceAccountState()
+            return
+        }
         let defaults = AppScopedDefaults()
         if accountState == nil,
            let cachedData = defaults.data(forKey: AppDefaultKey.accountStateCache),
@@ -1821,28 +1852,28 @@ class AppState: ObservableObject {
     }
 
     /// 当缓存的 accountState.quota.quotaDate 不是今天（本地时区）时，
-    /// 按新一天把 captureUsed/speechUsed 清零、quotaDate 更新为今天，
+    /// 按新一天把 localOcrUsed/localTtsUsed 清零、quotaDate 更新为今天，
     /// limit 保留不变（保留后端已授予的购买次数）。
     /// 该方法是客户端本地驱动的日清逻辑，完全不依赖后端是否可用。
     private func resetCachedQuotaIfCrossedDay() {
         guard let state = accountState else { return }
-        let today = SyncClock.dateOnly(from: Date())
+        let today = AppClock.dateOnly(from: Date())
         let cachedDate = state.quota.quotaDate
         guard !cachedDate.isEmpty, cachedDate != today else { return }
-        let captureLimit = max(state.quota.captureLimit, 0)
-        let speechLimit = max(state.quota.speechLimit, 0)
+        let localOcrLimit = max(state.quota.localOcrLimit, 0)
+        let localTtsLimit = max(state.quota.localTtsLimit, 0)
         accountState = AccountState(
             accountId: state.accountId,
             signInProvider: state.signInProvider,
             entitlement: state.entitlement,
             quota: DailyQuota(
                 quotaDate: today,
-                captureLimit: captureLimit,
-                captureUsed: 0,
-                captureRemaining: captureLimit,
-                speechLimit: speechLimit,
-                speechUsed: 0,
-                speechRemaining: speechLimit
+                localOcrLimit: localOcrLimit,
+                localOcrUsed: 0,
+                localOcrRemaining: localOcrLimit,
+                localTtsLimit: localTtsLimit,
+                localTtsUsed: 0,
+                localTtsRemaining: localTtsLimit
             )
         )
         // 同步回写缓存，避免下次冷启动又读到昨天的 quotaDate。
@@ -1852,23 +1883,23 @@ class AppState: ObservableObject {
     private func recordLocalQuotaUsage(kind: String, source: String, amount: Int) {
         refreshLocalQuotaCaches()
         let defaults = AppScopedDefaults()
-        let today = SyncClock.dateOnly(from: Date())
-        if kind == "ocr" {
-            let used = localCaptureUsedToday + amount
-            localCaptureUsedToday = used
-            defaults.set(today, forKey: AppDefaultKey.localCaptureQuotaDate)
-            defaults.set(used, forKey: AppDefaultKey.localCaptureUsed)
-            accountState = accountStateWithLocalUsage(captureUsed: used, speechUsed: nil)
+        let today = AppClock.dateOnly(from: Date())
+        if kind == "local_ocr" {
+            let used = localOcrUsedToday + amount
+            localOcrUsedToday = used
+            defaults.set(today, forKey: AppDefaultKey.localOcrQuotaDate)
+            defaults.set(used, forKey: AppDefaultKey.localOcrUsed)
+            accountState = accountStateWithLocalUsage(localOcrUsed: used, localTtsUsed: nil)
             if source == "cloud_ocr" {
                 defaults.set(today, forKey: AppDefaultKey.cloudOcrQuotaDate)
                 defaults.set(defaults.integer(forKey: AppDefaultKey.cloudOcrUsed) + amount, forKey: AppDefaultKey.cloudOcrUsed)
             }
-        } else if kind == "speech" {
-            let used = localSpeechUsedToday + amount
-            localSpeechUsedToday = used
-            defaults.set(today, forKey: AppDefaultKey.localSpeechQuotaDate)
-            defaults.set(used, forKey: AppDefaultKey.localSpeechUsed)
-            accountState = accountStateWithLocalUsage(captureUsed: nil, speechUsed: used)
+        } else if kind == "local_tts" {
+            let used = localTtsUsedToday + amount
+            localTtsUsedToday = used
+            defaults.set(today, forKey: AppDefaultKey.localTtsQuotaDate)
+            defaults.set(used, forKey: AppDefaultKey.localTtsUsed)
+            accountState = accountStateWithLocalUsage(localOcrUsed: nil, localTtsUsed: used)
             if source == "cloud_tts" {
                 defaults.set(today, forKey: AppDefaultKey.cloudTtsQuotaDate)
                 defaults.set(defaults.integer(forKey: AppDefaultKey.cloudTtsUsed) + amount, forKey: AppDefaultKey.cloudTtsUsed)
@@ -1880,21 +1911,21 @@ class AppState: ObservableObject {
         cacheAccountStateForToday()
         Task {
             await self.applyLocalDailyGrantUsageToEntitlementCache(kind: kind, amount: amount, quotaDate: today)
-            await self.syncDailyQuotaGrantRecords(days: 60)
+            await self.syncDailyQuotaGrantRecords(days: self.hasAuthenticatedSession ? 60 : 1)
             await self.refreshActiveEntitlementUsageSummaries()
         }
     }
 
     private func applyLocalDailyGrantUsageToEntitlementCache(kind: String, amount: Int, quotaDate: String) async {
-        guard hasAuthenticatedSession, amount > 0, let entitlement = accountState?.entitlement else { return }
+        guard amount > 0, let entitlement = accountState?.entitlement else { return }
         let serviceType: String
         let fallbackTotalCount: Int
-        if kind == "ocr" {
-            serviceType = "capture"
-            fallbackTotalCount = max(entitlement.dailyCaptureLimit, 0)
-        } else if kind == "speech" {
-            serviceType = "speech"
-            fallbackTotalCount = max(entitlement.dailySpeechLimit, 0)
+        if kind == "local_ocr" {
+            serviceType = "local_ocr"
+            fallbackTotalCount = max(entitlement.dailyLocalOcrLimit, 0)
+        } else if kind == "local_tts" {
+            serviceType = "local_tts"
+            fallbackTotalCount = max(entitlement.dailyLocalTtsLimit, 0)
         } else {
             return
         }
@@ -1908,7 +1939,7 @@ class AppState: ObservableObject {
             fallbackTotalCount: fallbackTotalCount,
             acquiredAt: window.acquiredAt,
             expiresAt: window.expiresAt,
-            syncedAt: SyncClock.nowString()
+            syncedAt: AppClock.nowString()
         )
     }
 
@@ -1928,7 +1959,7 @@ class AppState: ObservableObject {
         let today = Date()
         return (0..<safeDays).compactMap { offset -> DailyQuotaUsageRecord? in
             guard let date = calendar.date(byAdding: .day, value: -(safeDays - 1) + offset, to: today) else { return nil }
-            let key = SyncClock.dateOnly(from: date)
+            let key = AppClock.dateOnly(from: date)
             return byDate[key] ?? DailyQuotaUsageRecord(usageDate: key)
         }
     }
@@ -1938,17 +1969,17 @@ class AppState: ObservableObject {
         guard amount > 0, !date.isEmpty else { return }
         var records = loadDailyQuotaUsageHistoryRaw()
         var record = records.first(where: { $0.usageDate == date }) ?? DailyQuotaUsageRecord(usageDate: date)
-        if kind == "ocr" {
+        if kind == "local_ocr" {
             if source == "cloud_ocr" {
-                record.captureCloudCount += amount
+                record.cloudOcrCount += amount
             } else {
-                record.captureLocalCount += amount
+                record.localOcrCount += amount
             }
-        } else if kind == "speech" {
+        } else if kind == "local_tts" {
             if source == "cloud_tts" {
-                record.speechCloudCount += amount
+                record.cloudTtsCount += amount
             } else {
-                record.speechLocalCount += amount
+                record.localTtsCount += amount
             }
         } else {
             return
@@ -1981,15 +2012,15 @@ class AppState: ObservableObject {
         guard let cutoff = calendar.date(byAdding: .day, value: -(dailyQuotaUsageHistoryRetentionDays - 1), to: Date()) else {
             return records
         }
-        let cutoffKey = SyncClock.dateOnly(from: cutoff)
+        let cutoffKey = AppClock.dateOnly(from: cutoff)
         return records.filter { $0.usageDate >= cutoffKey }
     }
 
-    private func accountStateWithLocalUsage(captureUsed: Int?, speechUsed: Int?) -> AccountState? {
+    private func accountStateWithLocalUsage(localOcrUsed: Int?, localTtsUsed: Int?) -> AccountState? {
         guard let accountState else { return nil }
         let quota = accountState.quota
-        let nextCaptureUsed = min(max(captureUsed ?? quota.captureUsed, 0), max(quota.captureLimit, 0))
-        let nextSpeechUsed = min(max(speechUsed ?? quota.speechUsed, 0), max(quota.speechLimit, 0))
+        let nextCaptureUsed = min(max(localOcrUsed ?? quota.localOcrUsed, 0), max(quota.localOcrLimit, 0))
+        let nextSpeechUsed = min(max(localTtsUsed ?? quota.localTtsUsed, 0), max(quota.localTtsLimit, 0))
         return AccountState(
             accountId: accountState.accountId,
             signInProvider: accountState.signInProvider,
@@ -1998,33 +2029,98 @@ class AppState: ObservableObject {
                 // 若 quotaDate 为空或不是今天（后端下线跨天场景），
                 // 使用当前本地日期覆盖，确保 UI 和持久化的 quotaDate 保持最新。
                 quotaDate: {
-                    let today = SyncClock.dateOnly(from: Date())
+                    let today = AppClock.dateOnly(from: Date())
                     return (quota.quotaDate.isEmpty || quota.quotaDate != today) ? today : quota.quotaDate
                 }(),
-                captureLimit: quota.captureLimit,
-                captureUsed: nextCaptureUsed,
-                captureRemaining: max(quota.captureLimit - nextCaptureUsed, 0),
-                speechLimit: quota.speechLimit,
-                speechUsed: nextSpeechUsed,
-                speechRemaining: max(quota.speechLimit - nextSpeechUsed, 0)
+                localOcrLimit: quota.localOcrLimit,
+                localOcrUsed: nextCaptureUsed,
+                localOcrRemaining: max(quota.localOcrLimit - nextCaptureUsed, 0),
+                localTtsLimit: quota.localTtsLimit,
+                localTtsUsed: nextSpeechUsed,
+                localTtsRemaining: max(quota.localTtsLimit - nextSpeechUsed, 0)
             )
         )
     }
 
     private func cacheAccountStateForToday() {
+        guard hasAuthenticatedSession else { return }
         let defaults = AppScopedDefaults()
         if let encoded = try? JSONEncoder().encode(accountState) {
             defaults.set(encoded, forKey: AppDefaultKey.accountStateCache)
-            defaults.set(SyncClock.dateOnly(from: Date()), forKey: AppDefaultKey.accountStateLastFetchDate)
+            defaults.set(AppClock.dateOnly(from: Date()), forKey: AppDefaultKey.accountStateLastFetchDate)
         }
     }
 
-    private var fallbackSpeechLimit: Int {
+    private var fallbackLocalTtsLimit: Int {
         10
     }
 
-    private var fallbackCaptureLimit: Int {
-        10
+    private var fallbackLocalOcrLimit: Int {
+        5
+    }
+
+    private func ensureLocalDeviceAccountStateIfNeeded() {
+        guard !hasAuthenticatedSession else { return }
+        ensureLocalDeviceAccountState()
+    }
+
+    private func ensureLocalDeviceAccountState() {
+        guard !hasAuthenticatedSession else { return }
+        refreshLocalQuotaCaches()
+        accountState = makeLocalDeviceAccountState()
+        cacheAccountStateForToday()
+    }
+
+    private func makeLocalDeviceAccountState() -> AccountState {
+        let today = AppClock.dateOnly(from: Date())
+        let localOcrLimit = fallbackLocalOcrLimit
+        let localTtsLimit = fallbackLocalTtsLimit
+        let localOcrUsed = min(max(localOcrUsedToday, 0), localOcrLimit)
+        let localTtsUsed = min(max(localTtsUsedToday, 0), localTtsLimit)
+        let entitlement = AccountEntitlement(
+            planCode: "free",
+            planName: "免费版",
+            dailyLocalOcrLimit: localOcrLimit,
+            dailyLocalTtsLimit: localTtsLimit,
+            childLimit: 1,
+            localCardLimit: 20,
+            childCount: children.count,
+            remainingChildSlots: max(1 - children.count, 0),
+            advancedVoiceEnabled: false,
+            premiumActive: false,
+            validUntil: nil,
+            authoritative: false,
+            multiChildEnabled: false,
+            dailyPlanScope: "single_child",
+            weeklyReportScope: "child",
+            weeklyReportHistoryWeeks: 0,
+            historyEnabled: false,
+            serverVerified: false,
+            verificationSource: "device_local_daily",
+            accessProof: BackendAccessProof(
+                appCode: AppIdentity.appCode,
+                userId: "signed-out",
+                plan: "free",
+                status: "device_local",
+                serverTime: nil,
+                policy: "device_local_daily_quota",
+                allowed: true
+            )
+        )
+        return AccountState(
+            accountId: "signed-out",
+            signInProvider: "device_local",
+            entitlement: entitlement,
+            quota: DailyQuota(
+                quotaDate: today,
+                localOcrLimit: localOcrLimit,
+                localOcrUsed: localOcrUsed,
+                localOcrRemaining: max(localOcrLimit - localOcrUsed, 0),
+                localTtsLimit: localTtsLimit,
+                localTtsUsed: localTtsUsed,
+                localTtsRemaining: max(localTtsLimit - localTtsUsed, 0)
+            )
+        )
     }
 
     private func refreshCloudUsageStateFromBackend() async {
@@ -2033,7 +2129,7 @@ class AppState: ObservableObject {
         } catch {
             // 后端不可用时保留上一次成功拉取到的云端权益快照，
             // 避免把 trialLimit/purchasedCredits 重置为 0/fallback 小默认值。
-            // 本地设备 OCR / TTS 仍可通过 localCaptureUsedToday / localSpeechUsedToday 正常扣减。
+            // 本地设备 OCR / TTS 仍可通过 localOcrUsedToday / localTtsUsedToday 正常扣减。
             refreshLocalQuotaCaches()
             guard cloudUsageState == nil else {
                 return
@@ -2041,26 +2137,26 @@ class AppState: ObservableObject {
             // 首次启动且缓存为空时，沿用已缓存的 accountState.quota（来自持久化的 AccountState 缓存），
             // 仅在完全没有任何数据时退回到保守的默认值，确保不会覆盖后端已授予的购买次数。
             let defaults = AppScopedDefaults()
-            let ocrLimit = accountState?.quota.captureLimit ?? 0
-            let ttsLimit = accountState?.quota.speechLimit ?? fallbackSpeechLimit
+            let localOcrLimit = accountState?.quota.localOcrLimit ?? 0
+            let localTtsLimit = accountState?.quota.localTtsLimit ?? fallbackLocalTtsLimit
             cloudUsageState = CloudUsageState(
                 ocr: CloudQuotaState(
                     serviceType: "cloud_ocr",
-                    trialLimit: ocrLimit,
-                    trialUsed: min(defaults.integer(forKey: AppDefaultKey.cloudOcrUsed), max(ocrLimit, 0)),
+                    trialLimit: localOcrLimit,
+                    trialUsed: min(defaults.integer(forKey: AppDefaultKey.cloudOcrUsed), max(localOcrLimit, 0)),
                     purchasedCredits: 0,
                     purchasedUsed: 0,
-                    remainingCount: max(ocrLimit - defaults.integer(forKey: AppDefaultKey.cloudOcrUsed), 0),
-                    updatedAt: SyncClock.nowString()
+                    remainingCount: max(localOcrLimit - defaults.integer(forKey: AppDefaultKey.cloudOcrUsed), 0),
+                    updatedAt: AppClock.nowString()
                 ),
                 tts: CloudQuotaState(
                     serviceType: "cloud_tts",
-                    trialLimit: ttsLimit,
-                    trialUsed: min(defaults.integer(forKey: AppDefaultKey.cloudTtsUsed), max(ttsLimit, 0)),
+                    trialLimit: localTtsLimit,
+                    trialUsed: min(defaults.integer(forKey: AppDefaultKey.cloudTtsUsed), max(localTtsLimit, 0)),
                     purchasedCredits: 0,
                     purchasedUsed: 0,
-                    remainingCount: max(ttsLimit - defaults.integer(forKey: AppDefaultKey.cloudTtsUsed), 0),
-                    updatedAt: SyncClock.nowString()
+                    remainingCount: max(localTtsLimit - defaults.integer(forKey: AppDefaultKey.cloudTtsUsed), 0),
+                    updatedAt: AppClock.nowString()
                 )
             )
         }
@@ -2068,17 +2164,16 @@ class AppState: ObservableObject {
 
     #if DEBUG
     private func makeOfflineDevelopmentAccountState() -> AccountState {
-        let today = SyncClock.dateOnly(from: Date())
+        let today = AppClock.dateOnly(from: Date())
         let entitlement = AccountEntitlement(
             planCode: "dev_local",
             planName: "开发本地模拟会员",
-            dailyCaptureLimit: 50,
-            dailySpeechLimit: 100,
+            dailyLocalOcrLimit: 50,
+            dailyLocalTtsLimit: 100,
             childLimit: 5,
             localCardLimit: 500,
             childCount: children.count,
             remainingChildSlots: max(5 - children.count, 0),
-            cloudSyncEnabled: false,
             advancedVoiceEnabled: true,
             premiumActive: true,
             validUntil: nil,
@@ -2106,12 +2201,12 @@ class AppState: ObservableObject {
             entitlement: entitlement,
             quota: DailyQuota(
                 quotaDate: today,
-                captureLimit: 100,
-                captureUsed: localCaptureUsedToday,
-                captureRemaining: max(100 - localCaptureUsedToday, 0),
-                speechLimit: 100,
-                speechUsed: localSpeechUsedToday,
-                speechRemaining: max(100 - localSpeechUsedToday, 0)
+                localOcrLimit: 100,
+                localOcrUsed: localOcrUsedToday,
+                localOcrRemaining: max(100 - localOcrUsedToday, 0),
+                localTtsLimit: 100,
+                localTtsUsed: localTtsUsedToday,
+                localTtsRemaining: max(100 - localTtsUsedToday, 0)
             )
         )
     }
@@ -2134,11 +2229,11 @@ class AppState: ObservableObject {
     }
     #endif
 
-    private func reportSpeechUsage(language: String, preferCloud: Bool) async -> Bool {
+    private func reportLocalTtsUsage(language: String, preferCloud: Bool) async -> Bool {
         let usageSource = preferCloud ? "cloud_tts" : "device_tts"
         // 先在本地扣减兜底 +1（与 OCR 扣减保持一致），避免后端响应延迟/后端掉线/用户中途切页导致
         // 句卡列表→复习页点击喇叭后“朗读剩余次数没有立即变化”的观感；后端成功后会由 alignLocalQuotaUsageWithEntitlement() 以 max 方式与服务端对齐，不会重复计数。
-        recordLocalQuotaUsage(kind: "speech", source: usageSource, amount: 1)
+        recordLocalQuotaUsage(kind: "local_tts", source: usageSource, amount: 1)
         guard preferCloud else {
             // 当前设备端发音只做本地播放和本地使用历史统计，不调用后端发音次数接口。
             return true
@@ -2150,7 +2245,7 @@ class AppState: ObservableObject {
         let idempotencyKey = UUID().uuidString.lowercased()
         do {
             accountState = try await backendClient.recordQuotaUsage(
-                kind: "speech",
+                kind: "local_tts",
                 source: usageSource,
                 languageCode: language,
                 amount: 1,
@@ -2161,7 +2256,7 @@ class AppState: ObservableObject {
                 await refreshCloudUsageStateFromBackend()
             }
             alignLocalQuotaUsageWithEntitlement()
-            await syncEntitlementRecordsFromBackend(reason: "speech_usage", reportError: false)
+            await syncEntitlementRecordsFromBackend(reason: "local_tts_usage", reportError: false)
             await refreshActiveEntitlementUsageSummaries()
             return true
         } catch {
@@ -2171,15 +2266,15 @@ class AppState: ObservableObject {
             }
             await refreshActiveEntitlementUsageSummaries()
             try? await backendClient.reportDeviceEvent(
-                eventType: "speech_play_failed",
+                eventType: "local_tts_failed",
                 appVersion: BackendClient.defaultAppVersion(),
                 buildNumber: BackendClient.defaultBuildNumber(),
                 locale: interfaceLocaleCode,
                 payload: [
                     "language": language,
                     "mode": preferCloud ? "cloud" : "device",
-                    "quotaDate": SyncClock.dateOnly(from: Date()),
-                    "localUsed": "\(localSpeechUsedToday)",
+                    "quotaDate": AppClock.dateOnly(from: Date()),
+                    "localUsed": "\(localTtsUsedToday)",
                     "idempotencyKey": idempotencyKey,
                     "error": error.localizedDescription
                 ]
@@ -2207,7 +2302,6 @@ class AppState: ObservableObject {
             sourceLanguageCode: pair.source,
             targetLanguageCode: pair.target,
             readingTrackCode: readingTrackCode,
-            cloudSyncEnabled: syncSettingsStore.cloudSyncEnabled(scope: storageScope)
         )
         await synchronizeNow(reason: "update_language_preferences")
         await refreshParentData()
@@ -2224,7 +2318,6 @@ class AppState: ObservableObject {
             sourceLanguageCode: sourceLanguageCode,
             targetLanguageCode: targetLanguageCode,
             readingTrackCode: effectiveLearningTrackCode,
-            cloudSyncEnabled: syncSettingsStore.cloudSyncEnabled(scope: storageScope)
         )
         await synchronizeNow(reason: "update_interface_locale")
         await refreshParentData()
@@ -2232,34 +2325,6 @@ class AppState: ObservableObject {
         await refreshLanguagePackQueueIfNeeded()
     }
 
-
-    func setCloudSyncEnabled(_ enabled: Bool) async {
-        if enabled, accountState?.entitlement.cloudSyncEnabled != true || accountState?.entitlement.backendVerifiedPremiumActive != true {
-            errorMessage = uiText("当前套餐暂未通过后端权益校验，暂不能开启云同步。", "Cloud sync requires a backend-verified entitlement for the current plan.")
-            isShowingPaywall = true
-            return
-        }
-        syncSettingsStore.setCloudSyncEnabled(enabled, scope: storageScope)
-        userPreference = await userPreferenceRepository.updateLocal(
-            uiLocale: interfaceLocaleCode,
-            sourceLanguageCode: sourceLanguageCode,
-            targetLanguageCode: targetLanguageCode,
-            readingTrackCode: effectiveLearningTrackCode,
-            cloudSyncEnabled: enabled
-        )
-        await refreshSyncRuntimeState()
-        await synchronizeNow(reason: "toggle_cloud_sync")
-    }
-
-    func syncNowFromSettings() async {
-        await synchronizeNow(reason: "manual")
-        await refreshAllData()
-    }
-
-    func requestSyncRebuild() async {
-        syncRuntimeState = await powerSyncManager.requestRebuild(scope: storageScope, reason: "user_requested")
-        await loadLocalCaches()
-    }
 
     func startUsageSession(sessionUuid: String, sourcePage: String) async {
         guard hasAuthenticatedSession else { return }
@@ -2332,15 +2397,7 @@ class AppState: ObservableObject {
     }
 
     private func synchronizeNow(reason: String) async {
-        guard hasAuthenticatedSession else {
-            await refreshSyncRuntimeState()
-            return
-        }
-        let shouldWaitForFirstSync = ["startup", "manual", "apple_login", "dev_login"].contains(reason)
-        syncRuntimeState = await powerSyncManager.synchronize(scope: storageScope, waitForFirstSync: shouldWaitForFirstSync)
-        if case .error = syncRuntimeState.status, let message = syncRuntimeState.lastErrorMessage {
-            errorMessage = message
-        }
+        await refreshSyncRuntimeState()
     }
 
     private func scheduleEntitlementSyncLoop() {
@@ -2374,25 +2431,33 @@ class AppState: ObservableObject {
 
     func entitlementDisplaySummary(serviceType: String) -> EntitlementUsageSummary {
         let normalizedServiceType = serviceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalizedServiceType == "speech" || normalizedServiceType == "tts" || normalizedServiceType == "cloud_tts" {
-            let activeCredit = activeEntitlementUsageSummaries["speech"] ?? .empty(serviceType: "speech")
-            let dailyLimit = max(accountState?.entitlement.dailySpeechLimit ?? 0, 0)
-            let total = max(accountState?.quota.speechLimit ?? 0, dailyLimit + max(activeCredit.totalCount, 0), 0)
-            let used = min(max(accountState?.quota.speechUsed ?? 0, localSpeechUsedToday, activeCredit.usedCount, 0), max(total, 0))
+        if normalizedServiceType == "local_tts" || normalizedServiceType == "tts" || normalizedServiceType == "cloud_tts" {
+            let summaryKey = normalizedServiceType == "cloud_tts" ? "cloud_tts" : "local_tts"
+            let activeCredit = activeEntitlementUsageSummaries[summaryKey] ?? .empty(serviceType: summaryKey)
+            if normalizedServiceType == "cloud_tts" {
+                return activeCredit
+            }
+            let dailyLimit = max(accountState?.entitlement.dailyLocalTtsLimit ?? 0, 0)
+            let total = max(accountState?.quota.localTtsLimit ?? 0, dailyLimit + max(activeCredit.totalCount, 0), 0)
+            let used = min(max(accountState?.quota.localTtsUsed ?? 0, localTtsUsedToday, activeCredit.usedCount, 0), max(total, 0))
             return EntitlementUsageSummary(
-                serviceType: "speech",
+                serviceType: "local_tts",
                 totalCount: total,
                 usedCount: used,
                 remainingCount: max(total - used, 0)
             )
         }
 
-        let activeCredit = activeEntitlementUsageSummaries["capture"] ?? .empty(serviceType: "capture")
-        let dailyLimit = max(accountState?.entitlement.dailyCaptureLimit ?? 0, 0)
-        let total = max(accountState?.quota.captureLimit ?? 0, dailyLimit + max(activeCredit.totalCount, 0), 0)
-        let used = min(max(accountState?.quota.captureUsed ?? 0, localCaptureUsedToday, activeCredit.usedCount, 0), max(total, 0))
+        if normalizedServiceType == "cloud_ocr" {
+            return activeEntitlementUsageSummaries["cloud_ocr"] ?? .empty(serviceType: "cloud_ocr")
+        }
+
+        let activeCredit = activeEntitlementUsageSummaries["local_ocr"] ?? .empty(serviceType: "local_ocr")
+        let dailyLimit = max(accountState?.entitlement.dailyLocalOcrLimit ?? 0, 0)
+        let total = max(accountState?.quota.localOcrLimit ?? 0, dailyLimit + max(activeCredit.totalCount, 0), 0)
+        let used = min(max(accountState?.quota.localOcrUsed ?? 0, localOcrUsedToday, activeCredit.usedCount, 0), max(total, 0))
         return EntitlementUsageSummary(
-            serviceType: "capture",
+            serviceType: "local_ocr",
             totalCount: total,
             usedCount: used,
             remainingCount: max(total - used, 0)
@@ -2402,7 +2467,7 @@ class AppState: ObservableObject {
     private func syncEntitlementRecordsIfNeeded(reason: String) async {
         guard hasAuthenticatedSession else { return }
         let defaults = AppScopedDefaults()
-        let today = SyncClock.dateOnly(from: Date())
+        let today = AppClock.dateOnly(from: Date())
         let accountId = storageScope
         entitlementRecordsLastSyncedAt = defaults.string(forKey: entitlementRecordSyncAtKey(accountId: accountId))
         guard defaults.string(forKey: entitlementRecordSyncDateKey(accountId: accountId)) != today else { return }
@@ -2426,12 +2491,12 @@ class AppState: ObservableObject {
                 hasMore = response.hasMore
                 page += 1
             }
-            let syncedAt = SyncClock.nowString()
+            let syncedAt = AppClock.nowString()
             await entitlementRecordRepository.replaceAll(accountId: accountId, records: allRecords, syncedAt: syncedAt)
             await syncDailyQuotaGrantRecords(days: 60)
             await refreshActiveEntitlementUsageSummaries()
             let defaults = AppScopedDefaults()
-            defaults.set(SyncClock.dateOnly(from: Date()), forKey: entitlementRecordSyncDateKey(accountId: accountId))
+            defaults.set(AppClock.dateOnly(from: Date()), forKey: entitlementRecordSyncDateKey(accountId: accountId))
             defaults.set(syncedAt, forKey: entitlementRecordSyncAtKey(accountId: accountId))
             entitlementRecordsLastSyncedAt = syncedAt
         } catch {
@@ -2446,20 +2511,32 @@ class AppState: ObservableObject {
             activeEntitlementUsageSummaries = [:]
             return
         }
-        let now = SyncClock.nowString()
-        let capture = await entitlementRecordRepository.loadActiveCreditSummary(
+        let now = AppClock.nowString()
+        let localOcrSummary = await entitlementRecordRepository.loadActiveCreditSummary(
             accountId: storageScope,
-            serviceType: "capture",
+            serviceType: "local_ocr",
             now: now
         )
-        let speech = await entitlementRecordRepository.loadActiveCreditSummary(
+        let localTtsSummary = await entitlementRecordRepository.loadActiveCreditSummary(
             accountId: storageScope,
-            serviceType: "speech",
+            serviceType: "local_tts",
+            now: now
+        )
+        let cloudOcrSummary = await entitlementRecordRepository.loadActiveCreditSummary(
+            accountId: storageScope,
+            serviceType: "cloud_ocr",
+            now: now
+        )
+        let cloudTtsSummary = await entitlementRecordRepository.loadActiveCreditSummary(
+            accountId: storageScope,
+            serviceType: "cloud_tts",
             now: now
         )
         activeEntitlementUsageSummaries = [
-            capture.serviceType: capture,
-            speech.serviceType: speech
+            localOcrSummary.serviceType: localOcrSummary,
+            localTtsSummary.serviceType: localTtsSummary,
+            cloudOcrSummary.serviceType: cloudOcrSummary,
+            cloudTtsSummary.serviceType: cloudTtsSummary
         ]
     }
 
@@ -2472,25 +2549,25 @@ class AppState: ObservableObject {
     }
 
     private func syncDailyQuotaGrantRecords(days: Int = 60) async {
-        guard hasAuthenticatedSession, let entitlement = accountState?.entitlement else { return }
+        guard let entitlement = accountState?.entitlement else { return }
         let safeDays = min(max(days, 1), dailyQuotaUsageHistoryRetentionDays)
-        let syncedAt = SyncClock.nowString()
-        let captureLimit = max(entitlement.dailyCaptureLimit, 0)
-        let speechLimit = max(entitlement.dailySpeechLimit, 0)
+        let syncedAt = AppClock.nowString()
+        let localOcrLimit = max(entitlement.dailyLocalOcrLimit, 0)
+        let localTtsLimit = max(entitlement.dailyLocalTtsLimit, 0)
         for record in dailyQuotaUsageHistory(days: safeDays) {
             let window = dailyQuotaGrantWindow(quotaDate: record.usageDate)
-            if captureLimit > 0 {
+            if localOcrLimit > 0 {
                 let hasBackendDailyGift = await entitlementRecordRepository.hasAuthoritativeDailyGift(
                     accountId: storageScope,
-                    serviceType: "capture",
+                    serviceType: "local_ocr",
                     quotaDate: record.usageDate
                 )
                 if !hasBackendDailyGift {
                     await entitlementRecordRepository.upsertDailyGrant(
                         accountId: storageScope,
-                        serviceType: "capture",
-                        totalCount: captureLimit,
-                        usedCount: min(max(record.captureTotalCount, 0), captureLimit),
+                        serviceType: "local_ocr",
+                        totalCount: localOcrLimit,
+                        usedCount: min(max(record.localOcrTotalCount, 0), localOcrLimit),
                         quotaDate: record.usageDate,
                         acquiredAt: window.acquiredAt,
                         expiresAt: window.expiresAt,
@@ -2498,18 +2575,18 @@ class AppState: ObservableObject {
                     )
                 }
             }
-            if speechLimit > 0 {
+            if localTtsLimit > 0 {
                 let hasBackendDailyGift = await entitlementRecordRepository.hasAuthoritativeDailyGift(
                     accountId: storageScope,
-                    serviceType: "speech",
+                    serviceType: "local_tts",
                     quotaDate: record.usageDate
                 )
                 if !hasBackendDailyGift {
                     await entitlementRecordRepository.upsertDailyGrant(
                         accountId: storageScope,
-                        serviceType: "speech",
-                        totalCount: speechLimit,
-                        usedCount: min(max(record.speechTotalCount, 0), speechLimit),
+                        serviceType: "local_tts",
+                        totalCount: localTtsLimit,
+                        usedCount: min(max(record.localTtsTotalCount, 0), localTtsLimit),
                         quotaDate: record.usageDate,
                         acquiredAt: window.acquiredAt,
                         expiresAt: window.expiresAt,
@@ -2535,11 +2612,10 @@ class AppState: ObservableObject {
         let start = calendar.date(from: components) ?? Date()
         let nextDay = calendar.date(byAdding: .day, value: 1, to: start) ?? start
         let end = calendar.date(byAdding: .second, value: -1, to: nextDay) ?? nextDay
-        return (SyncClock.string(from: start), SyncClock.string(from: end))
+        return (AppClock.string(from: start), AppClock.string(from: end))
     }
 
     private func refreshSyncRuntimeState() async {
-        syncRuntimeState = await powerSyncManager.refreshState(scope: storageScope)
     }
 
     private func syncPreferencesForLearningTrack(_ learningTrackCode: String) async {
@@ -2549,7 +2625,6 @@ class AppState: ObservableObject {
             sourceLanguageCode: pair.source,
             targetLanguageCode: pair.target,
             readingTrackCode: learningTrackCode,
-            cloudSyncEnabled: syncSettingsStore.cloudSyncEnabled(scope: storageScope)
         )
     }
 
@@ -2590,7 +2665,11 @@ class AppState: ObservableObject {
             await refreshActiveEntitlementUsageSummaries()
             entitlementRecordPage = await entitlementRecordRepository.loadPage(accountId: storageScope, serviceType: nil, page: 1, pageSize: 20)
         } else {
+            ensureLocalDeviceAccountState()
+            await syncDailyQuotaGrantRecords(days: 1)
             activeEntitlementUsageSummaries = [:]
+            entitlementRecordsLastSyncedAt = AppClock.nowString()
+            entitlementRecordPage = await entitlementRecordRepository.loadPage(accountId: storageScope, serviceType: nil, page: 1, pageSize: 20)
         }
         let usagePolicy = bootstrap.usagePolicy ?? .default
         familyUsageSummary = await usageSessionRepository.familySummary(
@@ -2608,20 +2687,20 @@ class AppState: ObservableObject {
 
     private func refreshLocalQuotaCaches() {
         let defaults = AppScopedDefaults()
-        let today = SyncClock.dateOnly(from: Date())
-        if defaults.string(forKey: AppDefaultKey.localCaptureQuotaDate) != today {
-            defaults.set(today, forKey: AppDefaultKey.localCaptureQuotaDate)
-            defaults.set(0, forKey: AppDefaultKey.localCaptureUsed)
-            localCaptureUsedToday = 0
+        let today = AppClock.dateOnly(from: Date())
+        if defaults.string(forKey: AppDefaultKey.localOcrQuotaDate) != today {
+            defaults.set(today, forKey: AppDefaultKey.localOcrQuotaDate)
+            defaults.set(0, forKey: AppDefaultKey.localOcrUsed)
+            localOcrUsedToday = 0
         } else {
-            localCaptureUsedToday = defaults.integer(forKey: AppDefaultKey.localCaptureUsed)
+            localOcrUsedToday = defaults.integer(forKey: AppDefaultKey.localOcrUsed)
         }
-        if defaults.string(forKey: AppDefaultKey.localSpeechQuotaDate) != today {
-            defaults.set(today, forKey: AppDefaultKey.localSpeechQuotaDate)
-            defaults.set(0, forKey: AppDefaultKey.localSpeechUsed)
-            localSpeechUsedToday = 0
+        if defaults.string(forKey: AppDefaultKey.localTtsQuotaDate) != today {
+            defaults.set(today, forKey: AppDefaultKey.localTtsQuotaDate)
+            defaults.set(0, forKey: AppDefaultKey.localTtsUsed)
+            localTtsUsedToday = 0
         } else {
-            localSpeechUsedToday = defaults.integer(forKey: AppDefaultKey.localSpeechUsed)
+            localTtsUsedToday = defaults.integer(forKey: AppDefaultKey.localTtsUsed)
         }
         if defaults.string(forKey: AppDefaultKey.cloudOcrQuotaDate) != today {
             defaults.set(today, forKey: AppDefaultKey.cloudOcrQuotaDate)
@@ -2638,22 +2717,22 @@ class AppState: ObservableObject {
         // 禁止在此将设备级持久化数据（onboarding / privacy / accountStateCache / quota.* /
         // dailyQuotaUsageHistory 等）清掉，这些数据仅在 App 卸载时随 sandbox 清除。
         cancelAllUsageTicks()
-        await powerSyncManager.disconnectForSignOut(scope: scope)
-        credentialStore.clear(scope: scope)
     }
 
     private func clearLocalData(scope: String) async {
-        // 删除账号时清理账号级资源：PowerSync 本地库、同步凭证、安装 ID、同步设置。
+        // 删除账号时清理账号级本地学习数据，权益记录缓存保留到 App 卸载。
         // 禁止在此移除以下设备级持久化 key，它们仅在用户卸载 App 时随 sandbox 清除：
         // - AppDefaultKey.dailyQuotaUsageHistory（每日使用次数历史，周报数据源）
         // - AppDefaultKey.accountStateCache / accountStateLastFetchDate（后端下线跨天回满用）
         // - AppDefaultKey.localCapture* / localSpeech* / cloudOcr* / cloudTts*（本地配额缓存）
         // - AppDefaultKey.onboarding* / privacy* / interfaceLocale 等设备级偏好
         cancelAllUsageTicks()
-        await powerSyncManager.clear(scope: scope)
-        credentialStore.clear(scope: scope)
-        installationStore.clear(scope: scope)
-        syncSettingsStore.clear(scope: scope)
+        await childRepository.clear()
+        await reviewEventRepository.clear()
+        await reviewCardRepository.clear()
+        await learningEventRepository.clear()
+        await usageSessionRepository.clear()
+        await userPreferenceRepository.clear()
     }
 
     private func cancelAllUsageTicks() {
@@ -2680,7 +2759,7 @@ class AppState: ObservableObject {
         }
     }
 
-    private func speechVoiceCode(for languageCode: String) -> String {
+    private func localTtsVoiceCode(for languageCode: String) -> String {
         let normalized = languageCode.lowercased()
         if normalized.hasPrefix("zh") { return "zh-CN" }
         if normalized.hasPrefix("en") { return "en-US" }
@@ -3037,6 +3116,7 @@ struct MainTabView: View {
     var body: some View {
         currentTabView
             .background(AppColors.background.ignoresSafeArea())
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             .contentMargins(.bottom, AppLayout.bottomNavigationContentInset, for: .scrollContent)
             .safeAreaInset(edge: .bottom, spacing: AppLayout.spacingS) {
                 BottomTabBar(selectedTab: $appState.selectedTab)
@@ -3048,6 +3128,7 @@ struct MainTabView: View {
                     .frame(maxWidth: .infinity)
                     .background(.regularMaterial)
             }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             .onChange(of: appState.selectedTab) { oldValue, newValue in
                 if newValue == .parent && oldValue != .parent {
                     appState.refreshParentGate()

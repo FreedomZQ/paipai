@@ -18,10 +18,6 @@ settings:
     # They must match Xcode Organizer / TestFlight / SQL build_number exactly.
     MARKETING_VERSION: '1.0.0'
     CURRENT_PROJECT_VERSION: '1'
-packages:
-  PowerSync:
-    url: https://github.com/powersync-ja/powersync-swift.git
-    from: 1.0.0
 targets:
   PaipaiReadAlong:
     type: application
@@ -30,9 +26,7 @@ targets:
     platform: iOS
     sources:
       - path: PaipaiReadAlong
-    dependencies:
-      - package: PowerSync
-        product: PowerSync
+    dependencies: []
     settings:
       base:
         GENERATE_INFOPLIST_FILE: NO

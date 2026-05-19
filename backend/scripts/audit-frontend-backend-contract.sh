@@ -137,10 +137,6 @@ else:
         ('GET', '/api/v1/system/auth/apps/{}/me'),
         ('POST', '/api/v1/system/auth/apps/{}/apple/exchange'),
         ('POST', '/api/v1/system/auth/apps/{}/logout'),
-        ('POST', '/api/v1/powersync/{}/bootstrap'),
-        ('POST', '/api/v1/powersync/{}/token'),
-        ('POST', '/api/v1/powersync/{}/rebuild'),
-        ('POST', '/api/v1/powersync/{}/upload'),
     ]
     for route in expected_dynamic:
         if route not in backend_routes:

@@ -54,7 +54,7 @@ public class ReadingCloudUsageAdminController {
         return ApiResponse.success(currentRequestId(), cloudUsageService.snapshot(userId));
     }
 
-    @Operation(summary = "调整单个用户次数", description = "delta 为正数表示赠送次数，为负数表示扣减可用次数；serviceType 支持 cloud_ocr/cloud_tts/capture/speech。")
+    @Operation(summary = "调整单个用户次数", description = "delta 为正数表示赠送次数，为负数表示扣减可用次数；serviceType 支持 cloud_ocr/cloud_tts/local_ocr/local_tts。")
     @PostMapping("/users/adjust")
     public ApiResponse<AdminAdjustmentReceipt> adjust(
         @Parameter(description = "管理 token。") @RequestHeader(value = "X-Admin-Config-Token", required = false) String token,

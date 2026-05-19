@@ -5,7 +5,7 @@ import Translation
 
 struct LearningDetailView: View {
     let text: String
-    let preferCloudSpeech: Bool
+    let preferCloudTts: Bool
     let sourceLanguageOverride: String?
     let targetLanguageOverride: String?
     @Environment(\.dismiss) private var dismiss
@@ -16,7 +16,7 @@ struct LearningDetailView: View {
     @State private var isTranslating = false
     @State private var isSaving = false
     @State private var showSaveSuccess = false
-    @State private var selectedSpeed: SpeechSpeed = .normal
+    @State private var selectedSpeed: LocalTtsSpeed = .normal
     @State private var showTranslation = false
     @State private var isPlayingOriginal = false
     @State private var isPlayingTranslation = false
@@ -39,9 +39,9 @@ struct LearningDetailView: View {
     @State private var languagePackDownloadProgressTask: Task<Void, Never>?
     @State private var translationTimeoutTask: Task<Void, Never>?
     @State private var activeTranslationAttemptID: UUID?
-    @State private var showSpeechQuotaAlert = false
-    @State private var speechQuotaAlertMessage = ""
-    @State private var areSpeechResourcesReady = false
+    @State private var showLocalTtsQuotaAlert = false
+    @State private var localTtsQuotaAlertMessage = ""
+    @State private var areLocalTtsResourcesReady = false
     #if os(iOS) && canImport(Translation)
     @State private var translationSessionConfiguration: TranslationSession.Configuration?
     #endif
@@ -154,12 +154,12 @@ struct LearningDetailView: View {
 
     private let maxTranslationAttempts = 3
 
-    init(text: String, preferCloudSpeech: Bool = false, sourceLanguageCode: String? = nil, targetLanguageCode: String? = nil) {
+    init(text: String, preferCloudTts: Bool = false, sourceLanguageCode: String? = nil, targetLanguageCode: String? = nil) {
         self.text = text
-        self.preferCloudSpeech = preferCloudSpeech
+        self.preferCloudTts = preferCloudTts
         self.sourceLanguageOverride = sourceLanguageCode
         self.targetLanguageOverride = targetLanguageCode
-        _selectedSpeed = State(initialValue: SpeechSpeed.persistedSelection())
+        _selectedSpeed = State(initialValue: LocalTtsSpeed.persistedSelection())
     }
 
     var body: some View {
@@ -211,16 +211,16 @@ struct LearningDetailView: View {
                     .environmentObject(appState)
                     .interactiveDismissDisabled(isLanguagePackDownloadStarted && !isLanguagePackDownloadFinished && !isLanguagePackDownloadFailed)
                 }
-                .alert(appState.uiText("朗读权益已用完", "Read-aloud quota used up"), isPresented: $showSpeechQuotaAlert) {
+                .alert(appState.uiText("朗读权益已用完", "Read-aloud quota used up"), isPresented: $showLocalTtsQuotaAlert) {
                     Button(appState.uiText("关闭", "Close"), role: .cancel) {
-                        showSpeechQuotaAlert = false
+                        showLocalTtsQuotaAlert = false
                     }
                 } message: {
-                    Text(speechQuotaAlertMessage)
+                    Text(localTtsQuotaAlertMessage)
                 }
                 .task {
                     await appState.bootstrapIfNeeded()
-                    await preloadSpeechForThisLesson()
+                    await preloadLocalTtsForThisLesson()
                     await appState.refreshAccountState()
                     await translateText()
                     usageChildId = appState.selectedChild.id
@@ -284,7 +284,7 @@ struct LearningDetailView: View {
     private var readingParkReturnButton: some View {
         Button {
             appState.selectedTab = .readingPark
-            appState.requestDismissCaptureCover = true
+            appState.requestDismissLocalOcrCover = true
         } label: {
             Label(appState.uiText("返回伴读乐园", "Back to Learning Park"), systemImage: "tent.fill")
                 .font(AppTypography.footnote.weight(.semibold))
@@ -441,8 +441,8 @@ struct LearningDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             SpeakerButton(isCompact: true, tint: isPrimary ? AppColors.primary : AppColors.secondary, action: playAction)
-                .disabled(!areSpeechResourcesReady)
-                .opacity(areSpeechResourcesReady ? 1 : 0.45)
+                .disabled(!areLocalTtsResourcesReady)
+                .opacity(areLocalTtsResourcesReady ? 1 : 0.45)
                 .padding(8)
 
             if let leadingIconName, let leadingAction {
@@ -463,8 +463,8 @@ struct LearningDetailView: View {
 
     private var speedSelector: some View {
         VStack(spacing: AppLayout.spacingS) {
-            Picker(appState.uiText("朗读速度", "Speech speed"), selection: $selectedSpeed) {
-                ForEach(SpeechSpeed.allCases) { speed in
+            Picker(appState.uiText("朗读速度", "Local TTS speed"), selection: $selectedSpeed) {
+                ForEach(LocalTtsSpeed.allCases) { speed in
                     Text(speedTitle(speed)).tag(speed)
                 }
             }
@@ -517,7 +517,7 @@ struct LearningDetailView: View {
         .padding(.top, 4)
     }
 
-    private func speedTitle(_ speed: SpeechSpeed) -> String {
+    private func speedTitle(_ speed: LocalTtsSpeed) -> String {
         switch speed {
         case .extraSlow: return appState.uiText("很慢 (0.5x)", "Very slow (0.5x)")
         case .normal: return appState.uiText("正常速度 (1.0x)", "Normal (1.0x)")
@@ -684,7 +684,7 @@ struct LearningDetailView: View {
     }
 
     private func playOriginal() {
-        guard areSpeechResourcesReady else { return }
+        guard areLocalTtsResourcesReady else { return }
         if isPlayingOriginal {
             appState.ttsService.stop()
             isPlayingOriginal = false
@@ -692,17 +692,17 @@ struct LearningDetailView: View {
             isPlayingOriginal = true
             isPlayingTranslation = false
             Task {
-                let didPlay = await appState.playSpeech(text: text, languageCode: effectiveSourceLanguageCode, rate: selectedSpeed.rate, preferCloud: preferCloudSpeech)
+                let didPlay = await appState.playLocalTts(text: text, languageCode: effectiveSourceLanguageCode, rate: selectedSpeed.rate, preferCloud: preferCloudTts)
                 await MainActor.run {
                     isPlayingOriginal = false
-                    handleSpeechQuotaResult(didPlay: didPlay)
+                    handleLocalTtsQuotaResult(didPlay: didPlay)
                 }
             }
         }
     }
 
     private func playTranslation() {
-        guard areSpeechResourcesReady else { return }
+        guard areLocalTtsResourcesReady else { return }
         if isPlayingTranslation {
             appState.ttsService.stop()
             isPlayingTranslation = false
@@ -710,35 +710,35 @@ struct LearningDetailView: View {
             isPlayingTranslation = true
             isPlayingOriginal = false
             Task {
-                let didPlay = await appState.playSpeech(text: translation, languageCode: effectiveTargetLanguageCode, rate: selectedSpeed.rate, preferCloud: preferCloudSpeech)
+                let didPlay = await appState.playLocalTts(text: translation, languageCode: effectiveTargetLanguageCode, rate: selectedSpeed.rate, preferCloud: preferCloudTts)
                 await MainActor.run {
                     isPlayingTranslation = false
-                    handleSpeechQuotaResult(didPlay: didPlay)
+                    handleLocalTtsQuotaResult(didPlay: didPlay)
                 }
             }
         }
     }
 
-    private func handleSpeechQuotaResult(didPlay: Bool) {
-        guard !didPlay, appState.isSpeechQuotaExhausted else { return }
-        speechQuotaAlertMessage = appState.speechQuotaExhaustedMessage
+    private func handleLocalTtsQuotaResult(didPlay: Bool) {
+        guard !didPlay, appState.isLocalTtsQuotaExhausted else { return }
+        localTtsQuotaAlertMessage = appState.localTtsQuotaExhaustedMessage
             ?? appState.uiText(
                 "今日发音权益已用完，暂时无法继续发音。请让家长在家长区查看权益并补充次数后再发音。",
                 "Today's pronunciation quota is used up, so playback is temporarily unavailable. Please ask a parent to review benefits and add quota from the parent area before playing audio again."
             )
-        appState.isSpeechQuotaExhausted = false
-        appState.speechQuotaExhaustedMessage = nil
+        appState.isLocalTtsQuotaExhausted = false
+        appState.localTtsQuotaExhaustedMessage = nil
         appState.errorMessage = nil
-        showSpeechQuotaAlert = true
+        showLocalTtsQuotaAlert = true
     }
 
-    private func preloadSpeechForThisLesson() async {
-        areSpeechResourcesReady = false
-        await appState.preloadSpeechResources(
+    private func preloadLocalTtsForThisLesson() async {
+        areLocalTtsResourcesReady = false
+        await appState.preloadLocalTtsResources(
             languageCodes: [effectiveSourceLanguageCode, effectiveTargetLanguageCode],
             reason: "learning_detail"
         )
-        areSpeechResourcesReady = true
+        areLocalTtsResourcesReady = true
     }
 
     private func translateText() async {
@@ -987,7 +987,7 @@ struct LearningDetailView: View {
     }
 }
 
-enum SpeechSpeed: String, CaseIterable, Identifiable {
+enum LocalTtsSpeed: String, CaseIterable, Identifiable {
     case extraSlow
     case normal
     case extraFast
@@ -1002,9 +1002,9 @@ enum SpeechSpeed: String, CaseIterable, Identifiable {
         }
     }
 
-    static func persistedSelection() -> SpeechSpeed {
+    static func persistedSelection() -> LocalTtsSpeed {
         guard let rawValue = AppScopedDefaults().string(forKey: AppDefaultKey.learningPlaybackSpeed),
-              let speed = SpeechSpeed(rawValue: rawValue) else {
+              let speed = LocalTtsSpeed(rawValue: rawValue) else {
             return .normal
         }
         return speed

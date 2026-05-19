@@ -43,8 +43,8 @@ class ReadingPublicCompatControllerWebMvcTest {
                     "family_multi_child_lifetime",
                     false,
                     "解锁家庭伴读节奏",
-                    "多孩子档案、更多拍读额度、云同步和周报历史，帮助家长长期看到孩子的进步。",
-                    List.of("扣款以 Apple 确认弹窗为准", "云同步由家长主动开启"),
+                    "多孩子档案、更多拍读额度、周报历史，帮助家长长期看到孩子的进步。",
+                    List.of("扣款以 Apple 确认弹窗为准", "学习内容保存在本机"),
                     "权益以后端校验结果为准；价格与扣款以 Apple 确认弹窗为准。"
                 ),
                 new ReadingUsagePolicyService.UsagePolicyView(30, 7, "client_local", 24),
@@ -69,11 +69,11 @@ class ReadingPublicCompatControllerWebMvcTest {
     void plansShouldReturnFreeAndFamilyWithDynamicFields() throws Exception {
         when(readingCompatService.plans()).thenReturn(List.of(
             new ReadingCompatService.PlanView(
-                "free", "免费版", 1, 3, 20, false, false, null, false, "¥0", null, null,
+                "free", "免费版", 1, 3, 20, false, null, false, "¥0", null, null,
                 false, List.of("zh-Hans", "en"), List.of("zh_to_en", "en_to_zh")
             ),
             new ReadingCompatService.PlanView(
-                "family_multi_child_lifetime", "家庭多孩子终身版", 5, 50, 800, true, true,
+                "family_multi_child_lifetime", "家庭多孩子终身版", 5, 50, 800, true,
                 "com.paipai.readalong.family.multi_child.lifetime", true, "¥68", "¥98", "一次开通",
                 true, List.of("zh-Hans", "en"), List.of("zh_to_en", "en_to_zh")
             )

@@ -121,7 +121,7 @@ public class ReadingBillingCompatController {
     @Operation(summary = "查询权益获取和消耗记录", description = "家长中心权益记录页使用，支持按权益类别筛选和分页；会返回后台赠送、购买和试用记录，前端可据此同步本地权益库。")
     @GetMapping("/billing/entitlement-records")
     public ApiResponse<ReadingCompatService.EntitlementRecordPageView> entitlementRecords(
-        @Parameter(description = "权益类别：cloud_ocr/cloud_tts/capture/speech。") @RequestParam(required = false) String serviceType,
+        @Parameter(description = "权益类别：cloud_ocr/cloud_tts/local_ocr/local_tts。") @RequestParam(required = false) String serviceType,
         @Parameter(description = "客户端 IANA 时区，用于每日权益按用户本地日切分。", example = "Asia/Shanghai") @RequestParam(required = false) String timezone,
         @RequestParam(defaultValue = "1") int page,
         @RequestParam(defaultValue = "20") int pageSize,

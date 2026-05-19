@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # 单文件数据库初始化 smoke test。
 #
-# 作用：在干净 PostgreSQL 容器中用 Flyway 执行全部迁移，验证：
-# - Flyway 能成功解析并执行初始化文件与后续增量迁移；
+# 作用：在干净 PostgreSQL 容器中用 Flyway 执行单一首发初始化文件，验证：
+# - Flyway 能成功解析并执行统一 V1 基线；
 # - `${API_KEY}` 这类需要保留给运行时替换的字面值没有被 Flyway placeholder 误吞；
 # - 拍拍伴读首发所需的核心表、remote config、公告与 usage policy 种子数据存在。
 #
@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-MIGRATION_DIR="$BACKEND_DIR/src/main/resources/db/migration"
+MIGRATION_DIR="$BACKEND_DIR/src/main/resources/db/first_version"
 CONTAINER_NAME="${DB_INIT_SMOKE_CONTAINER:-apphub-db-init-smoke}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-postgres:17-alpine}"
 FLYWAY_IMAGE="${FLYWAY_IMAGE:-flyway/flyway:11-alpine}"
@@ -53,7 +53,7 @@ if ! docker exec "$CONTAINER_NAME" pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/
   exit 1
 fi
 
-echo "running Flyway migration from $MIGRATION_DIR"
+echo "running Flyway baseline from $MIGRATION_DIR"
 docker run --rm --network host \
   -v "$MIGRATION_DIR:/flyway/sql:ro" \
   "$FLYWAY_IMAGE" \
@@ -107,7 +107,7 @@ expect_numeric_at_least() {
 EXPECTED_FLYWAY_VERSIONS="$(find "$MIGRATION_DIR" -maxdepth 1 -type f -name 'V*__*.sql' | wc -l | tr -d '[:space:]')"
 expect_line "flyway_versions=${EXPECTED_FLYWAY_VERSIONS}"
 expect_numeric_at_least "remote_config" 58
-expect_line "announcements=3"
+expect_line "announcements=4"
 expect_line "usage_policy=4"
 expect_line 'api_key_literal=Bearer ${API_KEY}'
 

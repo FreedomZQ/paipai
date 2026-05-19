@@ -29,7 +29,7 @@
 - 前端新增 `Features/Parent/LanguagePreferenceView.swift`
 - Paywall 已改为动态展示：
   - childLimit
-  - dailyCaptureLimit
+  - dailyLocalOcrLimit
   - historyEnabled
   - supportedLocales
   - supportedLearningTrackCodes

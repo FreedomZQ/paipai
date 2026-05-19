@@ -369,11 +369,11 @@ public class ReadingCompatService {
         int safePage = Math.max(page, 1);
         int safePageSize = Math.min(Math.max(pageSize, 1), 50);
         List<ReadingCloudUsageService.ActiveEntitlementView> records = new ArrayList<>();
-        if (normalizedServiceType == null || ReadingCloudUsageService.LOCAL_CAPTURE.equals(normalizedServiceType)) {
-            records.add(localDailyEntitlementRecord(user.userId(), ReadingCloudUsageService.LOCAL_CAPTURE, clientZone));
+        if (normalizedServiceType == null || ReadingCloudUsageService.LOCAL_OCR.equals(normalizedServiceType)) {
+            records.add(localDailyEntitlementRecord(user.userId(), ReadingCloudUsageService.LOCAL_OCR, clientZone));
         }
-        if (normalizedServiceType == null || ReadingCloudUsageService.LOCAL_SPEECH.equals(normalizedServiceType)) {
-            records.add(localDailyEntitlementRecord(user.userId(), ReadingCloudUsageService.LOCAL_SPEECH, clientZone));
+        if (normalizedServiceType == null || ReadingCloudUsageService.LOCAL_TTS.equals(normalizedServiceType)) {
+            records.add(localDailyEntitlementRecord(user.userId(), ReadingCloudUsageService.LOCAL_TTS, clientZone));
         }
         records.addAll(cloudUsageService.recentCreditEntitlements(user.userId(), normalizedServiceType, 60));
         records = records.stream()
@@ -397,8 +397,8 @@ public class ReadingCompatService {
         }
         String normalized = serviceType.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
-            case "capture", "ocr", "text_recognition", "image_ocr", "picture_ocr", "photo_ocr", "device_ocr", "local_ocr" -> ReadingCloudUsageService.LOCAL_CAPTURE;
-            case "speech", "tts", "voice_reading", "text_to_speech", "speech_synthesis", "device_tts", "local_tts" -> ReadingCloudUsageService.LOCAL_SPEECH;
+            case "local_ocr", "ocr", "text_recognition", "image_ocr", "picture_ocr", "photo_ocr", "device_ocr" -> ReadingCloudUsageService.LOCAL_OCR;
+            case "local_tts", "tts", "voice_reading", "text_to_speech", "speech_synthesis", "device_tts" -> ReadingCloudUsageService.LOCAL_TTS;
             case "cloud_ocr" -> ReadingCloudUsageService.CLOUD_OCR;
             case "cloud_tts" -> ReadingCloudUsageService.CLOUD_TTS;
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported serviceType");
@@ -423,9 +423,9 @@ public class ReadingCompatService {
         OffsetDateTime dayStart = clientDate.atStartOfDay(clientZone).toOffsetDateTime();
         OffsetDateTime dayEnd = clientDate.plusDays(1).atStartOfDay(clientZone).toOffsetDateTime();
         OffsetDateTime expiresAt = dayEnd.minusSeconds(1);
-        boolean speech = ReadingCloudUsageService.LOCAL_SPEECH.equals(serviceType);
-        String eventType = speech ? "speech_play" : "capture_ocr";
-        String featureCode = speech ? ReadingDailyQuotaConfigService.FEATURE_SPEECH : ReadingDailyQuotaConfigService.FEATURE_CAPTURE;
+        boolean localTts = ReadingCloudUsageService.LOCAL_TTS.equals(serviceType);
+        String eventType = localTts ? "local_tts" : "local_ocr";
+        String featureCode = localTts ? ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS : ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR;
         int total = dailyQuotaLimit(entitlement, featureCode);
         int used = Math.min(deviceEventMapper.countByUserEventBetween(APP_CODE, userId, eventType, dayStart, dayEnd), total);
         return new ReadingCloudUsageService.ActiveEntitlementView(
@@ -542,12 +542,12 @@ public class ReadingCompatService {
             .map(child -> new DailyLearningTaskView(
                 "daily-" + today + "-" + child.getId(),
                 child.getId(),
-                reviewCardMapper.countDueByUser(user.userId(), OffsetDateTime.now(ZoneOffset.UTC)) > 0 ? "review_one" : "capture_one",
+                reviewCardMapper.countDueByUser(user.userId(), OffsetDateTime.now(ZoneOffset.UTC)) > 0 ? "review_one" : "local_ocr_one",
                 reviewCardMapper.countDueByUser(user.userId(), OffsetDateTime.now(ZoneOffset.UTC)) > 0 ? "今天复习 1 张句卡" : "今天拍读 1 句",
                 "后端会根据账号权益、孩子档案和句卡状态生成任务。",
                 3,
                 dailyTaskCompletionMapper.countByUserAndDate(user.userId(), today) > 0 ? "completed" : "generated",
-                reviewCardMapper.countDueByUser(user.userId(), OffsetDateTime.now(ZoneOffset.UTC)) > 0 ? "go_review" : "go_capture",
+                reviewCardMapper.countDueByUser(user.userId(), OffsetDateTime.now(ZoneOffset.UTC)) > 0 ? "go_review" : "go_local_ocr",
                 "今天完成了，继续保持就好。"
             ))
             .toList();
@@ -620,17 +620,14 @@ public class ReadingCompatService {
         card.setTargetLanguageCode(defaultIfBlank(request.targetLanguageCode(), targetLanguageCode(card.getLearningTrackCode())));
         card.setSourceType("manual");
         card.setDeletedAt(null);
-        card.setLastModifiedByInstallationId(null);
         card.setRecordVersion(1);
         card.setProficiency(0);
         card.setNextReviewAt(now.plusDays(1));
-        card.setSyncEnabled(Boolean.TRUE.equals(request.syncEnabled()));
-        card.setStorageMode(Boolean.TRUE.equals(request.syncEnabled()) ? "server_synced" : "server_authoritative");
         card.setCardStatus("active");
         card.setCreatedAt(now);
         card.setUpdatedAt(now);
         reviewCardMapper.insert(card);
-        return new CreateReviewCardReceipt(card.getId(), child.getId(), Boolean.TRUE.equals(card.getSyncEnabled()), now.toString(), accountState(user));
+        return new CreateReviewCardReceipt(card.getId(), child.getId(), now.toString(), accountState(user));
     }
 
     @Transactional
@@ -657,7 +654,6 @@ public class ReadingCompatService {
         event.setEventType(request.eventType() == null ? "completed" : request.eventType());
         event.setResultLevel(request.resultLevel() == null ? "remembered" : request.resultLevel());
         event.setEventAt(now);
-        event.setLastModifiedByInstallationId(null);
         event.setCreatedAt(now);
         event.setUpdatedAt(now);
         reviewEventMapper.insert(event);
@@ -990,25 +986,25 @@ public class ReadingCompatService {
         int childCount = childProfileMapper.countActiveByUser(userId);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         OffsetDateTime dayStart = now.toLocalDate().atStartOfDay().atOffset(ZoneOffset.UTC);
-        int captureUsed = deviceEventMapper.countByUserEventBetween(APP_CODE, userId, "capture_ocr", dayStart, dayStart.plusDays(1));
-        int speechUsed = deviceEventMapper.countByUserEventBetween(APP_CODE, userId, "speech_play", dayStart, dayStart.plusDays(1));
-        int baseCaptureLimit = dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_CAPTURE);
-        int baseSpeechLimit = dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_SPEECH);
-        ReadingCloudUsageService.CreditGrantBalance captureCredits = activeCreditBalance(userId, ReadingCloudUsageService.LOCAL_CAPTURE);
-        ReadingCloudUsageService.CreditGrantBalance speechCredits = activeCreditBalance(userId, ReadingCloudUsageService.LOCAL_SPEECH);
-        int capturePlanUsed = Math.min(captureUsed, baseCaptureLimit);
-        int speechPlanUsed = Math.min(speechUsed, baseSpeechLimit);
-        int captureCreditTotal = Math.max(captureCredits.totalCount(), 0);
-        int speechCreditTotal = Math.max(speechCredits.totalCount(), 0);
-        int captureCreditUsed = Math.min(Math.max(captureCredits.usedCount(), 0), captureCreditTotal);
-        int speechCreditUsed = Math.min(Math.max(speechCredits.usedCount(), 0), speechCreditTotal);
-        int captureLimit = baseCaptureLimit + captureCreditTotal;
-        int speechLimit = baseSpeechLimit + speechCreditTotal;
-        captureUsed = Math.min(capturePlanUsed + captureCreditUsed, captureLimit);
-        speechUsed = Math.min(speechPlanUsed + speechCreditUsed, speechLimit);
-        int remaining = Math.max(baseCaptureLimit - capturePlanUsed, 0) + Math.max(captureCredits.remainingCount(), 0);
-        int speechRemaining = Math.max(baseSpeechLimit - speechPlanUsed, 0) + Math.max(speechCredits.remainingCount(), 0);
-        return accountStateView(userId, provider, entitlement, childCount, now.toLocalDate(), captureLimit, captureUsed, remaining, speechLimit, speechUsed, speechRemaining);
+        int localOcrUsed = deviceEventMapper.countByUserEventBetween(APP_CODE, userId, "local_ocr", dayStart, dayStart.plusDays(1));
+        int localTtsUsed = deviceEventMapper.countByUserEventBetween(APP_CODE, userId, "local_tts", dayStart, dayStart.plusDays(1));
+        int baseLocalOcrLimit = dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR);
+        int baseLocalTtsLimit = dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS);
+        ReadingCloudUsageService.CreditGrantBalance localOcrCredits = activeCreditBalance(userId, ReadingCloudUsageService.LOCAL_OCR);
+        ReadingCloudUsageService.CreditGrantBalance localTtsCredits = activeCreditBalance(userId, ReadingCloudUsageService.LOCAL_TTS);
+        int localOcrPlanUsed = Math.min(localOcrUsed, baseLocalOcrLimit);
+        int localTtsPlanUsed = Math.min(localTtsUsed, baseLocalTtsLimit);
+        int localOcrCreditTotal = Math.max(localOcrCredits.totalCount(), 0);
+        int localTtsCreditTotal = Math.max(localTtsCredits.totalCount(), 0);
+        int localOcrCreditUsed = Math.min(Math.max(localOcrCredits.usedCount(), 0), localOcrCreditTotal);
+        int localTtsCreditUsed = Math.min(Math.max(localTtsCredits.usedCount(), 0), localTtsCreditTotal);
+        int localOcrLimit = baseLocalOcrLimit + localOcrCreditTotal;
+        int localTtsLimit = baseLocalTtsLimit + localTtsCreditTotal;
+        localOcrUsed = Math.min(localOcrPlanUsed + localOcrCreditUsed, localOcrLimit);
+        localTtsUsed = Math.min(localTtsPlanUsed + localTtsCreditUsed, localTtsLimit);
+        int remaining = Math.max(baseLocalOcrLimit - localOcrPlanUsed, 0) + Math.max(localOcrCredits.remainingCount(), 0);
+        int localTtsRemaining = Math.max(baseLocalTtsLimit - localTtsPlanUsed, 0) + Math.max(localTtsCredits.remainingCount(), 0);
+        return accountStateView(userId, provider, entitlement, childCount, now.toLocalDate(), localOcrLimit, localOcrUsed, remaining, localTtsLimit, localTtsUsed, localTtsRemaining);
     }
 
     private ReadingCloudUsageService.CreditGrantBalance activeCreditBalance(Long userId, String serviceType) {
@@ -1019,18 +1015,18 @@ public class ReadingCompatService {
     @Transactional
     public AccountStateView recordQuotaUsage(ReadingAuthenticatedUser user, QuotaUsageRequest request) {
         String kind = request == null || request.kind() == null ? "" : request.kind().trim().toLowerCase(Locale.ROOT);
-        boolean captureQuota = "ocr".equals(kind)
-            || "capture".equals(kind)
+        boolean localOcrQuota = "ocr".equals(kind)
+            || "local_ocr".equals(kind)
             || "text_recognition".equals(kind)
             || "image_ocr".equals(kind)
             || "picture_ocr".equals(kind)
             || "photo_ocr".equals(kind);
-        boolean speechQuota = "speech".equals(kind)
+        boolean localTtsQuota = "local_tts".equals(kind)
             || "tts".equals(kind)
             || "voice_reading".equals(kind)
             || "text_to_speech".equals(kind)
             || "speech_synthesis".equals(kind);
-        if (!speechQuota && !captureQuota) {
+        if (!localTtsQuota && !localOcrQuota) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported quota usage kind");
         }
         if (request == null) {
@@ -1043,8 +1039,8 @@ public class ReadingCompatService {
         AccountEntitlementView entitlement = resolveEntitlement(user.userId());
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         OffsetDateTime dayStart = now.toLocalDate().atStartOfDay().atOffset(ZoneOffset.UTC);
-        String eventType = speechQuota ? "speech_play" : "capture_ocr";
-        String featureCode = speechQuota ? ReadingDailyQuotaConfigService.FEATURE_SPEECH : ReadingDailyQuotaConfigService.FEATURE_CAPTURE;
+        String eventType = localTtsQuota ? "local_tts" : "local_ocr";
+        String featureCode = localTtsQuota ? ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS : ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR;
         int duplicateCount = deviceEventMapper.countByUserEventAndIdempotencyBetween(
             APP_CODE,
             user.userId(),
@@ -1058,8 +1054,8 @@ public class ReadingCompatService {
         }
         int used = deviceEventMapper.countByUserEventBetween(APP_CODE, user.userId(), eventType, dayStart, dayStart.plusDays(1));
         int baseLimit = dailyQuotaLimit(entitlement, featureCode);
-        if (used >= baseLimit && !cloudUsageService.consumeGiftCreditIfAvailable(user.userId(), speechQuota ? ReadingCloudUsageService.LOCAL_SPEECH : ReadingCloudUsageService.LOCAL_CAPTURE)) {
-            throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED, speechQuota ? "Read-aloud quota exhausted" : "OCR quota exhausted");
+        if (used >= baseLimit && !cloudUsageService.consumeGiftCreditIfAvailable(user.userId(), localTtsQuota ? ReadingCloudUsageService.LOCAL_TTS : ReadingCloudUsageService.LOCAL_OCR)) {
+            throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED, localTtsQuota ? "Read-aloud quota exhausted" : "OCR quota exhausted");
         }
         if (duplicateCount <= 0) {
             SysUserDeviceEventEntity event = new SysUserDeviceEventEntity();
@@ -1081,12 +1077,12 @@ public class ReadingCompatService {
         AccountEntitlementView entitlement,
         int childCount,
         LocalDate quotaDate,
-        int captureLimit,
+        int localOcrLimit,
         int used,
         int remaining,
-        int speechLimit,
-        int speechUsed,
-        int speechRemaining
+        int localTtsLimit,
+        int localTtsUsed,
+        int localTtsRemaining
     ) {
         return new AccountStateView(
             String.valueOf(userId),
@@ -1095,13 +1091,12 @@ public class ReadingCompatService {
                 entitlement.planCode(),
                 entitlement.planName(),
                 entitlement.entitlementCode(),
-                entitlement.dailyCaptureLimit(),
-                dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_SPEECH),
+                entitlement.dailyLocalOcrLimit(),
+                dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS),
                 entitlement.childLimit(),
                 entitlement.localCardLimit(),
                 childCount,
                 Math.max(entitlement.childLimit() - childCount, 0),
-                entitlement.cloudSyncEnabled(),
                 entitlement.advancedVoiceEnabled(),
                 entitlement.premiumActive() && Boolean.TRUE.equals(entitlement.serverVerified()),
                 entitlement.validUntil(),
@@ -1116,7 +1111,7 @@ public class ReadingCompatService {
                 entitlement.verificationSource(),
                 entitlement.accessProof()
             ),
-            new DailyQuotaView(quotaDate.toString(), captureLimit, used, remaining, speechLimit, speechUsed, speechRemaining)
+            new DailyQuotaView(quotaDate.toString(), localOcrLimit, used, remaining, localTtsLimit, localTtsUsed, localTtsRemaining)
         );
     }
 
@@ -1233,9 +1228,8 @@ public class ReadingCompatService {
                 return null;
             }
             FeatureAccessView childProfile = decision.features().get("child_profile");
-            FeatureAccessView dailyCapture = decision.features().get("daily_capture");
+            FeatureAccessView dailyLocalOcr = decision.features().get("daily_local_ocr");
             FeatureAccessView localCard = decision.features().get("local_card");
-            FeatureAccessView cloudSync = decision.features().get("cloud_sync");
             FeatureAccessView advancedVoice = decision.features().get("advanced_voice");
             FeatureAccessView multiChild = decision.features().get("multi_child");
             FeatureAccessView weeklyReport = decision.features().get("weekly_report");
@@ -1246,19 +1240,18 @@ public class ReadingCompatService {
                 decision.planCode(),
                 decision.planName(),
                 decision.entitlementCode(),
-                limitOr(dailyCapture, 3),
-                limitOr(decision.features().get("daily_speech"), 10),
+                limitOr(dailyLocalOcr, 3),
+                limitOr(decision.features().get("daily_local_tts"), 10),
                 limitOr(childProfile, 1),
                 limitOr(localCard, 20),
                 0,
                 limitOr(childProfile, 1),
-                paidActive && enabled(cloudSync),
                 paidActive && enabled(advancedVoice),
                 paidActive,
                 decision.expiresAt(),
                 true,
                 paidActive && enabled(multiChild),
-                firstNonBlank(scope(dailyCapture), "single_child"),
+                firstNonBlank(scope(dailyLocalOcr), "single_child"),
                 firstNonBlank(scope(weeklyReport), "child"),
                 paidActive && enabled(weeklyHistory) ? limitOr(weeklyHistory, 0) : 0,
                 paidActive && enabled(weeklyHistory),
@@ -1318,13 +1311,12 @@ public class ReadingCompatService {
             source.planCode(),
             source.planName(),
             source.entitlementCode(),
-            source.dailyCaptureLimit(),
-            source.dailySpeechLimit(),
+            source.dailyLocalOcrLimit(),
+            source.dailyLocalTtsLimit(),
             source.childLimit(),
             source.localCardLimit(),
             source.childCount(),
             source.remainingChildSlots(),
-            paidFeatureActive && Boolean.TRUE.equals(source.cloudSyncEnabled()),
             paidFeatureActive && Boolean.TRUE.equals(source.advancedVoiceEnabled()),
             paidFeatureActive,
             source.validUntil(),
@@ -1375,10 +1367,10 @@ public class ReadingCompatService {
             FAMILY_PLAN,
             false,
             "解锁家庭伴读节奏",
-            "多孩子档案、更多拍读额度、云同步和周报历史，帮助家长长期看到孩子的进步。",
+            "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。",
             List.of(
                 "一次开通当前家庭版权益，具体扣款以 Apple 确认弹窗为准。",
-                "学习内容默认优先保存在本机；云同步由家长主动开启。",
+                "学习内容保存在本机，账号能力以后端校验结果为准。",
                 "账号删除、法务文档和客服入口均在 App 内可访问。"
             ),
             "权益以后端校验结果为准；价格与扣款以 Apple 确认弹窗为准。"
@@ -1392,7 +1384,6 @@ public class ReadingCompatService {
             1,
             3,
             20,
-            false,
             false,
             null,
             false,
@@ -1413,7 +1404,6 @@ public class ReadingCompatService {
             50,
             800,
             true,
-            true,
             familyProductId,
             true,
             familyDisplayPrice,
@@ -1428,7 +1418,7 @@ public class ReadingCompatService {
     private CreditProductView resourcePackView(ReadingResourcePackCatalogEntity entity, String locale) {
         String productCode = firstNonBlank(entity.getPackageCode(), "unknown");
         String packageType = firstNonBlank(entity.getPackageType(), "resource_pack");
-        String serviceType = firstNonBlank(entity.getServiceType(), ReadingCloudUsageService.LOCAL_SPEECH);
+        String serviceType = firstNonBlank(entity.getServiceType(), ReadingCloudUsageService.LOCAL_TTS);
         Integer amount = entity.getIncludedQuantity() == null ? 0 : entity.getIncludedQuantity();
         return new CreditProductView(
             productCode,
@@ -1484,8 +1474,8 @@ public class ReadingCompatService {
 
     private boolean isCreditGrantProduct(CreditProductView product) {
         String serviceType = product == null ? "" : firstNonBlank(product.serviceType(), "").toLowerCase(Locale.ROOT);
-        return ReadingCloudUsageService.LOCAL_CAPTURE.equals(serviceType)
-            || ReadingCloudUsageService.LOCAL_SPEECH.equals(serviceType)
+        return ReadingCloudUsageService.LOCAL_OCR.equals(serviceType)
+            || ReadingCloudUsageService.LOCAL_TTS.equals(serviceType)
             || ReadingCloudUsageService.CLOUD_OCR.equals(serviceType)
             || ReadingCloudUsageService.CLOUD_TTS.equals(serviceType);
     }
@@ -1614,11 +1604,11 @@ public class ReadingCompatService {
 
 
     private AccountEntitlementView defaultFamilyEntitlement() {
-        return new AccountEntitlementView(FAMILY_PLAN, "家庭多孩子终身版", FAMILY_ENTITLEMENT, 50, 100, 5, 800, 0, 5, true, true, true, null, true, true, "per_child", "family", 12, true, false, false, null, Map.of());
+        return new AccountEntitlementView(FAMILY_PLAN, "家庭多孩子终身版", FAMILY_ENTITLEMENT, 50, 100, 5, 800, 0, 5, true, true, null, true, true, "per_child", "family", 12, true, false, false, null, Map.of());
     }
 
     private AccountEntitlementView defaultFreeEntitlement() {
-        return new AccountEntitlementView(FREE_PLAN, "免费版", "free", 3, 10, 1, 20, 0, 1, false, false, false, null, true, false, "single_child", "child", 0, false, false, true, "backend_sys_billing", Map.of("appCode", APP_CODE, "policy", "reading_weekly_report_access.access_matrix_v1", "plan", FREE_PLAN));
+        return new AccountEntitlementView(FREE_PLAN, "免费版", "free", 3, 10, 1, 20, 0, 1, false, false, null, true, false, "single_child", "child", 0, false, false, true, "backend_sys_billing", Map.of("appCode", APP_CODE, "policy", "reading_weekly_report_access.access_matrix_v1", "plan", FREE_PLAN));
     }
 
     private Map<String, Object> loadNamespaceItems(String namespaceCode) {
@@ -1640,15 +1630,14 @@ public class ReadingCompatService {
             if (code == null || code.isBlank()) {
                 return null;
             }
-            fallback = new PlanView(code, code, 1, 3, 20, false, false, null, false, null, null, null, false, resolveSupportedLocales(), resolveLearningTracks().stream().map(LearningTrackView::code).toList());
+            fallback = new PlanView(code, code, 1, 3, 20, false, null, false, null, null, null, false, resolveSupportedLocales(), resolveLearningTracks().stream().map(LearningTrackView::code).toList());
         }
         return new PlanView(
             stringValue(config, "code", fallback.code()),
             stringValue(config, "displayName", fallback.displayName()),
             intValue(config, "childLimit", fallback.childLimit()),
-            intValue(config, "dailyCaptureLimit", fallback.dailyCaptureLimit()),
+            intValue(config, "dailyLocalOcrLimit", fallback.dailyLocalOcrLimit()),
             intValue(config, "localCardLimit", fallback.localCardLimit()),
-            boolValue(config, "cloudSyncEnabled", fallback.cloudSyncEnabled()),
             boolValue(config, "advancedVoiceEnabled", fallback.advancedVoiceEnabled()),
             stringValue(config, "appStoreProductId", fallback.appStoreProductId()),
             boolValue(config, "highlight", fallback.highlight()),
@@ -1671,13 +1660,12 @@ public class ReadingCompatService {
             stringValue(config, "code", fallback.planCode()),
             stringValue(config, "displayName", fallback.planName()),
             stringValue(config, "entitlementCode", fallback.entitlementCode()),
-            intValue(config, "dailyCaptureLimit", fallback.dailyCaptureLimit()),
-            intValue(config, "dailySpeechLimit", fallback.dailySpeechLimit()),
+            intValue(config, "dailyLocalOcrLimit", fallback.dailyLocalOcrLimit()),
+            intValue(config, "dailyLocalTtsLimit", fallback.dailyLocalTtsLimit()),
             childLimit,
             intValue(config, "localCardLimit", fallback.localCardLimit()),
             fallback.childCount(),
             Math.max(childLimit - fallback.childCount(), 0),
-            boolValue(config, "cloudSyncEnabled", fallback.cloudSyncEnabled()),
             boolValue(config, "advancedVoiceEnabled", fallback.advancedVoiceEnabled()),
             boolValue(config, "premiumActive", fallback.premiumActive()),
             fallback.validUntil(),
@@ -1979,13 +1967,12 @@ public class ReadingCompatService {
             entry.planCode(),
             stringValue(config, "displayName", entry.planCode()),
             stringValue(config, "entitlementCode", entry.entitlementCode()),
-            intValue(config, "dailyCaptureLimit", 3),
-            intValue(config, "dailySpeechLimit", 10),
+            intValue(config, "dailyLocalOcrLimit", 3),
+            intValue(config, "dailyLocalTtsLimit", 10),
             childLimit,
             localCardLimit,
             0,
             childLimit,
-            boolValue(config, "cloudSyncEnabled", false),
             boolValue(config, "advancedVoiceEnabled", false),
             premiumActive,
             null,
@@ -2330,7 +2317,6 @@ public class ReadingCompatService {
             entity.getSupportHint() == null ? "" : entity.getSupportHint(),
             entity.getProficiency() == null ? 0 : entity.getProficiency(),
             entity.getNextReviewAt() == null ? null : entity.getNextReviewAt().toString(),
-            entity.getStorageMode(),
             entity.getSourceLanguageCode(),
             entity.getTargetLanguageCode(),
             entity.getCreatedAt() == null ? null : entity.getCreatedAt().toString()
@@ -2344,8 +2330,6 @@ public class ReadingCompatService {
             entity.getSupportHint() == null ? "" : entity.getSupportHint(),
             entity.getProficiency() == null ? 0 : entity.getProficiency(),
             entity.getNextReviewAt() == null ? null : entity.getNextReviewAt().toString(),
-            entity.getSyncEnabled(),
-            entity.getStorageMode(),
             entity.getSourceLanguageCode(),
             entity.getTargetLanguageCode()
         );
@@ -2380,9 +2364,8 @@ public class ReadingCompatService {
         String code,
         String displayName,
         Integer childLimit,
-        Integer dailyCaptureLimit,
+        Integer dailyLocalOcrLimit,
         Integer localCardLimit,
-        Boolean cloudSyncEnabled,
         Boolean advancedVoiceEnabled,
         String appStoreProductId,
         Boolean highlight,
@@ -2452,13 +2435,12 @@ public class ReadingCompatService {
         String planCode,
         String planName,
         String entitlementCode,
-        Integer dailyCaptureLimit,
-        Integer dailySpeechLimit,
+        Integer dailyLocalOcrLimit,
+        Integer dailyLocalTtsLimit,
         Integer childLimit,
         Integer localCardLimit,
         Integer childCount,
         Integer remainingChildSlots,
-        Boolean cloudSyncEnabled,
         Boolean advancedVoiceEnabled,
         Boolean premiumActive,
         String validUntil,
@@ -2476,19 +2458,19 @@ public class ReadingCompatService {
 
     public record DailyQuotaView(
         String quotaDate,
-        Integer captureLimit,
-        Integer captureUsed,
-        Integer captureRemaining,
-        Integer speechLimit,
-        Integer speechUsed,
-        Integer speechRemaining
+        Integer localOcrLimit,
+        Integer localOcrUsed,
+        Integer localOcrRemaining,
+        Integer localTtsLimit,
+        Integer localTtsUsed,
+        Integer localTtsRemaining
     ) {}
     public record QuotaUsageRequest(
-        @Schema(description = "权益类型：speech/tts/voice_reading/text_to_speech/speech_synthesis 或 ocr/capture/text_recognition。", example = "speech") String kind,
+        @Schema(description = "权益类型：local_tts/tts/voice_reading/text_to_speech/speech_synthesis 或 ocr/local_ocr/text_recognition。", example = "local_tts") String kind,
         @Schema(description = "触发来源。", example = "device_tts") String source,
         @Schema(description = "语言编码。", example = "en-US") String languageCode,
         @Schema(description = "消耗次数。", example = "1") Integer amount,
-        @Schema(description = "幂等键，防止重试重复扣减。", example = "speech-20260502-001") String idempotencyKey,
+        @Schema(description = "幂等键，防止重试重复扣减。", example = "localTts-20260502-001") String idempotencyKey,
         @Schema(description = "客户端发生时间。", example = "2026-05-02T10:15:30Z") String occurredAt
     ) {}
     public record ChildView(String id, String nickname, String ageBand, String learningTrackCode, String avatarEmoji) {}
@@ -2513,7 +2495,7 @@ public class ReadingCompatService {
     ) {}
 
     public record HomeChildView(String childId, String nickname, String ageBand, String avatarEmoji) {}
-    public record RecentReviewCardView(String cardId, String text, String supportHint, Integer proficiency, String nextReviewAt, String storageMode, String sourceLanguageCode, String targetLanguageCode, String createdAt) {}
+    public record RecentReviewCardView(String cardId, String text, String supportHint, Integer proficiency, String nextReviewAt, String sourceLanguageCode, String targetLanguageCode, String createdAt) {}
     public record LearningGrowthView(Integer currentStreakDays, Integer weeklyActiveDays, Integer weeklyReviewCount, String encouragement) {}
     public record ChildProgressView(String childId, String nickname, String ageBand, String avatarEmoji, Integer reviewDueCount, Integer savedCardCount, Integer todayCompletedCount) {}
 
@@ -2521,12 +2503,12 @@ public class ReadingCompatService {
     public record DailyLearningTaskView(String taskId, String childId, String taskType, String title, String reason, Integer estimatedMinutes, String status, String ctaType, String completionMessage) {}
     @Schema(description = "每日任务完成回写请求体。")
     public record DailyTaskCompleteRequest(
-        @Schema(description = "完成类型，例如 capture_saved。", example = "capture_saved") String completionType,
+        @Schema(description = "完成类型，例如 local_ocr_saved。", example = "local_ocr_saved") String completionType,
         @Schema(description = "孩子档案 ID。", example = "child-a") String childId
     ) {}
     public record DailyLearningTaskCompletionView(String taskId, String status, String completedAt, Integer streakDays, Integer weeklyActiveDays, Integer weeklyReviewCount, Integer todayCompletedCount, String message) {}
 
-    public record ReviewCardView(String id, String text, String supportHint, Integer proficiency, String nextReviewAt, Boolean syncEnabled, String storageMode, String sourceLanguageCode, String targetLanguageCode) {}
+    public record ReviewCardView(String id, String text, String supportHint, Integer proficiency, String nextReviewAt, String sourceLanguageCode, String targetLanguageCode) {}
     @Schema(description = "创建句卡请求体。")
     public record CreateReviewCardRequest(
         @Schema(description = "孩子档案 ID。", example = "child-a") String childId,
@@ -2534,10 +2516,9 @@ public class ReadingCompatService {
         @Schema(description = "句卡正文编码值。", example = "encrypted-card-text") String encryptedText,
         @Schema(description = "可选的译文或辅助提示。", example = "The quick brown fox jumps over the lazy dog.") String supportHint,
         @Schema(description = "原文语种编码。未传时由学习方向推导。", example = "en") String sourceLanguageCode,
-        @Schema(description = "翻译语种编码。未传时由学习方向推导。", example = "ja") String targetLanguageCode,
-        @Schema(description = "是否请求云端同步。", example = "true") Boolean syncEnabled
+        @Schema(description = "翻译语种编码。未传时由学习方向推导。", example = "ja") String targetLanguageCode
     ) {}
-    public record CreateReviewCardReceipt(String cardId, String childId, Boolean cloudSyncStored, String savedAt, AccountStateView accountState) {}
+    public record CreateReviewCardReceipt(String cardId, String childId, String savedAt, AccountStateView accountState) {}
     @Schema(description = "复习事件记录请求体。")
     public record ReviewEventRequest(
         @Schema(description = "句卡 ID。", example = "card-001") String cardId,
