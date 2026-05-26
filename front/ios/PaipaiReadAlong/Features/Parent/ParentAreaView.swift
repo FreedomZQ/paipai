@@ -626,12 +626,18 @@ struct ParentDashboardView: View {
     let currentChildUsageSummary: ChildUsageSummary?
 
     @State private var versionCardTapCount = 0
+    @State private var showClearLearningDataConfirmation = false
+    @State private var showClearLearningDataSuccess = false
+    @State private var showClearLearningDataError = false
+    @State private var clearLearningDataErrorMessage = ""
+    @State private var isClearingLearningData = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: AppLayout.spacingXL) {
                 childrenSection
                 usageSection
+                clearLocalLearningDataSection
                 settingsSection
                 if let error = appState.errorMessage, !error.isEmpty {
                     MainCard {
@@ -647,6 +653,27 @@ struct ParentDashboardView: View {
             .adaptiveContentFrame(maxWidth: AppLayout.wideReadableMaxWidth)
         }
         .background(AppColors.background)
+        .alert(appState.uiText("清除本地学习数据", "Clear local learning data"), isPresented: $showClearLearningDataConfirmation) {
+            Button(appState.uiText("取消", "Cancel"), role: .cancel) {}
+            Button(appState.uiText("确认清除", "Clear"), role: .destructive) {
+                Task { await clearLocalLearningData() }
+            }
+        } message: {
+            Text(appState.uiText(
+                "此操作将永久删除本地学习数据，且删除后无法恢复",
+                "This permanently deletes local learning data and cannot be undone."
+            ))
+        }
+        .alert(appState.uiText("清除完成", "Cleared"), isPresented: $showClearLearningDataSuccess) {
+            Button(appState.uiText("知道了", "OK"), role: .cancel) {}
+        } message: {
+            Text(appState.uiText("已成功清除本地学习数据", "Local learning data has been cleared."))
+        }
+        .alert(appState.uiText("清除失败", "Clear failed"), isPresented: $showClearLearningDataError) {
+            Button(appState.uiText("知道了", "OK"), role: .cancel) {}
+        } message: {
+            Text(clearLearningDataErrorMessage)
+        }
     }
 
     private var usageSection: some View {
@@ -724,6 +751,67 @@ struct ParentDashboardView: View {
         }
     }
 
+    private var clearLocalLearningDataSection: some View {
+        MainCard {
+            VStack(alignment: .leading, spacing: AppLayout.spacingM) {
+                HStack(alignment: .top, spacing: AppLayout.spacingM) {
+                    Image(systemName: "trash.circle.fill")
+                        .font(AppTypography.scaledFont(size: 26, weight: .semibold))
+                        .foregroundColor(AppColors.error)
+                        .frame(width: 34)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(appState.uiText("清除本地学习数据", "Clear local learning data"))
+                            .font(AppTypography.headline)
+                            .foregroundColor(AppColors.textPrimary)
+                        Text(appState.uiText(
+                            "清除学习进度、练习记录、伴读复习、阅读周报、学习时长、句卡内容和统计；不会清除本机积分、账户信息或会员状态。",
+                            "Clears progress, practice records, reviews, weekly reports, usage time, saved cards, and stats. Local credits, account info, and membership stay intact."
+                        ))
+                        .font(AppTypography.footnote)
+                        .foregroundColor(AppColors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Button(role: .destructive) {
+                    showClearLearningDataConfirmation = true
+                } label: {
+                    HStack(spacing: AppLayout.spacingS) {
+                        if isClearingLearningData {
+                            ProgressView()
+                                .tint(AppColors.error)
+                        } else {
+                            Image(systemName: "trash")
+                                .font(AppTypography.scaledFont(size: 15, weight: .semibold))
+                        }
+                        Text(isClearingLearningData ? appState.uiText("正在清除...", "Clearing...") : appState.uiText("清除本地学习数据", "Clear local learning data"))
+                            .font(AppTypography.buttonSmall)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(AppTypography.scaledFont(size: 12, weight: .semibold))
+                    }
+                    .foregroundColor(AppColors.error)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: AppLayout.minimumTapTarget)
+                    .padding(.horizontal, AppLayout.spacingM)
+                    .background(AppColors.error.opacity(0.08))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppLayout.cornerRadiusM, style: .continuous)
+                            .stroke(AppColors.error.opacity(0.35), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadiusM, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadiusM, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(isClearingLearningData)
+                .opacity(isClearingLearningData ? 0.7 : 1)
+            }
+        }
+    }
+
     private var currentChildName: String {
         appState.selectedChild.nickname.isEmpty ? appState.uiText("当前孩子", "Current child") : appState.selectedChild.nickname
     }
@@ -738,7 +826,7 @@ struct ParentDashboardView: View {
                 SettingsNavigationLink {
                     PaywallView()
                 } label: {
-                    SettingRow(icon: "crown.fill", title: appState.uiText("订阅管理", "Subscription"), color: AppColors.accentYellow)
+                    SettingRow(icon: "creditcard.fill", title: appState.uiText("本机积分", "Local credits"), color: AppColors.accentYellow)
                 }
                 SettingsNavigationLink {
                     LanguagePreferenceView()
@@ -762,16 +850,6 @@ struct ParentDashboardView: View {
                     EntitlementRecordsView()
                 } label: {
                     SettingRow(icon: "list.bullet.rectangle", title: appState.uiText("权益获取记录", "Entitlement records"), color: AppColors.secondary)
-                }
-                SettingsNavigationLink {
-                    CompensationCodeView()
-                } label: {
-                    SettingRow(
-                        icon: "ticket.fill",
-                        title: appState.uiText("权益补偿", "Compensation"),
-                        subtitle: "输入发放的补偿码",
-                        color: AppColors.secondary
-                    )
                 }
                 versionUpdateCard
                 SettingsNavigationLink {
@@ -893,6 +971,23 @@ struct ParentDashboardView: View {
         Task {
             await appState.performFullEntitlementSync(reason: "parent_version_card_hidden_sync")
             appState.announcementOverlayRefreshToken = UUID()
+        }
+    }
+
+    private func clearLocalLearningData() async {
+        guard !isClearingLearningData else { return }
+        isClearingLearningData = true
+        let didClear = await appState.deleteLocalLearningData()
+        isClearingLearningData = false
+        if didClear {
+            showClearLearningDataSuccess = true
+        } else {
+            clearLearningDataErrorMessage = appState.errorMessage ?? appState.uiText(
+                "清除本地学习数据失败，请稍后重试。账户、本机积分和会员状态不受影响。",
+                "Failed to clear local learning data. Please try again. Account, local credits, and membership status are not affected."
+            )
+            appState.errorMessage = nil
+            showClearLearningDataError = true
         }
     }
 

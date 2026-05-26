@@ -25,9 +25,11 @@ class AppDefinitionServiceTest {
         service.afterPropertiesSet();
 
         AppDefinition reading = service.get("paipai_readingcompanion").orElseThrow();
-        assertThat(reading.support().appleSignInRequired()).isTrue();
+        assertThat(reading.support().appleSignInRequired()).isFalse();
         assertThat(reading.support().billingRequired()).isTrue();
         assertThat(reading.support().legalRequired()).isTrue();
+        assertThat(reading.raw().get("app.launch.localNoBackendFirstRelease")).isEqualTo("true");
+        assertThat(reading.raw().get("app.auth.bootstrapSessionEnabled")).isEqualTo("false");
     }
 
     @Test

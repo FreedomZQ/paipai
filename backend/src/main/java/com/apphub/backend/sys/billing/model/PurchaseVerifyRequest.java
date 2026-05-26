@@ -17,6 +17,10 @@ public record PurchaseVerifyRequest(
     @Schema(description = "店面区域。", example = "CHN") @Size(max = 32) String storefront,
     @Schema(description = "App Account Token。", example = "550e8400-e29b-41d4-a716-446655440000") @Size(max = 128) String appAccountToken,
     @Schema(description = "Apple signedTransactionInfo，必填。", example = "eyJhbGciOiJFUzI1NiIsIng1YyI6W10ifQ...") @NotBlank String signedTransactionInfo,
-    @Schema(description = "Apple signedRenewalInfo。", example = "eyJhbGciOiJFUzI1NiIsIng1YyI6W10ifQ...") String signedRenewalInfo
+    @Schema(description = "Apple signedRenewalInfo。", example = "eyJhbGciOiJFUzI1NiIsIng1YyI6W10ifQ...") String signedRenewalInfo,
+    @Schema(description = "客户端生成的幂等键。", example = "purchase-2000000123456789") @Size(max = 160) String idempotencyKey,
+    @Schema(description = "付款客户/监护人是否同意为 Apple 退款评估共享最小消费信息。") Boolean refundDataSharingConsent,
+    @Schema(description = "同意文案版本。", example = "refund-consumption-v1") @Size(max = 64) String consentPolicyVersion,
+    @Schema(description = "客户端同意地区/法域。", example = "CN") @Size(max = 16) String consentRegion
 ) {
 }

@@ -31,6 +31,7 @@ public class ReadingResourcePackCatalogEntity {
     private Integer includedQuantity;
     private String quantityUnit;
     private Integer validDays;
+    private String appStoreProductId;
     private String status;
     private Integer sortOrder;
     @TableField(jdbcType = JdbcType.OTHER, typeHandler = JsonbStringTypeHandler.class)

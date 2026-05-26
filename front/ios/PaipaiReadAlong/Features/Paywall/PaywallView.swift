@@ -5,9 +5,6 @@ struct PaywallView: View {
     @EnvironmentObject var appState: AppState
     @State private var selectedProduct: CreditProduct?
     @State private var isLoading = false
-
-    /// 前端购买页只展示数据库判定为激活且可购买的选项。
-    /// 后端仍会返回 disabled 商品供接口层保留精细化禁购能力，但 App 页面不展示这些置灰项。
     private var purchasableProducts: [CreditProduct] {
         appState.creditProducts.filter { $0.enabled }
     }
@@ -21,23 +18,36 @@ struct PaywallView: View {
     }
 
     private var canPurchaseSelectedProduct: Bool {
-        // 付款按钮必须同时满足：后端在线、商品未被数据库禁用、当前是正式家长账号。
         selectedOrFirstProduct?.enabled == true
             && appState.billingHealth?.purchaseAvailable == true
-            && appState.authMode == .formalAccount
     }
 
     var body: some View {
+        Group {
+            if !appState.isParentGateVerified {
+                NavigationStack {
+                    ParentGateView {
+                        appState.isParentGateVerified = true
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            CloseButton { dismiss() }
+                        }
+                    }
+                }
+            } else {
+                paywallContent
+            }
+        }
+    }
+
+    private var paywallContent: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: AppLayout.spacingXL) {
                     headerSection
-                    introSection
                     if hasConfiguredProducts {
                         healthSection
-                    }
-                    if hasConfiguredProducts && !localizedTrustBullets.isEmpty {
-                        trustCard
                     }
                     if hasConfiguredProducts {
                         productListSection
@@ -79,52 +89,6 @@ struct PaywallView: View {
         }
     }
 
-    private var introSection: some View {
-        MainCard {
-            VStack(alignment: .leading, spacing: AppLayout.spacingM) {
-                Text(appState.localizedText(
-                    zhHans: "资源包能力",
-                    english: "Resource Pack Features",
-                    japanese: "リソースパック機能",
-                    korean: "리소스 팩 기능",
-                    spanish: "Funciones de paquetes"
-                ))
-                .font(AppTypography.headline)
-                .foregroundColor(AppColors.textPrimary)
-                ForEach(Array(resourceIntroItems.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .top, spacing: AppLayout.spacingS) {
-                        Image(systemName: item.icon)
-                            .font(AppTypography.scaledFont(size: 16, weight: .semibold))
-                            .foregroundColor(AppColors.primary)
-                            .frame(width: 24)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(item.title)
-                                .font(AppTypography.bodySmall.weight(.semibold))
-                                .foregroundColor(AppColors.textPrimary)
-                            Text(item.subtitle)
-                                .font(AppTypography.caption)
-                                .foregroundColor(AppColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                if !hasConfiguredProducts {
-                    Text(appState.localizedText(
-                        zhHans: "当前后端未启用任何可购买资源包，页面仅展示功能介绍。",
-                        english: "No purchasable resource packs are enabled by the backend, so this page only shows feature information.",
-                        japanese: "バックエンドで購入可能なリソースパックが有効化されていないため、機能紹介のみ表示します。",
-                        korean: "백엔드에서 구매 가능한 리소스 팩이 활성화되지 않아 기능 소개만 표시합니다.",
-                        spanish: "El backend no tiene paquetes comprables activos, por lo que esta página solo muestra información."
-                    ))
-                    .font(AppTypography.caption)
-                    .foregroundColor(AppColors.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
     private var healthSection: some View {
         MainCard {
             VStack(alignment: .leading, spacing: AppLayout.spacingS) {
@@ -145,35 +109,12 @@ struct PaywallView: View {
         }
     }
 
-    private var trustCard: some View {
-        MainCard {
-            VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-                Text(appState.uiText("购买说明", "Purchase notes"))
-                    .font(AppTypography.headline)
-                    .foregroundColor(AppColors.textPrimary)
-                ForEach(localizedTrustBullets.prefix(4), id: \.self) { item in
-                    HStack(alignment: .top, spacing: AppLayout.spacingS) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(AppTypography.scaledFont(size: 14))
-                            .foregroundColor(AppColors.success)
-                            .padding(.top, 2)
-                        Text(item)
-                            .font(AppTypography.footnote)
-                            .foregroundColor(AppColors.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
     private var productListSection: some View {
         VStack(alignment: .leading, spacing: AppLayout.spacingM) {
             HStack {
                 Text(appState.localizedText(
-                    zhHans: "可购买资源包",
-                    english: "Purchasable packages",
+                    zhHans: "可购买本机积分",
+                    english: "Local credit packages",
                     japanese: "購入可能なパック",
                     korean: "구매 가능한 패키지",
                     spanish: "Paquetes disponibles"
@@ -181,11 +122,11 @@ struct PaywallView: View {
                     .font(AppTypography.headline)
                 Spacer()
                 Text(appState.localizedText(
-                    zhHans: "同一类别每天最多购买 5 次",
-                    english: "Up to 5 purchases per category per day",
-                    japanese: "同じカテゴリは1日5回まで購入できます",
-                    korean: "같은 카테고리는 하루 최대 5회 구매할 수 있습니다",
-                    spanish: "Hasta 5 compras por categoría al día"
+                    zhHans: "余额仅保存在此设备",
+                    english: "Stored on this device",
+                    japanese: "この端末に保存",
+                    korean: "이 기기에 저장",
+                    spanish: "Guardado en este dispositivo"
                 ))
                     .font(AppTypography.caption)
                     .foregroundColor(AppColors.textSecondary)
@@ -212,16 +153,16 @@ struct PaywallView: View {
                 Task {
                     guard let product = selectedOrFirstProduct, product.enabled else { return }
                     isLoading = true
-                    let success = await appState.purchaseInternal(product: product)
+                    let success = await appState.purchaseAppStoreProduct(product: product)
                     isLoading = false
                     if success { dismiss() }
                 }
             }
             .disabled(!canPurchaseSelectedProduct)
 
-            Button(appState.uiText("刷新权益", "Refresh entitlements")) {
+            Button(appState.uiText("恢复/刷新购买状态", "Restore / refresh purchases")) {
                 Task {
-                    await appState.performFullEntitlementSync(reason: "purchase_page_refresh")
+                    await appState.restorePurchases()
                 }
             }
             .font(AppTypography.body)
@@ -232,12 +173,7 @@ struct PaywallView: View {
 
     private var footerSection: some View {
         VStack(spacing: 6) {
-            Text(footerText)
-                .font(AppTypography.caption)
-                .foregroundColor(AppColors.textTertiary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(appState.uiText("购买成功后会按商品类型发放本地或云端权益。删除云端账号会停止账号权益并清理可删除数据；必要购买凭证按 Apple、退款、税务和反欺诈规则最小保留，退款仍需走 App Store 流程。", "After purchase, local or cloud entitlements are granted according to the product type. Deleting the cloud account stops account entitlements and clears deletable data; necessary purchase evidence is minimally retained under Apple, refund, tax, and anti-fraud rules. Refunds still follow the App Store process."))
+            Text(appState.uiText("购买由 Apple App 内购买完成。本机积分不按日期过期，但使用后会扣减；消耗型积分不支持跨设备自动恢复。退款或购买争议请通过 Apple 官方购买问题渠道处理。", "Purchases are completed through Apple In-App Purchase. Local credits do not expire by date, but are consumed when used; consumable credits do not restore automatically across devices. Refunds or purchase disputes are handled through Apple."))
                 .font(AppTypography.caption)
                 .foregroundColor(AppColors.textTertiary)
                 .multilineTextAlignment(.center)
@@ -249,8 +185,8 @@ struct PaywallView: View {
         return localizedPaywallCopy(
             headline,
             fallback: appState.localizedText(
-                zhHans: "购买次数包",
-                english: "Buy credit packages",
+                zhHans: "购买本机积分",
+                english: "Buy local credits",
                 japanese: "クレジットパックを購入",
                 korean: "크레딧 패키지 구매",
                 spanish: "Comprar paquetes de créditos"
@@ -263,19 +199,13 @@ struct PaywallView: View {
         return localizedPaywallCopy(
             subtitle,
             fallback: appState.localizedText(
-                zhHans: "商品、额度和有效期都由后端实时配置。",
-                english: "Products, amounts, and expiry are configured by the backend.",
-                japanese: "商品、回数、有効期限はバックエンドでリアルタイムに設定されます。",
-                korean: "상품, 수량, 유효기간은 백엔드에서 실시간으로 설정됩니다.",
-                spanish: "Los productos, cantidades y vencimientos se configuran desde el backend."
+                zhHans: "本机功能积分用于识字和朗读，云端功能积分暂未开放。",
+                english: "Local feature credits are used for OCR and read-aloud. Cloud feature credits are not enabled yet.",
+                japanese: "本機クレジットはこの端末の OCR と読み上げに使われ、残高は開発者サーバーへ送信されません。",
+                korean: "로컬 크레딧은 이 기기의 OCR 및 읽어주기에 사용되며 잔액은 개발자 서버로 업로드되지 않습니다.",
+                spanish: "Los creditos locales se usan para OCR y lectura en este dispositivo. El saldo no se sube a un servidor del desarrollador."
             )
         )
-    }
-
-    private var localizedTrustBullets: [String] {
-        appState.bootstrap.paywall.trustBullets
-            .map { localizedPaywallCopy($0, fallback: $0) }
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
 
     private func localizedPaywallCopy(_ text: String, fallback: String) -> String {
@@ -283,6 +213,46 @@ struct PaywallView: View {
         guard !normalizedText.isEmpty else { return fallback }
 
         switch normalizedText {
+        case "本机积分":
+            return appState.localizedText(
+                zhHans: normalizedText,
+                english: "Local credits",
+                japanese: "本機クレジット",
+                korean: "로컬 크레딧",
+                spanish: "Creditos locales"
+            )
+        case "用于当前设备的本地识字和朗读。购买由 Apple 确认，余额只保存在本机 Keychain。":
+            return appState.localizedText(
+                zhHans: normalizedText,
+                english: "For on-device OCR and read-aloud on this device. Apple confirms purchases, and balances stay in this device's Keychain.",
+                japanese: "この端末の OCR と読み上げに使用します。購入は Apple が確認し、残高はこの端末の Keychain に保存されます。",
+                korean: "이 기기의 OCR 및 읽어주기에 사용됩니다. 구매는 Apple이 확인하며 잔액은 이 기기의 Keychain에 저장됩니다.",
+                spanish: "Para OCR y lectura en este dispositivo. Apple confirma las compras y el saldo queda en el Keychain del dispositivo."
+            )
+        case "购买或赠送的积分不按日期过期，使用后按页面显示的消耗值扣减。":
+            return appState.localizedText(
+                zhHans: normalizedText,
+                english: "Purchased or granted credits do not expire by date and are consumed according to the cost shown in the app.",
+                japanese: "購入または付与されたクレジットは日付では期限切れにならず、画面に表示された消費量で差し引かれます。",
+                korean: "구매 또는 제공된 크레딧은 날짜로 만료되지 않으며 앱에 표시된 차감량에 따라 사용됩니다.",
+                spanish: "Los creditos comprados o concedidos no caducan por fecha y se consumen segun el coste mostrado."
+            )
+        case "学习内容和本机积分默认只保存在当前设备，不上传到开发者服务器。":
+            return appState.localizedText(
+                zhHans: normalizedText,
+                english: "Learning content and local credits stay on this device by default and are not uploaded to a developer server.",
+                japanese: "学習内容と本機クレジットは標準でこの端末に保存され、開発者サーバーへ送信されません。",
+                korean: "학습 콘텐츠와 로컬 크레딧은 기본적으로 이 기기에 저장되며 개발자 서버로 업로드되지 않습니다.",
+                spanish: "El contenido de aprendizaje y los creditos locales permanecen en este dispositivo por defecto."
+            )
+        case "消耗型本机积分不支持跨设备自动恢复。":
+            return appState.localizedText(
+                zhHans: normalizedText,
+                english: "Consumable local credits do not restore automatically across devices.",
+                japanese: "消耗型の本機クレジットは端末間で自動復元されません。",
+                korean: "소모성 로컬 크레딧은 기기 간 자동 복원이 지원되지 않습니다.",
+                spanish: "Los creditos locales consumibles no se restauran automaticamente entre dispositivos."
+            )
         case "解锁家庭伴读节奏", "解锁高级版伴读节奏":
             return appState.localizedText(
                 zhHans: normalizedText,
@@ -293,11 +263,11 @@ struct PaywallView: View {
             )
         case "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。":
             return appState.localizedText(
-                zhHans: normalizedText,
-                english: "Child profiles, more capture credits and weekly report history help parents follow each child's progress over time.",
-                japanese: "子どもプロフィール、より多くの撮影読取枠、クラウド同期、週報履歴で、保護者が長期的な成長を確認できます。",
-                korean: "자녀 프로필, 더 많은 촬영 읽기 한도, 클라우드 동기화, 주간 리포트 기록으로 부모가 아이의 성장을 꾸준히 확인할 수 있습니다.",
-                spanish: "Los perfiles infantiles, más créditos de captura, la sincronización en la nube y el historial semanal ayudan a seguir el progreso de cada niño."
+                zhHans: "本机积分用于当前设备的识字和朗读，不上传学习内容，也不承诺跨设备恢复。",
+                english: "Local credits are for on-device OCR and read-aloud on this device. Learning content is not uploaded, and cross-device restoration is not promised.",
+                japanese: "本機クレジットはこの端末の OCR と読み上げに使用します。学習内容は送信されず、端末間の復元は約束しません。",
+                korean: "로컬 크레딧은 이 기기의 OCR 및 읽기 기능에 사용됩니다. 학습 콘텐츠는 업로드되지 않으며 기기 간 복원은 보장하지 않습니다.",
+                spanish: "Los creditos locales son para OCR y lectura en este dispositivo. El contenido no se sube y no se promete restauracion entre dispositivos."
             )
         case "一次开通当前家庭版权益，具体扣款以 Apple 确认弹窗为准。", "一次开通当前高级版权益，具体扣款以 Apple 确认弹窗为准。":
             return appState.localizedText(
@@ -311,17 +281,17 @@ struct PaywallView: View {
             return appState.localizedText(
                 zhHans: normalizedText,
                 english: "Learning content is saved on this device by default.",
-                japanese: "学習内容は標準でこの端末に保存され、クラウド同期は保護者が有効にします。",
-                korean: "학습 콘텐츠는 기본적으로 이 기기에 저장되며, 클라우드 동기화는 부모가 직접 켭니다.",
-                spanish: "El contenido de aprendizaje se guarda en este dispositivo por defecto; la sincronización en la nube la activa un adulto."
+                japanese: "学習内容は標準でこの端末に保存されます。",
+                korean: "학습 콘텐츠는 기본적으로 이 기기에 저장됩니다.",
+                spanish: "El contenido de aprendizaje se guarda en este dispositivo por defecto."
             )
         case "账号删除、法务文档和客服入口均在 App 内可访问。":
             return appState.localizedText(
-                zhHans: normalizedText,
-                english: "Account deletion, legal documents, and support are all available in the app.",
-                japanese: "アカウント削除、法務文書、サポート窓口はすべてアプリ内から利用できます。",
-                korean: "계정 삭제, 법적 문서, 고객 지원은 모두 앱 안에서 이용할 수 있습니다.",
-                spanish: "La eliminación de cuenta, los documentos legales y el soporte están disponibles dentro de la app."
+                zhHans: "法务文档、支持入口和本地数据删除入口均在家长区内。",
+                english: "Legal documents, support, and local data deletion are available inside Parents.",
+                japanese: "法務文書、サポート、ローカルデータ削除は保護者エリア内で利用できます。",
+                korean: "법적 문서, 지원, 로컬 데이터 삭제는 부모 영역에서 이용할 수 있습니다.",
+                spanish: "Los documentos legales, soporte y borrado local estan dentro del area para padres."
             )
         default:
             return normalizedText
@@ -329,59 +299,16 @@ struct PaywallView: View {
     }
 
     private var healthHint: String {
-        appState.uiText("后端不可用时仅限制购买，不影响已获权益的正常使用。", "When the backend is unavailable, only purchasing is blocked; existing entitlements still work.")
+        appState.uiText("购买、扣款和价格确认由 Apple 完成；本机积分余额保存在当前设备 Keychain。", "Apple handles purchase, charge, and price confirmation; local credit balances are stored in this device's Keychain.")
     }
 
     private var purchaseButtonTitle: String {
         guard let product = selectedOrFirstProduct else {
-            return appState.uiText("请选择次数包", "Select a package")
+            return appState.uiText("请选择积分包", "Select a credit package")
         }
         return appState.uiText("立即购买 ", "Buy now ") + product.displayName + " " + product.displayPrice
     }
 
-    private var footerText: String {
-        if !hasConfiguredProducts {
-            return appState.localizedText(
-                zhHans: "后端启用资源包后，本页会自动展示购买项目。",
-                english: "When resource packs are enabled by the backend, purchasable items will appear here automatically.",
-                japanese: "バックエンドでリソースパックが有効になると、購入項目が自動的に表示されます。",
-                korean: "백엔드에서 리소스 팩이 활성화되면 구매 항목이 자동으로 표시됩니다.",
-                spanish: "Cuando el backend active paquetes, aparecerán aquí automáticamente."
-            )
-        }
-        if appState.billingHealth?.purchaseAvailable != true {
-            return appState.billingHealth?.unavailableMessage ?? appState.uiText("暂时无法购买", "Purchasing is temporarily unavailable.")
-        }
-        if appState.authMode != .formalAccount {
-            return appState.uiText("请先在家长区完成登录，再发起购买。", "Please sign in from the parent area before purchasing.")
-        }
-        return appState.uiText("购买会先经过后端校验，再立即发放权益。", "Purchases are checked by the backend first, then granted immediately.")
-    }
-
-    private var resourceIntroItems: [(icon: String, title: String, subtitle: String)] {
-        [
-            (
-                "speaker.wave.2.fill",
-                appState.localizedText(zhHans: "语音次数包", english: "Voice credits", japanese: "音声クレジット", korean: "음성 크레딧", spanish: "Créditos de voz"),
-                appState.localizedText(zhHans: "补充朗读次数，适合高频跟读练习。", english: "Add read-aloud credits for frequent practice.", japanese: "音読練習用の回数を追加します。", korean: "반복 읽기 연습용 횟수를 추가합니다.", spanish: "Añade créditos para practicar lectura en voz alta.")
-            ),
-            (
-                "text.viewfinder",
-                appState.localizedText(zhHans: "图片识别次数包", english: "Image recognition credits", japanese: "画像認識クレジット", korean: "이미지 인식 크레딧", spanish: "Créditos OCR"),
-                appState.localizedText(zhHans: "补充拍照识别次数，方便保存新句子。", english: "Add OCR credits for capturing new sentences.", japanese: "新しい文を保存するための画像認識回数を追加します。", korean: "새 문장을 저장하기 위한 인식 횟수를 추가합니다.", spanish: "Añade créditos OCR para guardar nuevas frases.")
-            ),
-            (
-                "person.2.fill",
-                appState.localizedText(zhHans: "孩子个数扩展", english: "Child slot extensions", japanese: "子ども枠拡張", korean: "자녀 슬롯 확장", spanish: "Extensión de hijos"),
-                appState.localizedText(zhHans: "扩展可管理的孩子档案数量。", english: "Increase the number of child profiles you can manage.", japanese: "管理できる子どもプロフィール数を増やします。", korean: "관리 가능한 자녀 프로필 수를 늘립니다.", spanish: "Aumenta la cantidad de perfiles de hijos.")
-            ),
-            (
-                "rectangle.stack.fill",
-                appState.localizedText(zhHans: "句卡容量扩展", english: "Sentence card storage", japanese: "フレーズカード容量", korean: "문장 카드 용량", spanish: "Capacidad de tarjetas"),
-                appState.localizedText(zhHans: "扩展句卡记录上限，保留更多复习内容。", english: "Increase the card limit to keep more review content.", japanese: "復習カードの保存上限を増やします。", korean: "더 많은 복습 내용을 저장할 수 있도록 한도를 늘립니다.", spanish: "Aumenta el límite para guardar más contenido.")
-            )
-        ]
-    }
 }
 
 struct ProductCard: View {
@@ -404,11 +331,7 @@ struct ProductCard: View {
                                 .foregroundColor(AppColors.primary)
                         }
                     }
-                    Text(product.displayDescription?.isEmpty == false ? product.displayDescription ?? "" : product.localizedCategoryName)
-                        .font(AppTypography.caption)
-                        .foregroundColor(AppColors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("\(product.amount) " + quantityUnitText + appState.uiText(" · 有效期 ", " · Valid for ") + "\(product.validDays)" + appState.uiText(" 天", " days"))
+                    Text("\(product.amount) " + quantityUnitText)
                         .font(AppTypography.caption)
                         .foregroundColor(AppColors.textSecondary)
                 }
@@ -419,7 +342,7 @@ struct ProductCard: View {
                         .foregroundColor(AppColors.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
-                    Text(appState.uiText("后端配置价", "Backend configured"))
+                    Text(appState.uiText("Apple 确认", "Apple confirmed"))
                         .font(AppTypography.caption)
                         .foregroundColor(AppColors.textSecondary)
                 }
@@ -442,7 +365,7 @@ struct ProductCard: View {
         case "card":
             return appState.localizedText(zhHans: "条句卡", english: "cards", japanese: "カード", korean: "카드", spanish: "tarjetas")
         default:
-            return appState.localizedText(zhHans: "次", english: "credits", japanese: "回", korean: "회", spanish: "créditos")
+            return appState.localizedText(zhHans: "积分", english: "credits", japanese: "クレジット", korean: "크레딧", spanish: "creditos")
         }
     }
 }

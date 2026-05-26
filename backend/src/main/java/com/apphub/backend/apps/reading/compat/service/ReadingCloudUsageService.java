@@ -7,6 +7,8 @@ import com.apphub.backend.apps.reading.domain.entity.ReadingCloudServiceUsageLog
 import com.apphub.backend.apps.reading.domain.mapper.ReadingCloudServiceCreditGrantMapper;
 import com.apphub.backend.apps.reading.domain.mapper.ReadingCloudServiceUsageLogMapper;
 import com.apphub.backend.apps.reading.domain.mapper.ReadingCloudServiceUsageMapper;
+import com.apphub.backend.sys.billing.privacy.entity.SysEntitlementLedgerEventEntity;
+import com.apphub.backend.sys.billing.privacy.mapper.SysEntitlementLedgerEventMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,6 +20,7 @@ import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * reading 云端服务次数控制服务。
@@ -29,6 +32,7 @@ public class ReadingCloudUsageService {
     public static final String CLOUD_TTS = "cloud_tts";
     public static final String LOCAL_OCR = "local_ocr";
     public static final String LOCAL_TTS = "local_tts";
+    public static final String LOCAL_DEVICE = "local_device";
     private static final String APP_CODE = ReadingAppModule.APP_CODE;
     private static final int DEFAULT_GIFT_VALID_DAYS = 30;
 
@@ -36,18 +40,30 @@ public class ReadingCloudUsageService {
     private final ReadingCloudServiceUsageLogMapper logMapper;
     private final ReadingCloudServiceCreditGrantMapper creditGrantMapper;
     private final ReadingDailyQuotaConfigService dailyQuotaConfigService;
+    private final SysEntitlementLedgerEventMapper entitlementLedgerEventMapper;
 
     @Autowired
     public ReadingCloudUsageService(
         ReadingCloudServiceUsageMapper usageMapper,
         ReadingCloudServiceUsageLogMapper logMapper,
         ReadingCloudServiceCreditGrantMapper creditGrantMapper,
-        ReadingDailyQuotaConfigService dailyQuotaConfigService
+        ReadingDailyQuotaConfigService dailyQuotaConfigService,
+        SysEntitlementLedgerEventMapper entitlementLedgerEventMapper
     ) {
         this.usageMapper = usageMapper;
         this.logMapper = logMapper;
         this.creditGrantMapper = creditGrantMapper;
         this.dailyQuotaConfigService = dailyQuotaConfigService;
+        this.entitlementLedgerEventMapper = entitlementLedgerEventMapper;
+    }
+
+    public ReadingCloudUsageService(
+        ReadingCloudServiceUsageMapper usageMapper,
+        ReadingCloudServiceUsageLogMapper logMapper,
+        ReadingCloudServiceCreditGrantMapper creditGrantMapper,
+        ReadingDailyQuotaConfigService dailyQuotaConfigService
+    ) {
+        this(usageMapper, logMapper, creditGrantMapper, dailyQuotaConfigService, null);
     }
 
     public ReadingCloudUsageService(
@@ -55,7 +71,7 @@ public class ReadingCloudUsageService {
         ReadingCloudServiceUsageLogMapper logMapper,
         ReadingDailyQuotaConfigService dailyQuotaConfigService
     ) {
-        this(usageMapper, logMapper, null, dailyQuotaConfigService);
+        this(usageMapper, logMapper, null, dailyQuotaConfigService, null);
     }
 
     @Transactional
@@ -101,7 +117,18 @@ public class ReadingCloudUsageService {
     }
 
     @Transactional
+    public CloudUsageDecision grantAppStorePurchase(Long userId, String serviceType, String productCode, int amount, int validDays, String transactionId) {
+        int safeValidDays = Math.min(Math.max(validDays, 1), 3660);
+        return grantPurchaseUntil(userId, serviceType, productCode, amount, now().plusDays(safeValidDays), transactionId, "appstore_purchase");
+    }
+
+    @Transactional
     public CloudUsageDecision grantPurchaseUntil(Long userId, String serviceType, String productCode, int amount, OffsetDateTime expiresAt, String purchaseRef) {
+        return grantPurchaseUntil(userId, serviceType, productCode, amount, expiresAt, purchaseRef, "internal_purchase");
+    }
+
+    @Transactional
+    public CloudUsageDecision grantPurchaseUntil(Long userId, String serviceType, String productCode, int amount, OffsetDateTime expiresAt, String purchaseRef, String sourceType) {
         if (amount <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount must be greater than zero");
         }
@@ -109,8 +136,9 @@ public class ReadingCloudUsageService {
             throw new ResponseStatusException(HttpStatus.GONE, "grant expiry must be in the future");
         }
         String normalizedServiceType = normalizeServiceType(serviceType);
+        String normalizedSourceType = blankToNull(sourceType) == null ? "internal_purchase" : sourceType.trim();
         if (creditGrantMapper != null && purchaseRef != null && !purchaseRef.isBlank()) {
-            ReadingCloudServiceCreditGrantEntity existing = creditGrantMapper.selectBySourceRef(APP_CODE, userId, normalizedServiceType, "internal_purchase", purchaseRef.trim());
+            ReadingCloudServiceCreditGrantEntity existing = creditGrantMapper.selectBySourceRef(APP_CODE, userId, normalizedServiceType, normalizedSourceType, purchaseRef.trim());
             if (existing != null) {
                 ReadingCloudServiceUsageEntity existingEntity = ensureUsageEntity(userId, normalizedServiceType);
                 return allowedDecision(normalizedServiceType, remaining(existingEntity));
@@ -132,7 +160,7 @@ public class ReadingCloudUsageService {
             grant.setGrantType("paid");
             grant.setTotalCount(amount);
             grant.setUsedCount(0);
-            grant.setSourceType("internal_purchase");
+            grant.setSourceType(normalizedSourceType);
             grant.setSourceRef(blankToNull(purchaseRef));
             grant.setProductCode(blankToNull(productCode));
             grant.setExpiresAt(expiresAt);
@@ -141,7 +169,7 @@ public class ReadingCloudUsageService {
             creditGrantMapper.insert(grant);
         }
         int afterRemaining = remaining(entity);
-        insertLog(entity, amount, beforeRemaining, afterRemaining, beforeTrialUsed, beforePurchasedCredits, beforePurchasedUsed, "internal_purchase", "user", String.valueOf(userId), blankToNull(purchaseRef));
+        insertLog(entity, amount, beforeRemaining, afterRemaining, beforeTrialUsed, beforePurchasedCredits, beforePurchasedUsed, normalizedSourceType, "user", String.valueOf(userId), blankToNull(purchaseRef));
         return allowedDecision(normalizedServiceType, afterRemaining);
     }
 
@@ -312,6 +340,56 @@ public class ReadingCloudUsageService {
         return new CreditGrantBalance(normalizedServiceType, total, used, Math.max(total - used, 0));
     }
 
+    @Transactional
+    public ActiveEntitlementView ensureDailyLoginGiftGrant(
+        Long userId,
+        int totalCount,
+        int usedCount,
+        OffsetDateTime dayStart,
+        OffsetDateTime expiresAt,
+        String quotaDate
+    ) {
+        int safeTotal = Math.max(totalCount, 0);
+        int safeUsed = Math.min(Math.max(usedCount, 0), safeTotal);
+        if (creditGrantMapper == null || userId == null || safeTotal <= 0) {
+            return dailyLoginGiftView(null, safeTotal, safeUsed, dayStart, expiresAt, quotaDate);
+        }
+        String sourceRef = dailyLoginGiftSourceRef(quotaDate);
+        OffsetDateTime current = now();
+        // 中文说明：每日登录赠送只写一条 local_device 记录，避免识字/朗读各生成一条导致用户看到重复赠送。
+        ReadingCloudServiceCreditGrantEntity existing = creditGrantMapper.selectBySourceRef(
+            APP_CODE,
+            userId,
+            LOCAL_DEVICE,
+            "daily_login",
+            sourceRef
+        );
+        if (existing == null) {
+            ReadingCloudServiceCreditGrantEntity grant = new ReadingCloudServiceCreditGrantEntity();
+            grant.setAppCode(APP_CODE);
+            grant.setUserId(userId);
+            grant.setServiceType(LOCAL_DEVICE);
+            grant.setGrantType("daily_gift");
+            grant.setTotalCount(safeTotal);
+            grant.setUsedCount(safeUsed);
+            grant.setSourceType("daily_login");
+            grant.setSourceRef(sourceRef);
+            grant.setProductCode("daily_login_gift");
+            grant.setExpiresAt(expiresAt);
+            grant.setCreatedAt(dayStart);
+            grant.setUpdatedAt(current);
+            creditGrantMapper.insert(grant);
+            existing = grant;
+        } else {
+            creditGrantMapper.updateDailyLoginGift(existing.getId(), safeTotal, safeUsed, expiresAt, current);
+            existing.setTotalCount(safeTotal);
+            existing.setUsedCount(safeUsed);
+            existing.setExpiresAt(expiresAt);
+            existing.setUpdatedAt(current);
+        }
+        return toActiveEntitlementView(existing);
+    }
+
     public boolean consumeGiftCreditIfAvailable(Long userId, String serviceType) {
         return consumeCreditGrantIfAvailable(userId, normalizeServiceType(serviceType));
     }
@@ -321,10 +399,11 @@ public class ReadingCloudUsageService {
             case CLOUD_TTS -> ReadingDailyQuotaConfigService.FEATURE_CLOUD_TTS;
             case CLOUD_OCR -> ReadingDailyQuotaConfigService.FEATURE_CLOUD_OCR;
             case LOCAL_TTS -> ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS;
+            case LOCAL_DEVICE -> ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE;
             case LOCAL_OCR -> ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR;
             default -> ReadingDailyQuotaConfigService.FEATURE_CLOUD_OCR;
         };
-        if (LOCAL_OCR.equals(serviceType) || LOCAL_TTS.equals(serviceType)) {
+        if (LOCAL_OCR.equals(serviceType) || LOCAL_TTS.equals(serviceType) || LOCAL_DEVICE.equals(serviceType)) {
             return 0;
         }
         return dailyQuotaConfigService.dailyLimit("free", featureCode);
@@ -396,7 +475,36 @@ public class ReadingCloudUsageService {
         grant.setUsedCount(value(grant.getUsedCount()) + 1);
         grant.setUpdatedAt(now());
         creditGrantMapper.updateById(grant);
+        writeAppStoreConsumeLedgerEvent(userId, serviceType, grant);
         return true;
+    }
+
+    private void writeAppStoreConsumeLedgerEvent(Long userId, String serviceType, ReadingCloudServiceCreditGrantEntity grant) {
+        if (entitlementLedgerEventMapper == null
+            || grant == null
+            || !"appstore_purchase".equals(grant.getSourceType())
+            || blankToNull(grant.getSourceRef()) == null) {
+            return;
+        }
+        int afterUsed = value(grant.getUsedCount());
+        SysEntitlementLedgerEventEntity event = new SysEntitlementLedgerEventEntity();
+        event.setAppCode(APP_CODE);
+        event.setUserId(userId);
+        event.setEventId(UUID.randomUUID());
+        event.setEventType("consume");
+        event.setEntitlementCode(serviceType);
+        event.setTransactionId(grant.getSourceRef());
+        event.setRefundStatus("none");
+        event.setQuantityDelta(-1);
+        event.setBalanceBefore(Math.max(value(grant.getTotalCount()) - afterUsed + 1, 0));
+        event.setBalanceAfter(Math.max(value(grant.getTotalCount()) - afterUsed, 0));
+        event.setEntitlementVersion(System.currentTimeMillis());
+        event.setReasonCode("usage_consume");
+        event.setSourceType("reading_credit_grant");
+        event.setSourceRef(grant.getId() == null ? null : String.valueOf(grant.getId()));
+        event.setMetadataJson("{\"childrenDataExcluded\":true,\"eventScope\":\"aggregate_purchase_consumption\"}");
+        event.setCreatedAt(now());
+        entitlementLedgerEventMapper.insert(event);
     }
 
     private void insertAdminGiftGrant(Long userId, String serviceType, int amount, String idempotencyKey, Integer validDays) {
@@ -542,6 +650,7 @@ public class ReadingCloudUsageService {
         String acquireMethod = switch (entity.getSourceType() == null ? "" : entity.getSourceType()) {
             case "internal_purchase" -> "内部购买";
             case "admin" -> "后台赠送";
+            case "daily_login" -> "每日赠送";
             default -> "权益赠送";
         };
         return new ActiveEntitlementView(
@@ -600,6 +709,12 @@ public class ReadingCloudUsageService {
         if (CLOUD_TTS.equals(normalized)) {
             return CLOUD_TTS;
         }
+        if (LOCAL_DEVICE.equals(normalized)
+            || "local_credits".equals(normalized)
+            || "local_feature".equals(normalized)
+            || "daily_login_gift".equals(normalized)) {
+            return LOCAL_DEVICE;
+        }
         if ("local_ocr".equals(normalized)
             || "ocr".equals(normalized)
             || "text_recognition".equals(normalized)
@@ -631,6 +746,25 @@ public class ReadingCloudUsageService {
 
     private int value(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private ActiveEntitlementView dailyLoginGiftView(Long id, int total, int used, OffsetDateTime dayStart, OffsetDateTime expiresAt, String quotaDate) {
+        return new ActiveEntitlementView(
+            id == null ? dailyLoginGiftSourceRef(quotaDate) : String.valueOf(id),
+            LOCAL_DEVICE,
+            "daily_gift",
+            "每日赠送",
+            total,
+            Math.min(used, total),
+            Math.max(total - used, 0),
+            dayStart.toString(),
+            expiresAt.toString(),
+            "daily_login_gift"
+        );
+    }
+
+    private String dailyLoginGiftSourceRef(String quotaDate) {
+        return "daily-local-device-" + (quotaDate == null || quotaDate.isBlank() ? now().toLocalDate() : quotaDate);
     }
 
     private String exhaustedTitle(String serviceType) {

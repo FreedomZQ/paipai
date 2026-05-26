@@ -33,13 +33,13 @@ public interface SysPurchaseTransactionMapper extends BaseMapper<SysPurchaseTran
         SELECT user_id
         FROM sys_purchase_transaction
         WHERE app_code = #{appCode}
-          AND app_account_token = #{appAccountToken}
+          AND app_account_token_hash = #{appAccountToken}
         ORDER BY updated_at DESC, id DESC
         LIMIT 1
         """)
     Long selectLatestUserIdByAppAccountToken(
         @Param("appCode") String appCode,
-        @Param("appAccountToken") String appAccountToken
+        @Param("appAccountToken") String appAccountTokenHash
     );
 
     @Select("""

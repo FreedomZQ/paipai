@@ -67,7 +67,7 @@ final class BackendClient {
     private(set) var currentSession: StoredAuthSession?
 
     var hasAuthenticatedSession: Bool {
-        currentSession != nil
+        AppIdentity.developerBackendEnabled && currentSession != nil
     }
 
     init(
@@ -82,8 +82,10 @@ final class BackendClient {
         self.sessionStore = sessionStore
         self.appCode = routes.appCode
         self.routes = routes
-        self.anonymousInstallationId = BackendClient.loadOrCreateAnonymousInstallationId()
-        self.currentSession = sessionStore.load()
+        self.anonymousInstallationId = AppIdentity.developerBackendEnabled
+            ? BackendClient.loadOrCreateAnonymousInstallationId()
+            : ""
+        self.currentSession = AppIdentity.developerBackendEnabled ? sessionStore.load() : nil
     }
 
     func fetchBootstrap() async throws -> AppBootstrap {
@@ -315,6 +317,19 @@ final class BackendClient {
         return envelope.data
     }
 
+    func fetchDailyLoginGiftConfig(planCode: String? = nil) async throws -> DailyLoginGiftConfig {
+        let queryItems = [
+            planCode.map { URLQueryItem(name: "planCode", value: $0) }
+        ].compactMap { $0 }
+        // 中文说明：启动和回前台时读取后端数据库里的统一日赠积分配置，失败时 AppState 会使用上次缓存值。
+        let envelope: Envelope<DailyLoginGiftConfig> = try await send(
+            path: "/api/v1/billing/daily-login-gift-config",
+            queryItems: queryItems,
+            requiresAuth: false
+        )
+        return envelope.data
+    }
+
     func verifyPurchasePermission(productCode: String?, locale: String? = nil) async throws -> PurchasePermissionDecision {
         // 点击购买前再次调用后端实时验证接口，防止数据库刚刚禁购后客户端仍继续付款流程。
         let queryItems = [
@@ -381,6 +396,16 @@ final class BackendClient {
             ? "/api/v1/subscriptions/app-store/purchases/intake"
             : "/api/v1/subscriptions/app-store/restores/intake"
         let envelope: Envelope<TransactionIntakeReceipt> = try await send(path: endpoint, method: "POST", body: payload, requiresAuth: true)
+        return envelope.data
+    }
+
+    func updatePrivacyConsent(_ payload: PrivacyConsentPayload) async throws -> PrivacyConsentReceipt {
+        let envelope: Envelope<PrivacyConsentReceipt> = try await send(
+            path: "/api/v1/billing/privacy/consents",
+            method: "POST",
+            body: payload,
+            requiresAuth: true
+        )
         return envelope.data
     }
 
@@ -587,6 +612,11 @@ final class BackendClient {
     }
 
     private func send<T: Decodable>(path: String, queryItems: [URLQueryItem], method: String, bodyData: Data?, requiresAuth: Bool) async throws -> T {
+        guard AppIdentity.developerBackendEnabled else {
+            // 无后端首发模式下，任何遗漏的调用都必须在发出 URLRequest 前失败。
+            // 这样即使某个隐藏页面误触发 BackendClient，也不会访问个人开发者服务器或测试域名。
+            throw BackendError.connectionUnavailable
+        }
         enforceAppScopedRouteBoundary(path: path)
         let url = makeURL(path: path, queryItems: queryItems)
         var request = try makeRequest(url: url, method: method, requiresAuth: requiresAuth)
@@ -660,7 +690,9 @@ final class BackendClient {
         request.httpMethod = method
         request.timeoutInterval = 15
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(anonymousInstallationId, forHTTPHeaderField: "X-Paipai-Anonymous-Id")
+        if !anonymousInstallationId.isEmpty {
+            request.setValue(anonymousInstallationId, forHTTPHeaderField: "X-Paipai-Anonymous-Id")
+        }
         if requiresAuth {
             guard let accessToken = currentSession?.accessToken else {
                 throw BackendError.authRequired
@@ -682,6 +714,10 @@ final class BackendClient {
     }
 
     private static func defaultBaseURL() -> URL {
+        if !AppIdentity.developerBackendEnabled {
+            return URL(string: "https://paipai-local-only.invalid")!
+        }
+
         let key = AppIdentity.apiBaseURLInfoDictionaryKey
         guard let raw = Bundle.main.object(forInfoDictionaryKey: key) as? String else {
             fatalError("Missing \(key) in Info.plist. Refusing to fall back to localhost for release builds.")
@@ -1058,4 +1094,30 @@ struct StoreTransactionPayload: Encodable {
     let appAccountToken: String?
     let signedTransactionInfo: String
     let signedRenewalInfo: String?
+    let idempotencyKey: String?
+    let refundDataSharingConsent: Bool?
+    let consentPolicyVersion: String?
+    let consentRegion: String?
+}
+
+struct PrivacyConsentPayload: Encodable {
+    let consentType: String
+    let consented: Bool
+    let policyVersion: String
+    let regionCode: String
+    let sourceType: String
+    let sourceRef: String?
+}
+
+struct PrivacyConsentReceipt: Decodable {
+    let appCode: String
+    let userId: Int64?
+    let consentType: String
+    let consentStatus: String
+    let policyVersion: String?
+    let regionCode: String?
+    let sourceType: String?
+    let sourceRef: String?
+    let consentedAt: String?
+    let revokedAt: String?
 }

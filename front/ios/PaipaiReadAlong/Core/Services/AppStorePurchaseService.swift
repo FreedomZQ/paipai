@@ -9,6 +9,11 @@ struct StoreProductDisplayInfo: Hashable {
     let displayPrice: String
 }
 
+struct LocalPurchaseRefreshResult: Hashable {
+    let snapshot: LocalCreditWalletSnapshot
+    let processedTransactionCount: Int
+}
+
 @MainActor
 final class AppStorePurchaseService {
     enum PurchaseError: LocalizedError {
@@ -23,7 +28,7 @@ final class AppStorePurchaseService {
         var errorDescription: String? {
             switch self {
             case .authenticationRequired:
-                return "请先使用 Apple 登录，再发起购买或恢复购买。"
+                return "请先通过家长验证，再发起购买或恢复购买。"
             case .productIdMissing:
                 return "当前方案暂时还不能购买，请稍后再试。"
             case .productNotFound:
@@ -35,7 +40,7 @@ final class AppStorePurchaseService {
             case .storeKitUnavailable:
                 return "当前设备暂时无法完成购买，请稍后再试。"
             case .nothingToRestore:
-                return "当前 Apple 账号下没有可恢复的订阅。"
+                return "没有新的可恢复项目。本机积分依赖当前设备保存，换机或抹掉设备后可能无法恢复。"
             }
         }
     }
@@ -64,41 +69,28 @@ final class AppStorePurchaseService {
         #endif
     }
 
-    func purchase(plan: Plan, backend: BackendClient) async throws -> TransactionIntakeReceipt {
-        guard backend.hasAuthenticatedSession else {
-            throw PurchaseError.authenticationRequired
-        }
-        guard let productId = plan.appStoreProductId, !productId.isEmpty else {
+    func purchaseLocalCredits(product: CreditProduct, wallet: LocalCreditWalletService) async throws -> LocalCreditWalletSnapshot {
+        guard let productId = product.appStoreProductId, !productId.isEmpty else {
             throw PurchaseError.productIdMissing
+        }
+        guard LocalCreditProductCatalog.definition(productId: productId) != nil else {
+            throw LocalCreditWalletService.WalletError.unsupportedProduct(productId)
         }
 
         #if canImport(StoreKit)
         let products = try await Product.products(for: [productId])
-        guard let product = products.first else {
+        guard let storeProduct = products.first else {
             throw PurchaseError.productNotFound(productId)
         }
-        let result = try await product.purchase()
+        let result = try await storeProduct.purchase()
         switch result {
         case let .success(verification):
-            let jws = verification.jwsRepresentation
             let transaction = try verifiedTransaction(from: verification)
-            let receipt = try await backend.submitTransactionIntake(
-                source: .purchase,
-                payload: StoreTransactionPayload(
-                    productId: transaction.productID,
-                    transactionId: String(transaction.id),
-                    originalTransactionId: String(transaction.originalID),
-                    environment: String(describing: transaction.environment),
-                    storefront: nil,
-                    appAccountToken: transaction.appAccountToken?.uuidString,
-                    signedTransactionInfo: jws,
-                    signedRenewalInfo: nil
-                )
-            )
+            let snapshot = try await wallet.grantIfNeeded(transaction: transaction)
             await transaction.finish()
-            return receipt
+            return snapshot
         case .pending:
-            throw PurchaseError.verificationFailed("购买正在处理中，等 Apple 确认完成后，再回来点“恢复购买”更新权益。")
+            throw PurchaseError.verificationFailed("购买正在等待 Apple 确认。稍后可在家长区点“恢复/刷新购买状态”处理未完成购买。")
         case .userCancelled:
             throw PurchaseError.userCancelled
         @unknown default:
@@ -109,43 +101,56 @@ final class AppStorePurchaseService {
         #endif
     }
 
-    func restore(backend: BackendClient) async throws -> [TransactionIntakeReceipt] {
-        guard backend.hasAuthenticatedSession else {
-            throw PurchaseError.authenticationRequired
-        }
-
+    func restoreLocalPurchases(wallet: LocalCreditWalletService) async throws -> LocalPurchaseRefreshResult {
         #if canImport(StoreKit)
         try await AppStore.sync()
-        var receipts: [TransactionIntakeReceipt] = []
-        for await result in Transaction.currentEntitlements {
-            let jws = result.jwsRepresentation
-            let transaction = try verifiedTransaction(from: result)
-            let receipt = try await backend.submitTransactionIntake(
-                source: .restore,
-                payload: StoreTransactionPayload(
-                    productId: transaction.productID,
-                    transactionId: String(transaction.id),
-                    originalTransactionId: String(transaction.originalID),
-                    environment: String(describing: transaction.environment),
-                    storefront: nil,
-                    appAccountToken: transaction.appAccountToken?.uuidString,
-                    signedTransactionInfo: jws,
-                    signedRenewalInfo: nil
-                )
-            )
-            receipts.append(receipt)
-            await transaction.finish()
-        }
-        guard !receipts.isEmpty else {
-            throw PurchaseError.nothingToRestore
-        }
-        return receipts
+        return try await processUnfinishedLocalTransactions(wallet: wallet)
         #else
         throw PurchaseError.storeKitUnavailable
         #endif
     }
 
     #if canImport(StoreKit)
+    func processUnfinishedLocalTransactions(wallet: LocalCreditWalletService) async throws -> LocalPurchaseRefreshResult {
+        var processedCount = 0
+        var latestSnapshot = try await wallet.snapshot()
+        for await result in Transaction.unfinished {
+            let transaction = try verifiedTransaction(from: result)
+            guard transaction.revocationDate == nil else {
+                await transaction.finish()
+                continue
+            }
+            guard LocalCreditProductCatalog.definition(productId: transaction.productID) != nil else {
+                continue
+            }
+            let beforeCount = latestSnapshot.processedTransactionCount
+            latestSnapshot = try await wallet.grantIfNeeded(transaction: transaction)
+            if latestSnapshot.processedTransactionCount > beforeCount {
+                processedCount += 1
+            }
+            await transaction.finish()
+        }
+        return LocalPurchaseRefreshResult(snapshot: latestSnapshot, processedTransactionCount: processedCount)
+    }
+
+    func processTransactionUpdate(_ result: VerificationResult<Transaction>, wallet: LocalCreditWalletService) async throws -> LocalPurchaseRefreshResult {
+        let transaction = try verifiedTransaction(from: result)
+        if transaction.revocationDate != nil {
+            await transaction.finish()
+            return LocalPurchaseRefreshResult(snapshot: try await wallet.snapshot(), processedTransactionCount: 0)
+        }
+        guard LocalCreditProductCatalog.definition(productId: transaction.productID) != nil else {
+            return LocalPurchaseRefreshResult(snapshot: try await wallet.snapshot(), processedTransactionCount: 0)
+        }
+        let beforeSnapshot = try await wallet.snapshot()
+        let snapshot = try await wallet.grantIfNeeded(transaction: transaction)
+        await transaction.finish()
+        return LocalPurchaseRefreshResult(
+            snapshot: snapshot,
+            processedTransactionCount: snapshot.processedTransactionCount > beforeSnapshot.processedTransactionCount ? 1 : 0
+        )
+    }
+
     private func verifiedTransaction(from result: VerificationResult<Transaction>) throws -> Transaction {
         switch result {
         case let .verified(transaction):

@@ -19,13 +19,11 @@
     <key>CFBundleVersion</key>
     <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>NSCameraUsageDescription</key>
-    <string>用于拍摄绘本中的一句或一小段，帮助孩子进行伴读学习。</string>
+    <string>用于拍摄书页并在本设备上识别文字。图片不会上传到开发者服务器。</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>用于选择绘本图片进行文字识别、翻译和朗读。</string>
+    <string>用于家长选择书页图片并在本设备上识别文字。图片不会上传到开发者服务器。</string>
     <key>NSFaceIDUsageDescription</key>
     <string>用于家长区的系统级验证，优先使用 Face ID / Touch ID 或设备密码保护家长设置。</string>
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>用于在本地开发和家庭网络环境中连接后端服务，获取账号、公告和使用时长数据。</string>
     <key>UILaunchScreen</key>
     <dict/>
     <key>UIRequiresFullScreen</key>
@@ -43,12 +41,8 @@
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
-    <key>PAIPAI_API_BASE_URL</key>
-    <string>$(PAIPAI_API_BASE_URL)</string>
     <key>NSAppTransportSecurity</key>
     <dict>
-        <key>NSAllowsLocalNetworking</key>
-        <true/>
         <key>NSAllowsArbitraryLoads</key>
         <false/>
     </dict>

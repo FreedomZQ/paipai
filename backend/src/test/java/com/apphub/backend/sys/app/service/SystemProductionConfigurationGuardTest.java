@@ -103,7 +103,7 @@ class SystemProductionConfigurationGuardTest {
             "paipai_readingcompanion",
             "blocked",
             new AppAppleReadinessView.AppleAuthReadiness("blocked", true, false, true, true, false, false, false, false, true, true, false, false, true),
-            new AppAppleReadinessView.AppStoreReadiness("blocked", true, true, true, allowSandbox, false, false, false, false, !allowSandbox),
+            new AppAppleReadinessView.AppStoreReadiness("blocked", true, true, false, false, false, false, false, false, false, true, true, allowSandbox, false, false, false, false, !allowSandbox),
             List.of("auth.apple.teamId missing"),
             List.of()
         );
@@ -114,7 +114,7 @@ class SystemProductionConfigurationGuardTest {
             "paipai_readingcompanion",
             "ready",
             new AppAppleReadinessView.AppleAuthReadiness("ready", true, true, true, true, true, true, true, true, true, true, true, true, true),
-            new AppAppleReadinessView.AppStoreReadiness("ready", true, true, true, allowSandbox, true, true, true, true, !allowSandbox),
+            new AppAppleReadinessView.AppStoreReadiness("ready", true, true, false, false, false, false, false, false, false, true, true, allowSandbox, true, true, true, true, !allowSandbox),
             List.of(),
             List.of()
         );

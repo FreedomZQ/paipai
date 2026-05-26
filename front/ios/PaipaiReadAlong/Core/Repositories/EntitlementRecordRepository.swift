@@ -16,6 +16,8 @@ final class EntitlementRecordRepository {
         let now = AppClock.nowString()
         var whereClause = "app_code = ? AND account_id = ?"
         var parameters: [Any?] = [AppIdentity.appCode, accountId]
+        // 中文说明：新版每日赠送只展示 local_device 单条记录；旧版本遗留的识字/朗读拆分日赠记录不再进入列表。
+        whereClause += " AND NOT (grant_type IN ('daily_gift', 'daily_grant') AND service_type IN ('local_ocr', 'local_tts', 'device_ocr', 'device_tts'))"
         if let normalizedServiceType {
             let aliases = serviceTypeAliases(for: normalizedServiceType)
             whereClause += " AND service_type IN (\(placeholders(count: aliases.count)))"
@@ -192,6 +194,26 @@ final class EntitlementRecordRepository {
         let safeTotal = max(totalCount, 0)
         let safeUsed = min(max(usedCount, 0), safeTotal)
         let recordId = dailyGrantRecordId(accountId: accountId, serviceType: normalizedServiceType, quotaDate: quotaDate)
+        if normalizedServiceType == "local_device" {
+            // 中文说明：写入统一日赠记录前清理同一天旧版拆分记录，保证权益页只呈现一条每日赠送。
+            _ = try? await database.execute(
+                sql: """
+                    DELETE FROM \(ReadingLocalTableName.entitlementRecordCache)
+                    WHERE app_code = ?
+                      AND account_id = ?
+                      AND grant_type IN ('daily_gift', 'daily_grant')
+                      AND service_type IN ('local_ocr', 'local_tts', 'device_ocr', 'device_tts')
+                      AND (record_id LIKE ? OR acquired_at >= ? AND acquired_at <= ?)
+                    """,
+                parameters: [
+                    AppIdentity.appCode,
+                    accountId,
+                    "%\(quotaDate)%",
+                    acquiredAt,
+                    expiresAt
+                ]
+            )
+        }
         _ = try? await database.execute(
             sql: """
                 INSERT OR REPLACE INTO \(ReadingLocalTableName.entitlementRecordCache)
@@ -334,6 +356,22 @@ final class EntitlementRecordRepository {
         )
     }
 
+    func purgeHistoricalCountEntitlements(accountId: String) async {
+        _ = try? await database.execute(
+            sql: """
+                DELETE FROM \(ReadingLocalTableName.entitlementRecordCache)
+                WHERE app_code = ?
+                  AND account_id = ?
+                  AND (
+                    service_type NOT IN ('local_ocr', 'local_tts', 'device_ocr', 'device_tts')
+                    OR grant_type IN ('legacy_count', 'legacy_quota', 'membership_quota', 'cloud_count_pack')
+                    OR acquire_method IN ('内部购买', '后台赠送', '权益赠送')
+                  )
+                """,
+            parameters: [AppIdentity.appCode, accountId]
+        )
+    }
+
     private func loadLocalCompensationRecords(accountId: String) async -> [EntitlementRecord] {
         (try? await database.getAll(
             sql: """
@@ -413,6 +451,8 @@ final class EntitlementRecordRepository {
             return nil
         }
         switch serviceType {
+        case "local_device", "local_credits", "local_feature", "daily_login_gift":
+            return "local_device"
         case "capture", "local_capture", "ocr", "local_ocr":
             return "local_ocr"
         case "speech", "local_speech", "tts", "local_tts", "device_tts":
@@ -428,6 +468,8 @@ final class EntitlementRecordRepository {
 
     private func serviceTypeAliases(for serviceType: String) -> [String] {
         switch normalizedServiceType(serviceType) ?? serviceType {
+        case "local_device":
+            return ["local_device", "local_credits", "local_feature", "daily_login_gift"]
         case "local_ocr":
             return ["local_ocr", "capture", "local_capture", "ocr"]
         case "local_tts":

@@ -43,26 +43,26 @@ struct ManageChildrenView: View {
     private var childLimitHint: String {
         if let entitlement = appState.accountState?.entitlement {
             return appState.uiText(
-                "已添加 \(currentChildProfileCount) 个，当前套餐“\(entitlement.planName)”最多可添加 \(entitlement.childLimit) 个孩子档案。",
-                "Added \(currentChildProfileCount). The current plan \"\(entitlement.planName)\" allows up to \(entitlement.childLimit) child profiles."
+                "已添加 \(currentChildProfileCount) 个，当前本机设置最多可添加 \(entitlement.childLimit) 个孩子档案。",
+                "Added \(currentChildProfileCount). This local setup allows up to \(entitlement.childLimit) child profiles."
             )
         }
         return appState.uiText(
-            "已添加 \(currentChildProfileCount) 个孩子档案，点击添加时会实时校验当前账户权益。",
-            "Added \(currentChildProfileCount) child profiles. Entitlement will be checked in real time when adding."
+            "已添加 \(currentChildProfileCount) 个孩子档案，点击添加时会检查当前本机上限。",
+            "Added \(currentChildProfileCount) child profiles. The local limit is checked when adding."
         )
     }
 
     private var limitReachedHint: String {
-        if let entitlement = appState.accountState?.entitlement {
+        if appState.accountState?.entitlement != nil {
             return appState.uiText(
-                "当前套餐“\(entitlement.planName)”的孩子名额已用完，如需更多档案请升级套餐或等待权益刷新。",
-                "The child slots for plan \"\(entitlement.planName)\" are full. Upgrade the plan or wait for entitlements to refresh."
+                "当前本机孩子档案名额已用完。请先编辑或删除不再使用的档案。",
+                "The local child profile limit has been reached. Edit or delete an unused profile first."
             )
         }
         return appState.uiText(
-            "当前权益下孩子数量已达上限，如需更多档案请升级套餐。",
-            "You have reached the child limit for the current plan. Please upgrade first."
+            "当前本机孩子数量已达上限。请先编辑或删除不再使用的档案。",
+            "The local child limit has been reached. Edit or delete an unused profile first."
         )
     }
 
@@ -189,15 +189,15 @@ struct ManageChildrenView: View {
         let latestCount = appState.children.count
         isCheckingEntitlement = false
         guard latestCount < latestLimit else {
-            if let entitlement = appState.accountState?.entitlement {
+            if appState.accountState?.entitlement != nil {
                 entitlementAlertMessage = appState.uiText(
-                    "当前已添加 \(latestCount) 个孩子档案，套餐“\(entitlement.planName)”最多可添加 \(latestLimit) 个。如需添加更多孩子，请升级权益。",
-                    "You have added \(latestCount) child profiles. Plan \"\(entitlement.planName)\" allows up to \(latestLimit). Please upgrade to add more children."
+                    "当前已添加 \(latestCount) 个孩子档案，当前本机设置最多可添加 \(latestLimit) 个。请先编辑或删除不再使用的档案。",
+                    "You have added \(latestCount) child profiles. This local setup allows up to \(latestLimit). Edit or delete an unused profile first."
                 )
             } else {
                 entitlementAlertMessage = appState.uiText(
-                    "当前已添加 \(latestCount) 个孩子档案，已达到可添加上限。如需添加更多孩子，请升级权益。",
-                    "You have added \(latestCount) child profiles and reached the current limit. Please upgrade to add more children."
+                    "当前已添加 \(latestCount) 个孩子档案，已达到本机可添加上限。请先编辑或删除不再使用的档案。",
+                    "You have added \(latestCount) child profiles and reached the local limit. Edit or delete an unused profile first."
                 )
             }
             return

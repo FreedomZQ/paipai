@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(StoreKit)
+import StoreKit
+#endif
 #if os(iOS)
 import UIKit
 #endif
@@ -45,6 +48,12 @@ struct PaipaiReadAlongApp: App {
                 .sheet(isPresented: $appState.isShowingPaywall) {
                     PaywallView()
                         .environmentObject(appState)
+                }
+                .onChange(of: appState.isShowingPaywall) { _, isPresented in
+                    if isPresented {
+                        // 购买机会必须独立位于家长门之后；不能复用之前进入家长区留下的验证状态。
+                        appState.refreshParentGate()
+                    }
                 }
                 .alert(appState.uiText("需要处理", "Needs attention"), isPresented: appErrorAlertBinding) {
                     Button(appState.uiText("知道了", "OK")) {
@@ -180,6 +189,7 @@ class AppState: ObservableObject {
     @Published var appVersionPolicy: AppVersionPolicy?
     @Published var billingHealth: BillingHealth?
     @Published var creditProducts: [CreditProduct] = []
+    @Published var localCreditWalletSnapshot: LocalCreditWalletSnapshot = .empty
     @Published var entitlementRecordPage: EntitlementRecordPage?
     @Published var isEntitlementRecordSyncing = false
     @Published var entitlementRecordsLastSyncedAt: String?
@@ -201,11 +211,13 @@ class AppState: ObservableObject {
     let ttsService = TTSService()
     let backendClient = BackendClient()
     let purchaseService = AppStorePurchaseService()
+    let localCreditWalletService = LocalCreditWalletService.shared
     private let announcementStore = AnnouncementStore()
 
     private let weeklyReportCache = WeeklyReportLocalCache()
     private var didBootstrap = false
     private var entitlementSyncTask: Task<Void, Never>?
+    private var storeKitUpdatesTask: Task<Void, Never>?
     private var usageTickTasks: [String: Task<Void, Never>] = [:]
     private var localTtsResourcePreloadTask: Task<Void, Never>?
     private var weeklyReportGenerationTask: Task<Void, Never>?
@@ -234,7 +246,7 @@ class AppState: ObservableObject {
     init() {
         let appDefaults = AppScopedDefaults()
         self.hasCompletedOnboarding = appDefaults.bool(forKey: AppDefaultKey.onboardingCompleted)
-        self.authSession = backendClient.currentSession
+        self.authSession = AppIdentity.developerBackendEnabled ? backendClient.currentSession : nil
         self.interfaceLocaleCode = appDefaults.string(forKey: AppDefaultKey.interfaceLocale)
             ?? Locale.preferredLanguages.first
             ?? "zh-Hans"
@@ -474,11 +486,11 @@ class AppState: ObservableObject {
 
 
     var hasAuthenticatedSession: Bool {
-        authSession != nil && backendClient.hasAuthenticatedSession
+        AppIdentity.developerBackendEnabled && authSession != nil && backendClient.hasAuthenticatedSession
     }
 
     var shouldPresentAnnouncementOverlay: Bool {
-        hasCompletedOnboarding && hasAuthenticatedSession && isInitialDataReady
+        AppIdentity.developerBackendEnabled && hasCompletedOnboarding && hasAuthenticatedSession && isInitialDataReady
     }
 
     struct WeeklyReportBundle {
@@ -493,6 +505,10 @@ class AppState: ObservableObject {
     func bootstrapIfNeeded() async {
         guard !didBootstrap else { return }
         didBootstrap = true
+        startStoreKitTransactionUpdatesListener()
+        await purgeLegacyCountEntitlementCaches()
+        await refreshLocalCreditWalletSnapshot()
+        await processUnfinishedLocalStoreKitTransactions()
         scheduleLocalTtsResourcePreload(reason: "bootstrap_begin")
         await startup()
         scheduleLocalTtsResourcePreload(reason: "bootstrap_data_ready")
@@ -511,6 +527,9 @@ class AppState: ObservableObject {
     /// 3. 尝试后端拉取最新权益（已登录时）；后端下线时前两步已保证 UI 回满
     func handleForegroundActivation() async {
         refreshLocalQuotaCaches()
+        await refreshDailyLoginGiftConfig()
+        await refreshLocalCreditWalletSnapshot()
+        await processUnfinishedLocalStoreKitTransactions()
         resetCachedQuotaIfCrossedDay()
         if hasAuthenticatedSession {
             await refreshAccountState(force: true)
@@ -522,6 +541,8 @@ class AppState: ObservableObject {
         } else {
             ensureLocalDeviceAccountState()
             await syncDailyQuotaGrantRecords(days: 1)
+            await ensureLocalWeeklyReports(reason: "foreground_local")
+            scheduleWeeklyReportGenerationTimer()
         }
     }
 
@@ -532,6 +553,19 @@ class AppState: ObservableObject {
     func refreshParentGate() {
         isParentGateVerified = false
         parentGateRefreshToken = UUID()
+    }
+
+    private func purgeLegacyCountEntitlementCaches() async {
+        let defaults = AppScopedDefaults()
+        defaults.removeObject(forKey: AppDefaultKey.cloudOcrQuotaDate)
+        defaults.removeObject(forKey: AppDefaultKey.cloudOcrUsed)
+        defaults.removeObject(forKey: AppDefaultKey.cloudTtsQuotaDate)
+        defaults.removeObject(forKey: AppDefaultKey.cloudTtsUsed)
+        await entitlementRecordRepository.purgeHistoricalCountEntitlements(accountId: storageScope)
+        entitlementRecordPage = nil
+        activeEntitlementUsageSummaries = activeEntitlementUsageSummaries.filter { key, _ in
+            key == "local_ocr" || key == "local_tts"
+        }
     }
 
 
@@ -552,19 +586,24 @@ class AppState: ObservableObject {
     private func performAuthenticatedStartupRefresh(reason: String) async {
         await loadLocalCaches()
         preloadLocalTtsResourcesNow(reason: "startup_local_caches")
-        do {
-            bootstrap = try await backendClient.fetchBootstrap()
-        } catch {
-            errorMessage = localizedErrorMessage(error)
+        if AppIdentity.developerBackendEnabled {
+            do {
+                bootstrap = try await backendClient.fetchBootstrap()
+            } catch {
+                errorMessage = localizedErrorMessage(error)
+            }
+            await refreshDailyLoginGiftConfig()
+        } else {
+            bootstrap = .placeholder
         }
         await refreshAppVersionPolicyIfNeeded(force: true)
-        if backendClient.currentSession != nil {
+        if AppIdentity.developerBackendEnabled, backendClient.currentSession != nil {
             do {
                 _ = try await backendClient.fetchAuthMe()
             } catch {
             }
         }
-        authSession = backendClient.currentSession
+        authSession = AppIdentity.developerBackendEnabled ? backendClient.currentSession : nil
         await loadLocalCaches()
         preloadLocalTtsResourcesNow(reason: "startup_refreshed_local_caches")
         await refreshAllData()
@@ -639,6 +678,17 @@ class AppState: ObservableObject {
     }
 
     func refreshBillingSurface() async {
+        guard AppIdentity.developerBackendEnabled else {
+            let storeInfo = await purchaseService.productDisplayInfo(for: LocalCreditProductCatalog.productIds)
+            billingHealth = BillingHealth(
+                status: "local_storekit",
+                purchaseAvailable: true,
+                unavailableMessage: nil,
+                checkedAt: ISO8601DateFormatter().string(from: Date())
+            )
+            creditProducts = LocalCreditProductCatalog.creditProducts(locale: interfaceLocaleCode, displayInfo: storeInfo)
+            return
+        }
         do {
             // 进入购买页时立即请求后端健康状态；如果服务不可用，界面会直接置灰付款按钮。
             billingHealth = try await backendClient.fetchBillingHealth(locale: interfaceLocaleCode)
@@ -734,6 +784,10 @@ class AppState: ObservableObject {
     }
 
     func refreshPlans() async {
+        guard AppIdentity.developerBackendEnabled else {
+            availablePlans = Plan.defaultPlans
+            return
+        }
         do {
             let plans = try await backendClient.fetchPlans()
             if !plans.isEmpty { availablePlans = plans }
@@ -752,7 +806,7 @@ class AppState: ObservableObject {
         let history = WeeklyParentReportHistory(
             scope: "child",
             childId: resolvedChildId,
-            isPremiumPlan: true,
+            isPremiumPlan: false,
             historyWeeks: 13,
             availableHistoryWeeks: records.count,
             reports: Array(historyReports),
@@ -779,7 +833,7 @@ class AppState: ObservableObject {
     }
 
     private func ensureLocalWeeklyReports(reason: String) async {
-        guard hasCompletedOnboarding, hasAuthenticatedSession, !children.isEmpty else { return }
+        guard hasCompletedOnboarding, !children.isEmpty else { return }
         let earliestReportWeekStart = await earliestAllowedWeeklyReportStart()
         let result = await localWeeklyReportRepository.ensureReports(
             children: children,
@@ -791,16 +845,25 @@ class AppState: ObservableObject {
     }
 
     private func earliestAllowedWeeklyReportStart() async -> Date? {
+        let defaults = AppScopedDefaults()
+        let clearBoundary = AppClock.date(from: defaults.string(forKey: AppDefaultKey.localLearningDataClearedAt))
+            .flatMap { localWeeklyReportRepository.earliestReportWeekStart(afterAccountCreatedAt: $0) }
+        let activityBoundary: Date?
         if let accountCreatedAt = AppClock.date(from: authSession?.account.createdAt) {
-            return localWeeklyReportRepository.earliestReportWeekStart(afterAccountCreatedAt: accountCreatedAt)
+            activityBoundary = localWeeklyReportRepository.earliestReportWeekStart(afterAccountCreatedAt: accountCreatedAt)
+        } else {
+            let localActivityDate = await localWeeklyReportRepository.earliestLocalActivityDate()
+            activityBoundary = localWeeklyReportRepository.earliestReportWeekStart(afterAccountCreatedAt: localActivityDate)
         }
-        let localActivityDate = await localWeeklyReportRepository.earliestLocalActivityDate()
-        return localWeeklyReportRepository.earliestReportWeekStart(afterAccountCreatedAt: localActivityDate)
+        if let activityBoundary, let clearBoundary {
+            return max(activityBoundary, clearBoundary)
+        }
+        return clearBoundary ?? activityBoundary
     }
 
     private func scheduleWeeklyReportGenerationTimer() {
         weeklyReportGenerationTask?.cancel()
-        guard hasCompletedOnboarding, hasAuthenticatedSession else { return }
+        guard hasCompletedOnboarding else { return }
         weeklyReportGenerationTask = Task { [weak self] in
             while !Task.isCancelled {
                 let target = Self.nextWeeklyReportGenerationDate(after: Date())
@@ -881,6 +944,10 @@ class AppState: ObservableObject {
     }
 
     func refreshLegalDocs() async {
+        guard AppIdentity.developerBackendEnabled else {
+            legalDocs = LegalDocument.bundledFallbackDocs
+            return
+        }
         do {
             let remoteDocs = try await backendClient.fetchLegalDocs()
             let visibleRemoteDocs = remoteDocs.filter { $0.resolvedURL != nil }
@@ -897,6 +964,10 @@ class AppState: ObservableObject {
     func refreshAppVersionPolicyIfNeeded(force: Bool = false) async {
         if appVersionPolicy == nil {
             appVersionPolicy = AppVersionPolicy.localFallback()
+        }
+        guard AppIdentity.developerBackendEnabled else {
+            appVersionPolicy = AppVersionPolicy.localFallback()
+            return
         }
         let defaults = AppScopedDefaults()
         let today = AppClock.dateOnly(from: Date())
@@ -1013,14 +1084,10 @@ class AppState: ObservableObject {
     }
 
     func createChildProfile(nickname: String, ageBand: String, learningTrackCode: String) async -> Bool {
-        guard hasAuthenticatedSession else {
-            errorMessage = uiText("请先登录后再创建孩子档案。", "Please sign in before creating a child profile.")
-            return false
-        }
+        ensureLocalDeviceAccountStateIfNeeded()
         if let entitlement = accountState?.entitlement,
            entitlement.remainingChildSlots <= 0 {
-            errorMessage = uiText("当前套餐的孩子档案数已满。", "The current plan has reached the child profile limit.")
-            isShowingPaywall = true
+            errorMessage = uiText("当前本机孩子档案数已满。请先编辑或删除不再使用的孩子档案。", "The local child profile limit has been reached. Edit or delete an unused profile first.")
             return false
         }
         let child = await childRepository.upsertLocal(nickname: nickname, ageBand: ageBand, learningTrackCode: learningTrackCode)
@@ -1039,10 +1106,6 @@ class AppState: ObservableObject {
     }
 
     func updateChildProfile(childId: String, nickname: String, ageBand: String, learningTrackCode: String) async -> Bool {
-        guard hasAuthenticatedSession else {
-            errorMessage = uiText("请先登录后再编辑孩子档案。", "Please sign in before editing a child profile.")
-            return false
-        }
         let previousLearningTrackCode = children.first(where: { $0.id == childId })?.learningTrackCode
         _ = await childRepository.upsertLocal(id: childId, nickname: nickname, ageBand: ageBand, learningTrackCode: learningTrackCode)
         await syncPreferencesForLearningTrack(learningTrackCode)
@@ -1058,10 +1121,6 @@ class AppState: ObservableObject {
     }
 
     func deleteChildProfile(childId: String) async -> Bool {
-        guard hasAuthenticatedSession else {
-            errorMessage = uiText("请先登录后再删除孩子档案。", "Please sign in before deleting a child profile.")
-            return false
-        }
         _ = await childRepository.softDeleteLocal(id: childId)
         await refreshParentData()
         if selectedChild.id == childId {
@@ -1211,6 +1270,13 @@ class AppState: ObservableObject {
     }
 
     func submitFeedback(category: String, content: String, contactEmail: String? = nil) async -> Bool {
+        guard AppIdentity.developerBackendEnabled else {
+            errorMessage = uiText(
+                "当前首发版本不提供 App 内反馈表单。请由家长主动通过支持邮箱联系，并不要发送孩子照片、音频或识别原文。",
+                "This launch build does not include an in-app feedback form. Parents can contact support by email and should not send child photos, audio, or OCR text."
+            )
+            return false
+        }
         do {
             _ = try await backendClient.submitFeedback(
                 category: category,
@@ -1227,13 +1293,12 @@ class AppState: ObservableObject {
     }
 
     func saveReviewCard(text: String, supportHint: String?, sourceLanguageCode overrideSourceLanguageCode: String? = nil, targetLanguageCode overrideTargetLanguageCode: String? = nil) async -> Bool {
-        guard hasAuthenticatedSession else { return false }
+        ensureLocalDeviceAccountStateIfNeeded()
         let localCardLimit = accountState?.entitlement.localCardLimit ?? 20
         let activeCards = await reviewCardRepository.loadAll()
         let activeCardCount = activeCards.filter { !$0.isDeleted }.count
         if activeCardCount >= localCardLimit {
-            errorMessage = uiText("当前句卡数量已达上限，请先升级套餐。", "You have reached the current review card limit. Please upgrade first.")
-            isShowingPaywall = true
+            errorMessage = uiText("当前本机句卡数量已达上限，请先删除不再使用的句卡。", "The local review card limit has been reached. Delete unused cards first.")
             return false
         }
         let childId = selectedChild.id
@@ -1263,7 +1328,6 @@ class AppState: ObservableObject {
     }
 
     func recordReviewResult(cardId: String, resultLevel: String) async {
-        guard hasAuthenticatedSession else { return }
         guard let updatedCard = await reviewCardRepository.applyReviewResult(cardId: cardId, resultLevel: resultLevel) else { return }
         await reviewEventRepository.append(
             childId: updatedCard.childId ?? selectedChild.id,
@@ -1279,10 +1343,6 @@ class AppState: ObservableObject {
 
     /// 删除当前句卡并刷新所有依赖句卡数量/掌握数量的首页与伴读节奏数据。
     func deleteReviewCard(cardId: String) async -> Bool {
-        guard hasAuthenticatedSession else {
-            errorMessage = uiText("请先登录后再删除句卡。", "Please sign in before deleting a card.")
-            return false
-        }
         guard await reviewCardRepository.softDeleteLocal(cardId: cardId) else {
             errorMessage = uiText("句卡删除失败，请稍后重试。", "Failed to delete the card. Please try again.")
             return false
@@ -1299,52 +1359,92 @@ class AppState: ObservableObject {
         return true
     }
 
-    func recordLocalOcrUsage(source: String) async -> Bool {
-        let idempotencyKey = UUID().uuidString.lowercased()
-        // 先在本地兜底 +1，避免后端返回延迟导致首页/家长中心看不到扣减的错觉。
-        // 成功路径下会再用 alignLocalQuotaUsageWithEntitlement() 与服务端取 max 对齐。
-        ensureLocalDeviceAccountStateIfNeeded()
-        recordLocalQuotaUsage(kind: "local_ocr", source: source, amount: 1)
-        guard hasAuthenticatedSession else { return true }
+    private func localDailyFreeRemaining(kind: String) -> Int {
+        refreshLocalQuotaCaches()
+        resetCachedQuotaIfCrossedDay()
+        _ = kind
+        let limit = currentDailyLoginGiftLimit()
+        let used = max(accountState?.quota.dailyLoginGiftUsed ?? 0, localOcrUsedToday + localTtsUsedToday)
+        // 中文说明：每日赠送积分是识字/朗读共享总池，两类功能都读取同一个剩余额度。
+        return max(limit - used, 0)
+    }
+
+    private func totalLocalRemaining(serviceType: LocalCreditServiceType) -> Int {
+        let dailyKind = serviceType == .localTts ? "local_tts" : "local_ocr"
+        // 中文说明：免费额度仍按功能每日发放；付费积分改为本机功能积分总池，识字/朗读共享余额。
+        return localDailyFreeRemaining(kind: dailyKind) + localCreditWalletSnapshot.localDeviceBalance()
+    }
+
+    private func consumePaidLocalCredit(serviceType: LocalCreditServiceType, amount: Int = 1, reason: String) async -> Bool {
+        guard amount > 0 else { return true }
+        _ = serviceType
         do {
-            accountState = try await backendClient.recordQuotaUsage(
-                kind: "local_ocr",
-                source: source,
-                languageCode: sourceLanguageCode,
-                amount: 1,
-                idempotencyKey: idempotencyKey
+            // 中文说明：权益使用只扣本机功能总积分；serviceType 仅保留给调用方表达业务场景。
+            localCreditWalletSnapshot = try await localCreditWalletService.consumeLocalDeviceCredits(
+                amount: amount,
+                reason: reason
             )
-            cacheAccountStateForToday()
             alignLocalQuotaUsageWithEntitlement()
-            if source == "cloud_ocr" {
-                await refreshCloudUsageStateFromBackend()
-            }
-            await syncEntitlementRecordsFromBackend(reason: "local_ocr_usage", reportError: false)
-            await refreshActiveEntitlementUsageSummaries()
-            // 扣减成功后刷新首页汇总，确保家长中心/首页立即展示最新剩余次数。
-            await refreshHomeData()
             return true
         } catch {
-            if source == "cloud_ocr" {
-                await refreshCloudUsageStateFromBackend()
+            if isLocalCreditWalletSafetyError(error) {
+                localCreditWalletSnapshot = localCreditSafetySnapshot(for: error)
             }
-            await refreshActiveEntitlementUsageSummaries()
-            await refreshHomeData()
-            try? await backendClient.reportDeviceEvent(
-                eventType: "local_ocr_record_failed",
-                appVersion: BackendClient.defaultAppVersion(),
-                buildNumber: BackendClient.defaultBuildNumber(),
-                locale: interfaceLocaleCode,
-                payload: [
-                    "source": source,
-                    "quotaDate": AppClock.dateOnly(from: Date()),
-                    "localUsed": "\(localOcrUsedToday)",
-                    "idempotencyKey": idempotencyKey,
-                    "error": error.localizedDescription
-                ]
-            )
+            errorMessage = localizedErrorMessage(error)
             return false
         }
+    }
+
+    func recordLocalOcrUsage(source: String, amount: Int = 1) async -> Bool {
+        ensureLocalDeviceAccountStateIfNeeded()
+        let safeAmount = max(amount, 1)
+        let dailyToConsume = min(localDailyFreeRemaining(kind: "local_ocr"), safeAmount)
+        let paidToConsume = safeAmount - dailyToConsume
+        if paidToConsume > 0 {
+            let consumed = await consumePaidLocalCredit(serviceType: .localOcr, amount: paidToConsume, reason: "local_ocr_success")
+            guard consumed else { return false }
+        }
+        if dailyToConsume > 0 {
+            recordLocalQuotaUsage(kind: "local_ocr", source: source, amount: dailyToConsume)
+        }
+        if paidToConsume > 0 {
+            appendDailyQuotaUsageHistory(kind: "local_ocr", source: source, amount: paidToConsume, date: AppClock.dateOnly(from: Date()))
+        }
+        return true
+    }
+
+    func localOcrCreditCost() throws -> Int {
+        try LocalCreditConsumptionPolicy.cost(
+            serviceType: .localOcr,
+            featureCode: "photo_ocr",
+            actionCode: "single_capture"
+        )
+    }
+
+    func localTtsCreditCost() throws -> Int {
+        try LocalCreditConsumptionPolicy.cost(
+            serviceType: .localTts,
+            featureCode: "read_aloud",
+            actionCode: "default"
+        )
+    }
+
+    private func recordLocalTtsUsageAfterStart(source: String, amount: Int) async -> Bool {
+        ensureLocalDeviceAccountStateIfNeeded()
+        let safeAmount = max(amount, 1)
+        let dailyToConsume = min(localDailyFreeRemaining(kind: "local_tts"), safeAmount)
+        let paidToConsume = safeAmount - dailyToConsume
+        if paidToConsume > 0 {
+            let consumed = await consumePaidLocalCredit(serviceType: .localTts, amount: paidToConsume, reason: "local_tts_started")
+            guard consumed else { return false }
+        }
+        if dailyToConsume > 0 {
+            recordLocalQuotaUsage(kind: "local_tts", source: source, amount: dailyToConsume)
+        }
+        if paidToConsume > 0 {
+            appendDailyQuotaUsageHistory(kind: "local_tts", source: source, amount: paidToConsume, date: AppClock.dateOnly(from: Date()))
+        }
+        return true
     }
 
     func validateLocalOcrQuotaBeforeRecognition(requiredAmount: Int = 1) async -> LocalOcrQuotaValidation {
@@ -1361,17 +1461,22 @@ class AppState: ObservableObject {
         } else {
             loadCachedAccountStateForOfflineUse()
         }
+        await refreshLocalCreditWalletSnapshot()
         resetCachedQuotaIfCrossedDay()
 
-        let maxLimit = max(accountState?.quota.localOcrLimit ?? fallbackLocalOcrLimit, 0)
-        let serverUsed = max(accountState?.quota.localOcrUsed ?? 0, 0)
-        let usedAmount = max(serverUsed, localOcrUsedToday)
-        let remainingAmount = max(maxLimit - usedAmount, 0)
+        let dailyLimit = currentDailyLoginGiftLimit()
+        let serverUsed = max(accountState?.quota.dailyLoginGiftUsed ?? 0, 0)
+        let dailyUsed = max(serverUsed, localOcrUsedToday + localTtsUsedToday)
+        let dailyRemaining = max(dailyLimit - dailyUsed, 0)
+        let paidRemaining = localCreditWalletSnapshot.localDeviceBalance()
+        let remainingAmount = dailyRemaining + paidRemaining
+        let maxLimit = dailyLimit + localCreditWalletSnapshot.localDeviceLifetimeGranted()
+        let usedAmount = dailyUsed + localCreditWalletSnapshot.localDeviceLifetimeConsumed()
 
         guard remainingAmount >= required else {
             let message = uiText(
-                "图片识别权益不足：本次识别需要 \(required) 次，当前剩余 \(remainingAmount) 次。请让家长在家长区查看权益并补充次数后再识别。",
-                "Not enough image recognition quota: this recognition needs \(required), and you have \(remainingAmount) left. Please ask a parent to review benefits and add quota from the parent area before recognizing."
+                "今日免费识字次数和本机功能积分都不足：本次需要 \(required)，当前剩余 \(remainingAmount)。请让家长在家长区补充本机积分后再识别。",
+                "Free OCR uses and local feature credits are not enough: this recognition needs \(required), and \(remainingAmount) remain. Ask a parent to add local credits from Parents before recognizing."
             )
             return LocalOcrQuotaValidation(
                 isAllowed: false,
@@ -1394,7 +1499,6 @@ class AppState: ObservableObject {
     }
 
     func recordLearningEvent(sourcePage: String) async {
-        guard hasAuthenticatedSession else { return }
         let didRecord = await learningEventRepository.append(childId: selectedChild.id, sourcePage: sourcePage)
         guard didRecord else { return }
         await synchronizeNow(reason: "record_learning_event")
@@ -1443,22 +1547,195 @@ class AppState: ObservableObject {
         }
     }
 
+    func purchaseAppStoreProduct(product: CreditProduct) async -> Bool {
+        guard isParentGateVerified else {
+            // 防御性校验：购买入口必须在家长门之后。即使未来新增按钮误绕过 Paywall，也不能直接触发 StoreKit。
+            errorMessage = localizedErrorMessage(AppStorePurchaseService.PurchaseError.authenticationRequired)
+            return false
+        }
+        guard billingHealth?.purchaseAvailable == true else {
+            errorMessage = billingHealth?.unavailableMessage ?? uiText("暂时无法购买", "Purchasing is temporarily unavailable.")
+            return false
+        }
+        guard product.appStoreProductId?.isEmpty == false else {
+            errorMessage = uiText("当前商品缺少 App Store 商品 ID。", "This product is missing an App Store product ID.")
+            return false
+        }
+        guard AppIdentity.developerBackendEnabled == false else {
+            return await purchaseAppStoreProductWithBackend(product: product)
+        }
+        do {
+            localCreditWalletSnapshot = try await purchaseService.purchaseLocalCredits(
+                product: product,
+                wallet: localCreditWalletService
+            )
+            alignLocalQuotaUsageWithEntitlement()
+            return true
+        } catch {
+            if case AppStorePurchaseService.PurchaseError.userCancelled = error {
+                return false
+            }
+            errorMessage = localizedErrorMessage(error)
+            return false
+        }
+    }
+
+    private func purchaseAppStoreProductWithBackend(product: CreditProduct) async -> Bool {
+        _ = product
+        errorMessage = uiText(
+            "当前版本不启用开发者后端购买路径，请使用本机积分商品。",
+            "This build does not enable the developer backend purchase path. Use local credit products."
+        )
+        return false
+    }
+
     func restorePurchases() async {
-        errorMessage = uiText("当前版本不支持外部恢复购买，请由家长在购买页重新发起内部购买。", "This version does not support external restore purchases. Please repurchase from the parent page.")
+        guard isParentGateVerified else {
+            // 防御性校验：恢复/刷新购买同样属于家长操作，不能在儿童主流程中被直接调用。
+            errorMessage = localizedErrorMessage(AppStorePurchaseService.PurchaseError.authenticationRequired)
+            return
+        }
+        do {
+            let result = try await purchaseService.restoreLocalPurchases(wallet: localCreditWalletService)
+            localCreditWalletSnapshot = result.snapshot
+            alignLocalQuotaUsageWithEntitlement()
+            if result.processedTransactionCount > 0 {
+                errorMessage = uiText(
+                    "已处理 \(result.processedTransactionCount) 笔未完成购买，本机积分余额已刷新。",
+                    "Processed \(result.processedTransactionCount) unfinished purchases. Local credit balances are refreshed."
+                )
+            } else {
+                errorMessage = uiText(
+                    "没有新的可恢复项目。本机积分依赖当前设备保存，换机或抹掉设备后可能无法恢复。",
+                    "No new recoverable items. Local credits depend on this device and may not be recoverable after changing or erasing the device."
+                )
+            }
+        } catch {
+            errorMessage = localizedErrorMessage(error)
+        }
+    }
+
+    func refreshLocalCreditWalletSnapshot() async {
+        do {
+            localCreditWalletSnapshot = try await localCreditWalletService.snapshot()
+        } catch {
+            // 钱包解密、Keychain 或完整性异常时进入安全模式：保留每日免费次数，暂停使用付费积分。
+            localCreditWalletSnapshot = localCreditSafetySnapshot(for: error)
+            errorMessage = localizedErrorMessage(error)
+        }
+    }
+
+    private func localCreditSafetySnapshot(for error: Error) -> LocalCreditWalletSnapshot {
+        guard let walletError = error as? LocalCreditWalletService.WalletError else {
+            return .safetyMode("wallet_unavailable")
+        }
+        switch walletError {
+        case .decryptionFailed:
+            return .safetyMode("wallet_unreadable")
+        case .integrityCheckFailed:
+            return .safetyMode("integrity_failed")
+        case .keychainUnavailable:
+            return .safetyMode("keychain_unavailable")
+        default:
+            return .safetyMode("wallet_unavailable")
+        }
+    }
+
+    private func isLocalCreditWalletSafetyError(_ error: Error) -> Bool {
+        guard let walletError = error as? LocalCreditWalletService.WalletError else { return false }
+        switch walletError {
+        case .decryptionFailed, .integrityCheckFailed, .keychainUnavailable:
+            return true
+        default:
+            return false
+        }
+    }
+
+    func processUnfinishedLocalStoreKitTransactions() async {
+        #if canImport(StoreKit)
+        do {
+            let result = try await purchaseService.processUnfinishedLocalTransactions(wallet: localCreditWalletService)
+            localCreditWalletSnapshot = result.snapshot
+            if result.processedTransactionCount > 0 {
+                alignLocalQuotaUsageWithEntitlement()
+            }
+        } catch {
+            errorMessage = localizedErrorMessage(error)
+        }
+        #endif
+    }
+
+    func deleteLocalLearningData() async -> Bool {
+        do {
+            try await clearLocalLearningRecords(scope: storageScope)
+            reviewCards = []
+            recentSavedReviewCards = []
+            todayLearningCount = 0
+            readingAchievementStats = .empty
+            familyUsageSummary = nil
+            childUsageSummaries = [:]
+            latestUnreadWeeklyReport = nil
+            isShowingWeeklyReportPrompt = false
+            isShowingPromptedWeeklyReport = false
+            promptedWeeklyReportChildId = nil
+            promptedWeeklyReportId = nil
+            reviewPageIndexByChildId.removeAll()
+            await refreshParentData()
+            await refreshHomeData()
+            return true
+        } catch {
+            errorMessage = uiText(
+                "清除本地学习数据失败，请稍后重试。未清除的数据仍保留在本机，账户、本机积分和会员状态不受影响。",
+                "Failed to clear local learning data. Please try again. Data that was not cleared remains on this device, and account, local credits, and membership status are not affected."
+            )
+            return false
+        }
+    }
+
+    private func clearLocalLearningRecords(scope: String) async throws {
+        if appForegroundUsageSessionId != nil {
+            await endAppForegroundUsageSessionIfNeeded()
+        }
+        cancelAllUsageTicks()
+        appForegroundUsageSessionId = nil
+
+        try weeklyReportCache.clearOrThrow(accountId: scope)
+        try await localDatabase.executeTransaction(statements: [
+            (sql: "DELETE FROM \(ReadingLocalTableName.reviewEvent)", parameters: []),
+            (sql: "DELETE FROM \(ReadingLocalTableName.reviewCard)", parameters: []),
+            (sql: "DELETE FROM \(ReadingLocalTableName.learningEvent)", parameters: []),
+            (sql: "DELETE FROM \(ReadingLocalTableName.usageSession)", parameters: []),
+            (sql: "DELETE FROM \(ReadingLocalTableName.weeklyReport)", parameters: [])
+        ])
+        let defaults = AppScopedDefaults()
+        defaults.removeObject(forKey: AppDefaultKey.dailyQuotaUsageHistory)
+        defaults.set(AppClock.nowString(), forKey: AppDefaultKey.localLearningDataClearedAt)
+    }
+
+    func resetLocalCreditWallet() async -> Bool {
+        do {
+            localCreditWalletSnapshot = try await localCreditWalletService.resetLocalWalletAfterParentConfirmation()
+            await refreshActiveEntitlementUsageSummaries()
+            alignLocalQuotaUsageWithEntitlement()
+            return true
+        } catch {
+            errorMessage = localizedErrorMessage(error)
+            return false
+        }
     }
 
     func acceptPrivacyConsent() async {
         let locale = interfaceLocaleCode
         deviceInfoService.hasAcceptedPrivacyConsent = true
+        userPreference = await userPreferenceRepository.updateLocal(
+            uiLocale: locale,
+            sourceLanguageCode: sourceLanguageCode,
+            targetLanguageCode: targetLanguageCode,
+            readingTrackCode: effectiveLearningTrackCode,
+        )
+        interfaceLocaleCode = locale
+        AppScopedDefaults().set(locale, forKey: AppDefaultKey.interfaceLocale)
         if hasAuthenticatedSession {
-            userPreference = await userPreferenceRepository.updateLocal(
-                uiLocale: locale,
-                sourceLanguageCode: sourceLanguageCode,
-                targetLanguageCode: targetLanguageCode,
-                readingTrackCode: effectiveLearningTrackCode,
-            )
-            interfaceLocaleCode = locale
-            AppScopedDefaults().set(locale, forKey: AppDefaultKey.interfaceLocale)
             await synchronizeNow(reason: "privacy_accept")
             await refreshPreferences()
         }
@@ -1472,6 +1749,11 @@ class AppState: ObservableObject {
         givenName: String? = nil,
         familyName: String? = nil
     ) async -> Bool {
+        guard AppIdentity.developerBackendEnabled else {
+            // 首发合规模式不创建开发者账号，也不把 Apple identity token 发往个人开发者后端。
+            errorMessage = uiText("当前版本无需登录即可本地使用。", "This version works locally without sign-in.")
+            return false
+        }
         let selectedInterfaceLocale = interfaceLocaleCode
         do {
             _ = try await backendClient.exchangeApplePreview(
@@ -1495,6 +1777,20 @@ class AppState: ObservableObject {
     #if DEBUG
     func completeDevelopmentSignIn() async -> Bool {
         let selectedInterfaceLocale = interfaceLocaleCode
+        guard AppIdentity.developerBackendEnabled else {
+            // DEBUG 下也保持无后端首发边界：不伪造账号态，只初始化本机资料和每日免费额度。
+            setOnboardingInterfaceLocale(selectedInterfaceLocale)
+            userPreference = await userPreferenceRepository.updateLocal(
+                uiLocale: selectedInterfaceLocale,
+                sourceLanguageCode: sourceLanguageCode,
+                targetLanguageCode: targetLanguageCode,
+                readingTrackCode: effectiveLearningTrackCode,
+            )
+            await loadLocalCaches()
+            ensureLocalDeviceAccountState()
+            alignLocalQuotaUsageWithEntitlement()
+            return true
+        }
         do {
             _ = try await backendClient.createDevelopmentSession()
             return await completeAuthenticatedSignIn(locale: selectedInterfaceLocale, reason: "dev_login")
@@ -1570,6 +1866,13 @@ class AppState: ObservableObject {
     }
 
     func requestDeletionCode(email: String) async -> EmailVerificationTicketReceipt? {
+        guard AppIdentity.developerBackendEnabled else {
+            errorMessage = uiText(
+                "当前版本不创建开发者账号。请在“隐私与支持”中删除本地学习数据或重置本机积分钱包。",
+                "This version does not create developer accounts. Delete local learning data or reset the local credit wallet in Privacy & Support."
+            )
+            return nil
+        }
         do {
             return try await backendClient.requestDeletionCode(email: email)
         } catch {
@@ -1579,6 +1882,14 @@ class AppState: ObservableObject {
     }
 
     func redeemCompensationCode(_ compensationCode: String) async -> CompensationRedeemReceipt? {
+        guard AppIdentity.developerBackendEnabled else {
+            // 无后端首发不提供服务端补偿码，避免把购买争议、儿童信息或交易材料带入个人开发者服务器。
+            errorMessage = uiText(
+                "当前版本不启用补偿码。购买问题请通过 Apple 官方购买问题渠道处理。",
+                "Compensation codes are not enabled in this version. Purchase issues should be handled through Apple."
+            )
+            return nil
+        }
         let normalizedCode = normalizedCompensationCode(compensationCode)
         guard !hasRedeemedCompensationCodeLocally(normalizedCode) else {
             errorMessage = nil
@@ -1647,6 +1958,13 @@ class AppState: ObservableObject {
     }
 
     func confirmDeletion(code: String, email: String) async -> Bool {
+        guard AppIdentity.developerBackendEnabled else {
+            errorMessage = uiText(
+                "当前版本没有开发者账号可删除。请在“隐私与支持”中删除当前设备的本地学习数据。",
+                "This version has no developer account to delete. Delete local learning data from Privacy & Support on this device."
+            )
+            return false
+        }
         cancelAllUsageTicks()
         cancelEntitlementSyncLoop()
         let currentScope = storageScope
@@ -1675,11 +1993,20 @@ class AppState: ObservableObject {
     func playLocalTts(text: String, language: String, rate: Float = 1.0, preferCloud: Bool = false) async -> Bool {
         let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedText.isEmpty else { return false }
-        guard hasLocalTtsQuotaAvailableLocally() else {
+        let requiredCredits: Int
+        do {
+            // 本地朗读成本来自固定内置策略，避免远程配置或旧代码绕过“双积分预留”边界。
+            requiredCredits = try localTtsCreditCost()
+        } catch {
+            errorMessage = localizedErrorMessage(error)
+            return false
+        }
+        await refreshLocalCreditWalletSnapshot()
+        guard hasLocalTtsQuotaAvailableLocally(requiredAmount: requiredCredits) else {
             isLocalTtsQuotaExhausted = true
             localTtsQuotaExhaustedMessage = uiText(
-                "今日发音权益已用完，暂时无法继续发音。请让家长在家长区查看权益并补充次数后再发音。",
-                "Today's pronunciation quota is used up, so playback is temporarily unavailable. Please ask a parent to review benefits and add quota from the parent area before playing audio again."
+                "今日免费朗读次数和本机功能积分不足，本次需要 \(requiredCredits) 积分。请让家长在家长区补充本机积分后再发音。",
+                "Free read-aloud uses and local feature credits are not enough. This playback needs \(requiredCredits) credits. Ask a parent to add local credits from Parents before playing audio again."
             )
             return false
         }
@@ -1694,8 +2021,12 @@ class AppState: ObservableObject {
                 ?? uiText("本地发音启动失败，请检查设备音量或稍后重试。", "Local speech failed to start. Please check device volume or try again shortly.")
             return false
         }
-        recordLocalQuotaUsage(kind: "local_tts", source: "device_tts", amount: 1)
-        return true
+        let consumed = await recordLocalTtsUsageAfterStart(source: "device_tts", amount: requiredCredits)
+        if !consumed {
+            // 付费积分写入失败时立即停止已启动的朗读，避免形成“已服务但本机钱包未记账”的状态。
+            ttsService.stop()
+        }
+        return consumed
     }
 
     @discardableResult
@@ -1797,15 +2128,8 @@ class AppState: ObservableObject {
         await playLocalTts(text: text, language: localTtsLanguageCode(for: languageCode), rate: rate, preferCloud: preferCloud)
     }
 
-    private func hasLocalTtsQuotaAvailableLocally() -> Bool {
-        refreshLocalQuotaCaches()
-        // 跨天场景：即使后端拉取失败，也要把 cached 权益按新一天回满，
-        // 防止用 accountState.quota.localTtsUsed（昨日值）误判为仍有残量或已用完。
-        resetCachedQuotaIfCrossedDay()
-        let serverUsed = accountState?.quota.localTtsUsed ?? 0
-        let serverLimit = accountState?.quota.localTtsLimit ?? fallbackLocalTtsLimit
-        let effectiveUsed = max(serverUsed, localTtsUsedToday)
-        return effectiveUsed < serverLimit
+    private func hasLocalTtsQuotaAvailableLocally(requiredAmount: Int = 1) -> Bool {
+        totalLocalRemaining(serviceType: .localTts) >= max(requiredAmount, 1)
     }
 
     private func alignLocalQuotaUsageWithEntitlement() {
@@ -1862,6 +2186,7 @@ class AppState: ObservableObject {
         guard !cachedDate.isEmpty, cachedDate != today else { return }
         let localOcrLimit = max(state.quota.localOcrLimit, 0)
         let localTtsLimit = max(state.quota.localTtsLimit, 0)
+        let dailyGiftLimit = currentDailyLoginGiftLimit(from: state)
         accountState = AccountState(
             accountId: state.accountId,
             signInProvider: state.signInProvider,
@@ -1873,7 +2198,10 @@ class AppState: ObservableObject {
                 localOcrRemaining: localOcrLimit,
                 localTtsLimit: localTtsLimit,
                 localTtsUsed: 0,
-                localTtsRemaining: localTtsLimit
+                localTtsRemaining: localTtsLimit,
+                dailyLoginGiftLimit: dailyGiftLimit,
+                dailyLoginGiftUsed: 0,
+                dailyLoginGiftRemaining: dailyGiftLimit
             )
         )
         // 同步回写缓存，避免下次冷启动又读到昨天的 quotaDate。
@@ -1917,23 +2245,14 @@ class AppState: ObservableObject {
     }
 
     private func applyLocalDailyGrantUsageToEntitlementCache(kind: String, amount: Int, quotaDate: String) async {
-        guard amount > 0, let entitlement = accountState?.entitlement else { return }
-        let serviceType: String
-        let fallbackTotalCount: Int
-        if kind == "local_ocr" {
-            serviceType = "local_ocr"
-            fallbackTotalCount = max(entitlement.dailyLocalOcrLimit, 0)
-        } else if kind == "local_tts" {
-            serviceType = "local_tts"
-            fallbackTotalCount = max(entitlement.dailyLocalTtsLimit, 0)
-        } else {
-            return
-        }
+        guard amount > 0, kind == "local_ocr" || kind == "local_tts" else { return }
+        let fallbackTotalCount = currentDailyLoginGiftLimit()
         guard fallbackTotalCount > 0 else { return }
         let window = dailyQuotaGrantWindow(quotaDate: quotaDate)
+        // 中文说明：本地缓存同样只维护一条每日赠送积分记录，OCR/TTS 使用量合并写入 local_device。
         await entitlementRecordRepository.incrementCachedDailyGrantUsage(
             accountId: storageScope,
-            serviceType: serviceType,
+            serviceType: "local_device",
             amount: amount,
             quotaDate: quotaDate,
             fallbackTotalCount: fallbackTotalCount,
@@ -2056,7 +2375,68 @@ class AppState: ObservableObject {
     }
 
     private var fallbackLocalOcrLimit: Int {
-        5
+        3
+    }
+
+    private var fallbackDailyLoginGiftLimit: Int {
+        10
+    }
+
+    private func refreshDailyLoginGiftConfig() async {
+        guard AppIdentity.developerBackendEnabled else { return }
+        let planCode = accountState?.entitlement.planCode
+        do {
+            let config = try await backendClient.fetchDailyLoginGiftConfig(planCode: planCode)
+            let latestLimit = max(config.dailyGiftCredits, 0)
+            if latestLimit > 0 {
+                // 中文说明：成功读取后端数据库配置后写入本地缓存；后端失败时继续沿用上次成功值。
+                AppScopedDefaults().set(latestLimit, forKey: AppDefaultKey.dailyLoginGiftLimit)
+                applyDailyLoginGiftLimit(latestLimit)
+                resetCachedQuotaIfCrossedDay()
+                alignLocalQuotaUsageWithEntitlement()
+            }
+        } catch {
+            // 中文说明：配置拉取失败不影响启动，currentDailyLoginGiftLimit 会按“缓存值 -> 10”顺序降级。
+        }
+    }
+
+    private func applyDailyLoginGiftLimit(_ limit: Int) {
+        guard let state = accountState else { return }
+        let safeLimit = max(limit, 0)
+        let used = min(max(state.quota.dailyLoginGiftUsed, localOcrUsedToday + localTtsUsedToday, 0), safeLimit)
+        // 中文说明：后端配置当天发生变化时，不等跨天重置，立即把 accountState 中的统一日赠总额更新为最新配置。
+        accountState = AccountState(
+            accountId: state.accountId,
+            signInProvider: state.signInProvider,
+            entitlement: state.entitlement,
+            quota: DailyQuota(
+                quotaDate: state.quota.quotaDate.isEmpty ? AppClock.dateOnly(from: Date()) : state.quota.quotaDate,
+                localOcrLimit: state.quota.localOcrLimit,
+                localOcrUsed: state.quota.localOcrUsed,
+                localOcrRemaining: state.quota.localOcrRemaining,
+                localTtsLimit: state.quota.localTtsLimit,
+                localTtsUsed: state.quota.localTtsUsed,
+                localTtsRemaining: state.quota.localTtsRemaining,
+                dailyLoginGiftLimit: safeLimit,
+                dailyLoginGiftUsed: used,
+                dailyLoginGiftRemaining: max(safeLimit - used, 0)
+            )
+        )
+        cacheAccountStateForToday()
+    }
+
+    private func currentDailyLoginGiftLimit(from state: AccountState? = nil) -> Int {
+        if let limit = state?.quota.dailyLoginGiftLimit, limit > 0 {
+            AppScopedDefaults().set(limit, forKey: AppDefaultKey.dailyLoginGiftLimit)
+            return limit
+        }
+        if let limit = accountState?.quota.dailyLoginGiftLimit, limit > 0 {
+            AppScopedDefaults().set(limit, forKey: AppDefaultKey.dailyLoginGiftLimit)
+            return limit
+        }
+        let cached = AppScopedDefaults().integer(forKey: AppDefaultKey.dailyLoginGiftLimit)
+        // 中文说明：后端配置获取失败时沿用上次成功缓存值；首次安装没有缓存时使用 10 积分。
+        return cached > 0 ? cached : fallbackDailyLoginGiftLimit
     }
 
     private func ensureLocalDeviceAccountStateIfNeeded() {
@@ -2075,8 +2455,10 @@ class AppState: ObservableObject {
         let today = AppClock.dateOnly(from: Date())
         let localOcrLimit = fallbackLocalOcrLimit
         let localTtsLimit = fallbackLocalTtsLimit
+        let dailyGiftLimit = currentDailyLoginGiftLimit()
         let localOcrUsed = min(max(localOcrUsedToday, 0), localOcrLimit)
         let localTtsUsed = min(max(localTtsUsedToday, 0), localTtsLimit)
+        let dailyGiftUsed = min(max(localOcrUsedToday + localTtsUsedToday, 0), dailyGiftLimit)
         let entitlement = AccountEntitlement(
             planCode: "free",
             planName: "免费版",
@@ -2118,12 +2500,19 @@ class AppState: ObservableObject {
                 localOcrRemaining: max(localOcrLimit - localOcrUsed, 0),
                 localTtsLimit: localTtsLimit,
                 localTtsUsed: localTtsUsed,
-                localTtsRemaining: max(localTtsLimit - localTtsUsed, 0)
+                localTtsRemaining: max(localTtsLimit - localTtsUsed, 0),
+                dailyLoginGiftLimit: dailyGiftLimit,
+                dailyLoginGiftUsed: dailyGiftUsed,
+                dailyLoginGiftRemaining: max(dailyGiftLimit - dailyGiftUsed, 0)
             )
         )
     }
 
     private func refreshCloudUsageStateFromBackend() async {
+        guard AppIdentity.developerBackendEnabled else {
+            cloudUsageState = nil
+            return
+        }
         do {
             cloudUsageState = try await backendClient.fetchCloudUsageState()
         } catch {
@@ -2231,56 +2620,15 @@ class AppState: ObservableObject {
 
     private func reportLocalTtsUsage(language: String, preferCloud: Bool) async -> Bool {
         let usageSource = preferCloud ? "cloud_tts" : "device_tts"
-        // 先在本地扣减兜底 +1（与 OCR 扣减保持一致），避免后端响应延迟/后端掉线/用户中途切页导致
-        // 句卡列表→复习页点击喇叭后“朗读剩余次数没有立即变化”的观感；后端成功后会由 alignLocalQuotaUsageWithEntitlement() 以 max 方式与服务端对齐，不会重复计数。
-        recordLocalQuotaUsage(kind: "local_tts", source: usageSource, amount: 1)
-        guard preferCloud else {
-            // 当前设备端发音只做本地播放和本地使用历史统计，不调用后端发音次数接口。
-            return true
-        }
-        guard hasAuthenticatedSession else {
-            // 未登录时仅在本地扣减，保证设备端朗读仍能使用。
+        _ = language
+        let requiredCredits: Int
+        do {
+            requiredCredits = try localTtsCreditCost()
+        } catch {
+            errorMessage = localizedErrorMessage(error)
             return false
         }
-        let idempotencyKey = UUID().uuidString.lowercased()
-        do {
-            accountState = try await backendClient.recordQuotaUsage(
-                kind: "local_tts",
-                source: usageSource,
-                languageCode: language,
-                amount: 1,
-                idempotencyKey: idempotencyKey
-            )
-            cacheAccountStateForToday()
-            if preferCloud {
-                await refreshCloudUsageStateFromBackend()
-            }
-            alignLocalQuotaUsageWithEntitlement()
-            await syncEntitlementRecordsFromBackend(reason: "local_tts_usage", reportError: false)
-            await refreshActiveEntitlementUsageSummaries()
-            return true
-        } catch {
-            // 本地扣减已在入口处完成，此处不再重复 +1，避免后端暂时不可用时多扣一次。
-            if preferCloud {
-                await refreshCloudUsageStateFromBackend()
-            }
-            await refreshActiveEntitlementUsageSummaries()
-            try? await backendClient.reportDeviceEvent(
-                eventType: "local_tts_failed",
-                appVersion: BackendClient.defaultAppVersion(),
-                buildNumber: BackendClient.defaultBuildNumber(),
-                locale: interfaceLocaleCode,
-                payload: [
-                    "language": language,
-                    "mode": preferCloud ? "cloud" : "device",
-                    "quotaDate": AppClock.dateOnly(from: Date()),
-                    "localUsed": "\(localTtsUsedToday)",
-                    "idempotencyKey": idempotencyKey,
-                    "error": error.localizedDescription
-                ]
-            )
-            return true
-        }
+        return await recordLocalTtsUsageAfterStart(source: usageSource, amount: requiredCredits)
     }
 
     func synthesizeCloudSpeech(text: String, language: String, rate: Float = 1.0) async -> CloudSpeechReceipt? {
@@ -2418,6 +2766,30 @@ class AppState: ObservableObject {
         entitlementSyncTask = nil
     }
 
+    private func startStoreKitTransactionUpdatesListener() {
+        #if canImport(StoreKit)
+        guard storeKitUpdatesTask == nil else { return }
+        storeKitUpdatesTask = Task { [weak self] in
+            for await result in StoreKit.Transaction.updates {
+                guard !Task.isCancelled else { break }
+                await self?.handleStoreKitTransactionUpdate(result)
+            }
+        }
+        #endif
+    }
+
+    #if canImport(StoreKit)
+    private func handleStoreKitTransactionUpdate(_ result: VerificationResult<StoreKit.Transaction>) async {
+        do {
+            let refreshResult = try await purchaseService.processTransactionUpdate(result, wallet: localCreditWalletService)
+            localCreditWalletSnapshot = refreshResult.snapshot
+            alignLocalQuotaUsageWithEntitlement()
+        } catch {
+            errorMessage = localizedErrorMessage(error)
+        }
+    }
+    #endif
+
     func performFullEntitlementSync(reason: String) async {
         guard hasAuthenticatedSession else { return }
         await refreshAccountState(force: true)
@@ -2431,36 +2803,54 @@ class AppState: ObservableObject {
 
     func entitlementDisplaySummary(serviceType: String) -> EntitlementUsageSummary {
         let normalizedServiceType = serviceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalizedServiceType == "local_device" || normalizedServiceType == "local_credits" {
+            let dailyGiftTotal = currentDailyLoginGiftLimit()
+            let dailyGiftUsed = min(max(accountState?.quota.dailyLoginGiftUsed ?? 0, localOcrUsedToday + localTtsUsedToday, 0), dailyGiftTotal)
+            let paidGranted = localCreditWalletSnapshot.localDeviceLifetimeGranted()
+            let paidConsumed = localCreditWalletSnapshot.localDeviceLifetimeConsumed()
+            let total = dailyGiftTotal + paidGranted
+            let used = min(dailyGiftUsed + paidConsumed, max(total, 0))
+            // 中文说明：页面统一展示本机功能总积分；付费总池只计算一次，避免旧识字/朗读余额重复累加。
+            return EntitlementUsageSummary(
+                serviceType: "local_device",
+                totalCount: total,
+                usedCount: used,
+                remainingCount: max(dailyGiftTotal - dailyGiftUsed, 0) + localCreditWalletSnapshot.localDeviceBalance()
+            )
+        }
         if normalizedServiceType == "local_tts" || normalizedServiceType == "tts" || normalizedServiceType == "cloud_tts" {
-            let summaryKey = normalizedServiceType == "cloud_tts" ? "cloud_tts" : "local_tts"
-            let activeCredit = activeEntitlementUsageSummaries[summaryKey] ?? .empty(serviceType: summaryKey)
             if normalizedServiceType == "cloud_tts" {
-                return activeCredit
+                return .empty(serviceType: "cloud_tts")
             }
-            let dailyLimit = max(accountState?.entitlement.dailyLocalTtsLimit ?? 0, 0)
-            let total = max(accountState?.quota.localTtsLimit ?? 0, dailyLimit + max(activeCredit.totalCount, 0), 0)
-            let used = min(max(accountState?.quota.localTtsUsed ?? 0, localTtsUsedToday, activeCredit.usedCount, 0), max(total, 0))
+            let dailyTotal = currentDailyLoginGiftLimit()
+            let dailyUsed = min(max(accountState?.quota.dailyLoginGiftUsed ?? 0, localOcrUsedToday + localTtsUsedToday, 0), dailyTotal)
+            let paidGranted = localCreditWalletSnapshot.localDeviceLifetimeGranted()
+            let paidConsumed = localCreditWalletSnapshot.localDeviceLifetimeConsumed()
+            let total = dailyTotal + paidGranted
+            let used = min(dailyUsed + paidConsumed, max(total, 0))
             return EntitlementUsageSummary(
                 serviceType: "local_tts",
                 totalCount: total,
                 usedCount: used,
-                remainingCount: max(total - used, 0)
+                remainingCount: max(dailyTotal - dailyUsed, 0) + localCreditWalletSnapshot.localDeviceBalance()
             )
         }
 
         if normalizedServiceType == "cloud_ocr" {
-            return activeEntitlementUsageSummaries["cloud_ocr"] ?? .empty(serviceType: "cloud_ocr")
+            return .empty(serviceType: "cloud_ocr")
         }
 
-        let activeCredit = activeEntitlementUsageSummaries["local_ocr"] ?? .empty(serviceType: "local_ocr")
-        let dailyLimit = max(accountState?.entitlement.dailyLocalOcrLimit ?? 0, 0)
-        let total = max(accountState?.quota.localOcrLimit ?? 0, dailyLimit + max(activeCredit.totalCount, 0), 0)
-        let used = min(max(accountState?.quota.localOcrUsed ?? 0, localOcrUsedToday, activeCredit.usedCount, 0), max(total, 0))
+        let dailyTotal = currentDailyLoginGiftLimit()
+        let dailyUsed = min(max(accountState?.quota.dailyLoginGiftUsed ?? 0, localOcrUsedToday + localTtsUsedToday, 0), dailyTotal)
+        let paidGranted = localCreditWalletSnapshot.localDeviceLifetimeGranted()
+        let paidConsumed = localCreditWalletSnapshot.localDeviceLifetimeConsumed()
+        let total = dailyTotal + paidGranted
+        let used = min(dailyUsed + paidConsumed, max(total, 0))
         return EntitlementUsageSummary(
             serviceType: "local_ocr",
             totalCount: total,
             usedCount: used,
-            remainingCount: max(total - used, 0)
+            remainingCount: max(dailyTotal - dailyUsed, 0) + localCreditWalletSnapshot.localDeviceBalance()
         )
     }
 
@@ -2549,44 +2939,23 @@ class AppState: ObservableObject {
     }
 
     private func syncDailyQuotaGrantRecords(days: Int = 60) async {
-        guard let entitlement = accountState?.entitlement else { return }
         let safeDays = min(max(days, 1), dailyQuotaUsageHistoryRetentionDays)
         let syncedAt = AppClock.nowString()
-        let localOcrLimit = max(entitlement.dailyLocalOcrLimit, 0)
-        let localTtsLimit = max(entitlement.dailyLocalTtsLimit, 0)
+        let dailyGiftLimit = currentDailyLoginGiftLimit()
         for record in dailyQuotaUsageHistory(days: safeDays) {
             let window = dailyQuotaGrantWindow(quotaDate: record.usageDate)
-            if localOcrLimit > 0 {
+            if dailyGiftLimit > 0 {
                 let hasBackendDailyGift = await entitlementRecordRepository.hasAuthoritativeDailyGift(
                     accountId: storageScope,
-                    serviceType: "local_ocr",
+                    serviceType: "local_device",
                     quotaDate: record.usageDate
                 )
                 if !hasBackendDailyGift {
                     await entitlementRecordRepository.upsertDailyGrant(
                         accountId: storageScope,
-                        serviceType: "local_ocr",
-                        totalCount: localOcrLimit,
-                        usedCount: min(max(record.localOcrTotalCount, 0), localOcrLimit),
-                        quotaDate: record.usageDate,
-                        acquiredAt: window.acquiredAt,
-                        expiresAt: window.expiresAt,
-                        syncedAt: syncedAt
-                    )
-                }
-            }
-            if localTtsLimit > 0 {
-                let hasBackendDailyGift = await entitlementRecordRepository.hasAuthoritativeDailyGift(
-                    accountId: storageScope,
-                    serviceType: "local_tts",
-                    quotaDate: record.usageDate
-                )
-                if !hasBackendDailyGift {
-                    await entitlementRecordRepository.upsertDailyGrant(
-                        accountId: storageScope,
-                        serviceType: "local_tts",
-                        totalCount: localTtsLimit,
-                        usedCount: min(max(record.localTtsTotalCount, 0), localTtsLimit),
+                        serviceType: "local_device",
+                        totalCount: dailyGiftLimit,
+                        usedCount: min(max(record.localOcrTotalCount + record.localTtsTotalCount, 0), dailyGiftLimit),
                         quotaDate: record.usageDate,
                         acquiredAt: window.acquiredAt,
                         expiresAt: window.expiresAt,
@@ -2720,12 +3089,8 @@ class AppState: ObservableObject {
     }
 
     private func clearLocalData(scope: String) async {
-        // 删除账号时清理账号级本地学习数据，权益记录缓存保留到 App 卸载。
-        // 禁止在此移除以下设备级持久化 key，它们仅在用户卸载 App 时随 sandbox 清除：
-        // - AppDefaultKey.dailyQuotaUsageHistory（每日使用次数历史，周报数据源）
-        // - AppDefaultKey.accountStateCache / accountStateLastFetchDate（后端下线跨天回满用）
-        // - AppDefaultKey.localCapture* / localSpeech* / cloudOcr* / cloudTts*（本地配额缓存）
-        // - AppDefaultKey.onboarding* / privacy* / interfaceLocale 等设备级偏好
+        // 账号删除流程使用的本机全量业务清理；保留 Keychain 本机积分钱包和设备级合规偏好。
+        // 家长中心的“清除本地学习数据”入口使用 clearLocalLearningRecords(scope:)，不会删除孩子档案或语言偏好。
         cancelAllUsageTicks()
         await childRepository.clear()
         await reviewEventRepository.clear()
@@ -2733,6 +3098,9 @@ class AppState: ObservableObject {
         await learningEventRepository.clear()
         await usageSessionRepository.clear()
         await userPreferenceRepository.clear()
+        await localWeeklyReportRepository.clear()
+        weeklyReportCache.clear(accountId: scope)
+        AppScopedDefaults().removeObject(forKey: AppDefaultKey.dailyQuotaUsageHistory)
     }
 
     private func cancelAllUsageTicks() {

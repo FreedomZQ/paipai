@@ -13,6 +13,9 @@ import com.apphub.backend.sys.billing.model.EntitlementRefreshItemView;
 import com.apphub.backend.sys.billing.model.EntitlementRefreshResultView;
 import com.apphub.backend.sys.billing.model.PurchaseIntakeAcceptedView;
 import com.apphub.backend.sys.billing.model.PurchaseRestoreAcceptedView;
+import com.apphub.backend.sys.billing.privacy.service.SysAppStoreRefundService;
+import com.apphub.backend.sys.billing.privacy.service.SysEntitlementConsumptionReportService;
+import com.apphub.backend.sys.billing.privacy.service.SysPrivacyConsentService;
 import com.apphub.backend.sys.billing.service.SysBillingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +58,15 @@ class SysBillingControllerWebMvcTest {
 
     @MockBean
     private SysBillingService sysBillingService;
+
+    @MockBean
+    private SysPrivacyConsentService sysPrivacyConsentService;
+
+    @MockBean
+    private SysEntitlementConsumptionReportService sysEntitlementConsumptionReportService;
+
+    @MockBean
+    private SysAppStoreRefundService sysAppStoreRefundService;
 
     @Test
     void verifyShouldAcceptPurchaseIntake() throws Exception {

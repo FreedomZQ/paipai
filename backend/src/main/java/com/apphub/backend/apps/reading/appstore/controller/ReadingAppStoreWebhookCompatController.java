@@ -2,6 +2,7 @@ package com.apphub.backend.apps.reading.appstore.controller;
 
 import com.apphub.backend.apps.common.AppCompatControllerSupport;
 import com.apphub.backend.apps.reading.ReadingAppModule;
+import com.apphub.backend.apps.reading.compat.service.ReadingCompatService;
 import com.apphub.backend.common.filter.TraceFilter;
 import com.apphub.backend.common.response.ApiResponse;
 import com.apphub.backend.sys.appstore.model.AppStoreNotificationAcceptedView;
@@ -33,13 +34,16 @@ public class ReadingAppStoreWebhookCompatController {
 
     private final AppCompatControllerSupport appCompatControllerSupport;
     private final SysAppStoreNotificationService sysAppStoreNotificationService;
+    private final ReadingCompatService readingCompatService;
 
     public ReadingAppStoreWebhookCompatController(
         AppCompatControllerSupport appCompatControllerSupport,
-        SysAppStoreNotificationService sysAppStoreNotificationService
+        SysAppStoreNotificationService sysAppStoreNotificationService,
+        ReadingCompatService readingCompatService
     ) {
         this.appCompatControllerSupport = appCompatControllerSupport;
         this.sysAppStoreNotificationService = sysAppStoreNotificationService;
+        this.readingCompatService = readingCompatService;
     }
 
     @Operation(summary = "接收 App Store 通知", description = "接收 App Store Server Notification，并交由统一通知服务验签和去重处理。")
@@ -47,6 +51,11 @@ public class ReadingAppStoreWebhookCompatController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ApiResponse<AppStoreNotificationAcceptedView> notifications(@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "接口请求体，字段中文说明和示例见 DTO Schema；未特别说明时由当前登录用户上下文补齐 userId。", required = true) @RequestBody Map<String, Object> payload) {
         appCompatControllerSupport.requireAppDefinition(APP_CODE);
+        if (readingCompatService.isLocalOnlyLaunchMode()) {
+            // 中文说明：无自有后端首发不接 App Store Server Notifications；
+            // 消耗型本机积分只由 iOS StoreKit verified transaction 写入本机 Keychain。
+            throw new LocalOnlyAppStoreWebhookDisabledException();
+        }
         String signedPayload = payload.get("signedPayload") == null ? null : String.valueOf(payload.get("signedPayload"));
         if (signedPayload == null || signedPayload.isBlank()) {
             throw new InvalidPayloadException();
@@ -63,6 +72,10 @@ public class ReadingAppStoreWebhookCompatController {
 
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     private static class InvalidPayloadException extends RuntimeException {
+    }
+
+    @ResponseStatus(HttpStatus.GONE)
+    private static class LocalOnlyAppStoreWebhookDisabledException extends RuntimeException {
     }
 
     private String currentRequestId() {

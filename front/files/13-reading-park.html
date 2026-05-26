@@ -545,9 +545,17 @@
                         <div class="feature-icon">📷</div>
                         <h3>拍拍伴读</h3>
                         <p>拍摄文字，智能识别，一键开始伴读</p>
-                        <button class="feature-button" onclick="window.location.href='05a-ocr-confirm.html'">开始使用</button>
+                        <button class="feature-button" onclick="window.location.href='05-ocr-confirm.html'">开始使用</button>
                     </div>
-                    
+
+                    <!-- 说写秒译 -->
+                    <div class="feature-card" onclick="startInstantTranslation()">
+                        <div class="feature-icon">🌐</div>
+                        <h3>说写秒译</h3>
+                        <p>语音文字双输入，实时翻译即说即译</p>
+                        <button class="feature-button" onclick="window.location.href='17-instant-translation.html'">立即使用</button>
+                    </div>
+
                     <!-- 伴读复习 -->
                     <div class="feature-card" onclick="startReview()">
                         <div class="feature-icon">✨</div>
@@ -614,7 +622,12 @@
             // 跳转到文字识别确认页面
             window.location.href = '05-ocr-confirm.html';
         }
-        
+
+        function startInstantTranslation() {
+            // 跳转到说写秒译页面
+            window.location.href = '17-instant-translation.html';
+        }
+
         function startReview() {
             // 跳转到复习页面
             window.location.href = '11-review-detail.html';

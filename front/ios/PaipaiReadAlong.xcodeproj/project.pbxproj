@@ -53,6 +53,7 @@
 		9393B44BBE0AC5230A75E49D /* LocalStoreSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4678A594DBF224F72AB557A /* LocalStoreSupport.swift */; };
 		9621E417F75985CA412E8A33 /* AuthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6E942622A4EF722BA9F60F /* AuthModels.swift */; };
 		97AA71A4EC9982EC0F12C2AE /* ParentGateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7F022B66675659ABFE31B2 /* ParentGateService.swift */; };
+		9DA876BE7CF11306FAA5512C /* LocalCreditWalletService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF571E3CD0308FEC54BF735 /* LocalCreditWalletService.swift */; };
 		9E4222B5427F6648445717E6 /* AnnouncementModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9095D296B1D907391159F3C /* AnnouncementModels.swift */; };
 		9E7BAEC6D478BF62F7060D56 /* ChildProfileRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD83E7B3B0D70E3E7841CED4 /* ChildProfileRepository.swift */; };
 		9F66222492F7B14259308E7D /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A47A7BD6E3782F5179F1D3B /* Theme.swift */; };
@@ -111,6 +112,7 @@
 		16EF16E4B14A49749EC8B3F8 /* WeeklyReportLocalCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyReportLocalCache.swift; sourceTree = "<group>"; };
 		1D7F022B66675659ABFE31B2 /* ParentGateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentGateService.swift; sourceTree = "<group>"; };
 		1DB5B390E9D6F9EC9FDDD8B1 /* AppStorePurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStorePurchaseService.swift; sourceTree = "<group>"; };
+		1EF571E3CD0308FEC54BF735 /* LocalCreditWalletService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCreditWalletService.swift; sourceTree = "<group>"; };
 		1F1EFBAF85B1798B8BDE9E9A /* AppleSignInFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInFlow.swift; sourceTree = "<group>"; };
 		2783BEBE24CBD47485CF97D2 /* ReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewView.swift; sourceTree = "<group>"; };
 		284D6B2AB3DA292A6931ED9B /* CompensationCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompensationCodeView.swift; sourceTree = "<group>"; };
@@ -315,6 +317,7 @@
 				9B19B67C809992D717D06AA6 /* BackendClient.swift */,
 				58F96E89E029FD6C11AFFC90 /* BackendRoute.swift */,
 				3E8D55BB2C3A4044C8F81476 /* DeviceInfoService.swift */,
+				1EF571E3CD0308FEC54BF735 /* LocalCreditWalletService.swift */,
 				E2178F281258733DB079807E /* LocalTextCryptoService.swift */,
 				EAF8681A449E79C31F65ED98 /* OCRService.swift */,
 				1D7F022B66675659ABFE31B2 /* ParentGateService.swift */,
@@ -605,6 +608,7 @@
 				EC2E7B5B504C55BD95FDCE4E /* LearningEventRepository.swift in Sources */,
 				C1E1E38524C3193F16506F09 /* LegalDocsView.swift in Sources */,
 				230DAAE5A86DF118E8FF4E74 /* LegalDocument.swift in Sources */,
+				9DA876BE7CF11306FAA5512C /* LocalCreditWalletService.swift in Sources */,
 				0A00F444F402C793C2989C80 /* LocalPayloadValue.swift in Sources */,
 				9393B44BBE0AC5230A75E49D /* LocalStoreSupport.swift in Sources */,
 				0AAE6CEE7D42B74D688A2D43 /* LocalTextCryptoService.swift in Sources */,
@@ -675,7 +679,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PAIPAI_API_BASE_URL = "http://192.168.1.27:8080";
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -855,7 +858,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PAIPAI_API_BASE_URL = "http://192.168.1.27:8080";
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";

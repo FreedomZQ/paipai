@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReadingDailyQuotaConfigService {
     public static final String FEATURE_LOCAL_OCR = "local_ocr";
     public static final String FEATURE_LOCAL_TTS = "local_tts";
+    public static final String FEATURE_LOCAL_DEVICE = "local_device";
     public static final String FEATURE_CLOUD_OCR = "cloud_ocr";
     public static final String FEATURE_CLOUD_TTS = "cloud_tts";
 
@@ -18,6 +19,7 @@ public class ReadingDailyQuotaConfigService {
     private static final String FREE_PLAN = "free";
     private static final int DEFAULT_LOCAL_OCR_LIMIT = 5;
     private static final int DEFAULT_LOCAL_TTS_LIMIT = 10;
+    private static final int DEFAULT_LOCAL_DEVICE_DAILY_GIFT_LIMIT = 10;
 
     private final ReadingDailyQuotaConfigMapper quotaConfigMapper;
 
@@ -52,6 +54,9 @@ public class ReadingDailyQuotaConfigService {
         if (FEATURE_CLOUD_OCR.equals(featureCode) || FEATURE_CLOUD_TTS.equals(featureCode)) {
             return 0;
         }
+        if (FEATURE_LOCAL_DEVICE.equals(featureCode)) {
+            return DEFAULT_LOCAL_DEVICE_DAILY_GIFT_LIMIT;
+        }
         if (FEATURE_LOCAL_TTS.equals(featureCode)) {
             return DEFAULT_LOCAL_TTS_LIMIT;
         }
@@ -65,6 +70,7 @@ public class ReadingDailyQuotaConfigService {
     private String normalizeFeatureCode(String featureCode) {
         String normalized = blankToDefault(featureCode, FEATURE_LOCAL_OCR);
         return switch (normalized) {
+            case "local_device", "local_device_credit", "daily_login_gift", "daily_local_credit" -> FEATURE_LOCAL_DEVICE;
             case "ocr", "local_ocr", "image_text_recognition", "image_ocr", "picture_ocr", "photo_ocr" -> FEATURE_LOCAL_OCR;
             case "local_tts", "tts", "read_aloud", "voice_reading", "text_to_speech", "speech_synthesis" -> FEATURE_LOCAL_TTS;
             default -> normalized;

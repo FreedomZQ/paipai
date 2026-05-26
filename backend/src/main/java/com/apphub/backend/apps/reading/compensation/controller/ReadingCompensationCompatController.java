@@ -15,10 +15,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.slf4j.MDC;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -52,6 +54,11 @@ public class ReadingCompensationCompatController {
         @Valid @RequestBody CompensationRedeemRequest request,
         @Parameter(hidden = true) HttpServletRequest httpServletRequest
     ) {
+        if (readingCompatService.isLocalOnlyLaunchMode()) {
+            // 中文说明：首发不做服务端补偿码，避免购买争议处理变成个人开发者云端权益账本。
+            // 家长购买争议统一引导 Apple 官方购买问题/退款渠道。
+            throw new ResponseStatusException(HttpStatus.GONE, "Local-only launch mode: server compensation codes are disabled.");
+        }
         Long userId = anonymousUserId(httpServletRequest);
         CompensationRedeemResultView redeemed = compensationService.redeem(
             APP_CODE,

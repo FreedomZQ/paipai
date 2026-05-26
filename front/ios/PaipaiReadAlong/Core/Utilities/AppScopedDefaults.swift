@@ -109,6 +109,7 @@ enum AppDefaultKey {
     static let localOcrUsed = "quota.local.local_ocr.used"
     static let localTtsQuotaDate = "quota.local.local_tts.date"
     static let localTtsUsed = "quota.local.local_tts.used"
+    static let dailyLoginGiftLimit = "quota.local.daily-login-gift.limit"
     static let cloudOcrQuotaDate = "quota.cloud.ocr.date"
     static let cloudOcrUsed = "quota.cloud.ocr.used"
     static let cloudTtsQuotaDate = "quota.cloud.tts.date"
@@ -118,8 +119,8 @@ enum AppDefaultKey {
 
     /// 按日的 OCR / 语音朗读使用次数历史（JSON），用于周报等本地统计。
     ///
-    /// 设备级持久化数据：**仅在用户卸载 App 时清除**。
-    /// 退出登录、删除账号、清除缓存、切换账号等任何 App 内操作都不得对它调用 `removeObject`，
-    /// 否则会导致历史周报统计数据丢失。
+    /// 这是本机学习统计，不上传服务器。普通退出登录或切换账号不得删除；
+    /// 但家长明确执行“删除本地学习数据”时必须清除，确保隐私文案中的本地历史删除承诺真实生效。
     static let dailyQuotaUsageHistory = "quota.daily.usage.history"
+    static let localLearningDataClearedAt = "learning.local-data.cleared-at"
 }

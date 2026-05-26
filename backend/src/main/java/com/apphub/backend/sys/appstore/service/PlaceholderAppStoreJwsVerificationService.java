@@ -42,6 +42,15 @@ public class PlaceholderAppStoreJwsVerificationService implements AppStoreJwsVer
                 dateTime(payload, "purchaseDate"),
                 dateTime(payload, "expiresDate"),
                 dateTime(payload, "revocationDate"),
+                text(payload, "revocationReason"),
+                integer(payload, "revocationPercentage"),
+                longValue(payload, "price"),
+                text(payload, "currency"),
+                text(payload, "storefront"),
+                text(payload, "webOrderLineItemId"),
+                text(payload, "transactionReason"),
+                text(payload, "inAppOwnershipType"),
+                integer(payload, "quantity"),
                 text(payload, "type")
             );
             diagnostics.put("productId", claims.productId());
@@ -107,6 +116,36 @@ public class PlaceholderAppStoreJwsVerificationService implements AppStoreJwsVer
     private String text(JsonNode node, String field) {
         JsonNode value = node.get(field);
         return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private Integer integer(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isNumber()) {
+            return value.asInt();
+        }
+        try {
+            return Integer.parseInt(value.asText());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private Long longValue(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isNumber()) {
+            return value.asLong();
+        }
+        try {
+            return Long.parseLong(value.asText());
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private OffsetDateTime dateTime(JsonNode node, String field) {

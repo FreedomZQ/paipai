@@ -2,7 +2,6 @@ import SwiftUI
 
 struct EntitlementRecordsView: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedServiceType: String = "all"
     @State private var selectedStatusFilter: String = "all"
     @State private var page: Int = 1
     @ScaledMetric(relativeTo: .title) private var titleSize: CGFloat = 28
@@ -10,7 +9,6 @@ struct EntitlementRecordsView: View {
     @ScaledMetric(relativeTo: .headline) private var rowTitleSize: CGFloat = 17
     @ScaledMetric(relativeTo: .body) private var bodySize: CGFloat = 16
     @ScaledMetric(relativeTo: .caption) private var captionSize: CGFloat = 12
-    @ScaledMetric(relativeTo: .footnote) private var footnoteSize: CGFloat = 13
 
     private var currentRecords: [EntitlementRecord] {
         appState.entitlementRecordPage?.records ?? []
@@ -25,7 +23,7 @@ struct EntitlementRecordsView: View {
             VStack(alignment: .leading, spacing: AppLayout.spacingM) {
                 pageHeader
                 filterBar
-                retentionNotice
+                creditOverview
                 summarySection
                 if currentRecords.isEmpty {
                     emptyState
@@ -56,10 +54,6 @@ struct EntitlementRecordsView: View {
         .task {
             await loadRecords(reset: true, forceBackendSync: true)
         }
-        .onChange(of: selectedServiceType) { _, _ in
-            page = 1
-            Task { await loadRecords(reset: true) }
-        }
         .onChange(of: selectedStatusFilter) { _, _ in
             page = 1
             Task { await loadRecords(reset: true) }
@@ -76,36 +70,27 @@ struct EntitlementRecordsView: View {
     }
 
     private var visibleSummaries: [EntitlementUsageSummary] {
-        switch selectedServiceType {
-        case "local_ocr":
-            return [appState.entitlementDisplaySummary(serviceType: "local_ocr")]
-        case "local_tts":
-            return [appState.entitlementDisplaySummary(serviceType: "local_tts")]
-        default:
-            return [
-                appState.entitlementDisplaySummary(serviceType: "local_ocr"),
-                appState.entitlementDisplaySummary(serviceType: "local_tts")
-            ]
-        }
+        // 中文说明：权益详情页统一展示本机功能总积分，取消识字/朗读余额分类。
+        [appState.entitlementDisplaySummary(serviceType: "local_device")]
     }
 
     private func summaryRow(_ summary: EntitlementUsageSummary) -> some View {
         MainCard {
             HStack(spacing: AppLayout.spacingS) {
-                Image(systemName: summary.serviceType == "local_tts" ? "speaker.wave.2.fill" : "camera.fill")
+                Image(systemName: "bolt.fill")
                     .font(.system(size: segmentSize * textScale, weight: .semibold))
                     .foregroundColor(AppColors.primary)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(categoryName(for: summary.serviceType))
+                    Text(appState.uiText("本机功能积分", "Local feature credits"))
                         .font(.system(size: segmentSize * textScale, weight: .semibold))
                         .foregroundColor(AppColors.textPrimary)
-                    Text(appState.uiText("剩余 \(summary.remainingCount) 次", "\(summary.remainingCount) left"))
+                    Text(appState.uiText("可用 \(summary.remainingCount) 积分", "\(summary.remainingCount) credits available"))
                         .font(.system(size: captionSize * textScale, weight: .regular))
                         .foregroundColor(AppColors.textSecondary)
                 }
                 Spacer()
-                Text("\(summary.usedCount)/\(summary.totalCount)")
+                Text(appState.uiText("已用 \(summary.usedCount)", "\(summary.usedCount) used"))
                     .font(.system(size: rowTitleSize * textScale, weight: .bold))
                     .foregroundColor(AppColors.primary)
                     .lineLimit(1)
@@ -116,52 +101,50 @@ struct EntitlementRecordsView: View {
 
     private var pageHeader: some View {
         VStack(alignment: .leading, spacing: AppLayout.spacingXS) {
-            Text(appState.uiText("权益信息", "Entitlements"))
+            Text(appState.uiText("积分权益", "Credit Benefits"))
                 .font(.system(size: titleSize * textScale, weight: .bold))
                 .foregroundColor(AppColors.textPrimary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
-            Text(appState.uiText("查看文字识别、语音朗读等权益的发放、使用和过期记录。", "Review grant, usage, and expiry records for OCR, read-aloud, and related entitlements."))
-                .font(.system(size: footnoteSize * textScale, weight: .regular))
-                .foregroundColor(AppColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityAddTraits(.isHeader)
     }
 
-    private var retentionNotice: some View {
+    private var creditOverview: some View {
         MainCard {
-            VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-                Label(appState.localizedText(zhHans: "记录说明", english: "Record notes", japanese: "記録について", korean: "기록 안내", spanish: "Notas de registros"), systemImage: "doc.text.magnifyingglass")
-                    .font(.system(size: rowTitleSize * textScale, weight: .semibold))
-                    .foregroundColor(AppColors.textPrimary)
-                Text(appState.localizedText(
-                    zhHans: "这里展示权益、同意和购买摘要相关记录。必要购买凭证仅以哈希和最小账务字段保留，用于退款、税务、反欺诈或争议处理。",
-                    english: "This page shows entitlement, consent, and purchase summary records. Necessary purchase evidence is retained only as hashes and minimal accounting fields for refunds, tax, anti-fraud, or disputes.",
-                    japanese: "このページには権益、同意、購入概要に関する記録が表示されます。必要な購入証跡のみ、返金、税務、不正防止、紛争対応のためにハッシュと最小会計項目で保持されます。",
-                    korean: "이 페이지에는 권한, 동의, 구매 요약 관련 기록이 표시됩니다. 필요한 구매 증빙만 환불, 세무, 부정 방지, 분쟁 처리를 위해 해시와 최소 회계 항목으로 보관됩니다.",
-                    spanish: "Esta pagina muestra registros de beneficios, consentimientos y resumenes de compra. Las pruebas de compra necesarias se conservan solo como hashes y campos contables minimos para reembolsos, impuestos, antifraude o disputas."
-                ))
-                .font(.system(size: footnoteSize * textScale, weight: .regular))
-                .foregroundColor(AppColors.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: AppLayout.spacingM) {
+                HStack(alignment: .center, spacing: AppLayout.spacingM) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 20 * textScale, weight: .bold))
+                        .foregroundColor(AppColors.primary)
+                        .frame(width: 42, height: 42)
+                        .background(AppColors.primary.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadiusM, style: .continuous))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(appState.uiText("当前可用积分", "Available credits"))
+                            .font(.system(size: captionSize * textScale, weight: .medium))
+                            .foregroundColor(AppColors.textSecondary)
+                        Text("\(totalAvailableCredits)")
+                            .font(.system(size: 30 * textScale, weight: .bold, design: .rounded))
+                            .foregroundColor(AppColors.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.65)
+                    }
+                    Spacer()
+                    Text(creditLevelTitle)
+                        .font(.system(size: segmentSize * textScale, weight: .semibold))
+                        .foregroundColor(AppColors.primary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(AppColors.primary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
             }
         }
     }
 
     private var filterBar: some View {
         HStack(spacing: AppLayout.spacingS) {
-            filterMenu(
-                title: appState.localizedText(zhHans: "类型", english: "Type", japanese: "タイプ", korean: "유형", spanish: "Tipo"),
-                selectionTitle: serviceFilterTitle,
-                systemImage: "square.grid.2x2",
-                options: [
-                    ("all", localizedAllText),
-                    ("local_ocr", ocrText),
-                    ("local_tts", ttsText)
-                ],
-                selection: $selectedServiceType
-            )
             filterMenu(
                 title: appState.localizedText(zhHans: "状态", english: "Status", japanese: "状態", korean: "상태", spanish: "Estado"),
                 selectionTitle: statusFilterTitle,
@@ -228,7 +211,7 @@ struct EntitlementRecordsView: View {
                 if appState.isEntitlementRecordSyncing {
                     ProgressView()
                 }
-                Text(appState.localizedText(zhHans: "当前筛选下暂无权益记录", english: "No entitlement records match this filter", japanese: "この条件に一致する権益記録はありません", korean: "이 필터에 맞는 권한 기록이 없습니다", spanish: "No hay registros de beneficios para este filtro"))
+                Text(appState.localizedText(zhHans: "当前筛选下暂无积分记录", english: "No credit records match this filter", japanese: "この条件に一致するクレジット記録はありません", korean: "이 필터에 맞는 크레딧 기록이 없습니다", spanish: "No hay registros de creditos para este filtro"))
                     .font(.system(size: bodySize * textScale, weight: .regular))
                     .foregroundColor(AppColors.textSecondary)
             }
@@ -252,19 +235,15 @@ struct EntitlementRecordsView: View {
                             .clipShape(Capsule())
                     }
                     Spacer()
-                    Text("\(record.usedCount)/\(record.totalCount)")
+                    Text(appState.uiText("剩余 \(record.remainingCount)", "\(record.remainingCount) left"))
                         .font(.system(size: captionSize * textScale, weight: .regular))
                         .foregroundColor(AppColors.primary)
                 }
 
-                Text(localizedAcquireMethod(record.acquireMethod))
-                    .font(.system(size: bodySize * textScale, weight: .regular))
-                    .foregroundColor(AppColors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-
+                infoLine(title: appState.uiText("消耗积分", "Consumed"), value: "\(record.usedCount)")
+                infoLine(title: appState.uiText("总积分", "Total"), value: "\(record.totalCount)")
                 infoLine(title: appState.uiText("获取时间", "Acquired"), value: formatDate(record.acquiredAt))
                 infoLine(title: appState.uiText("过期时间", "Expires"), value: formatDate(record.expiresAt))
-                infoLine(title: appState.uiText("剩余次数", "Remaining"), value: "\(record.remainingCount)")
                 if shouldShowProductCode(for: record) {
                     let productCode = record.productCode ?? ""
                     infoLine(title: appState.uiText("商品编码", "Product"), value: productCode)
@@ -321,24 +300,14 @@ struct EntitlementRecordsView: View {
 
     private func categoryName(for serviceType: String) -> String {
         switch serviceType {
-        case "cloud_tts": return ttsText + " · " + appState.uiText("云端", "Cloud")
-        case "local_tts", "device_tts": return ttsText + " · " + appState.uiText("本地", "Local")
-        case "cloud_ocr": return ocrText + " · " + appState.uiText("云端", "Cloud")
-        case "local_ocr": return ocrText + " · " + appState.uiText("本地", "Local")
-        default: return ocrText
+        case "cloud_tts", "cloud_ocr": return appState.uiText("云端功能积分", "Cloud feature credits")
+        case "local_device", "local_tts", "device_tts", "local_ocr": return appState.uiText("本机功能积分", "Local feature credits")
+        default: return appState.uiText("本机功能积分", "Local feature credits")
         }
     }
 
     private var localizedAllText: String {
         appState.localizedText(zhHans: "全部", english: "All", japanese: "すべて", korean: "전체", spanish: "Todo")
-    }
-
-    private var serviceFilterTitle: String {
-        switch selectedServiceType {
-        case "local_ocr": return ocrText
-        case "local_tts": return ttsText
-        default: return localizedAllText
-        }
     }
 
     private var statusFilterTitle: String {
@@ -357,28 +326,18 @@ struct EntitlementRecordsView: View {
         appState.localizedText(zhHans: "失效", english: "Invalid", japanese: "無効", korean: "만료", spanish: "No vigente")
     }
 
-    private var ocrText: String {
-        appState.localizedText(zhHans: "文字识别", english: "OCR", japanese: "文字認識", korean: "문자 인식", spanish: "OCR")
+    private var totalAvailableCredits: Int {
+        appState.entitlementDisplaySummary(serviceType: "local_device").remainingCount
     }
 
-    private var ttsText: String {
-        appState.localizedText(zhHans: "语音朗读", english: "TTS", japanese: "音声読み上げ", korean: "음성 읽기", spanish: "Lectura en voz")
-    }
-
-    private func localizedAcquireMethod(_ acquireMethod: String) -> String {
-        switch acquireMethod {
-        case "补偿兑换", "compensation_code":
-            return appState.localizedText(zhHans: "补偿兑换", english: "Compensation redemption", japanese: "補償コード交換", korean: "보상 코드 교환", spanish: "Canje de compensacion")
-        case "每日赠送":
-            return appState.localizedText(zhHans: "每日赠送", english: "Daily grant", japanese: "毎日の付与", korean: "일일 지급", spanish: "Concesion diaria")
-        case "内部购买":
-            return appState.localizedText(zhHans: "内部购买", english: "In-app purchase", japanese: "アプリ内購入", korean: "앱 내 구매", spanish: "Compra en la app")
-        case "后台赠送":
-            return appState.localizedText(zhHans: "后台赠送", english: "Admin grant", japanese: "管理者付与", korean: "관리자 지급", spanish: "Concesion administrativa")
-        case "权益赠送":
-            return appState.localizedText(zhHans: "权益赠送", english: "Entitlement grant", japanese: "権益付与", korean: "권한 지급", spanish: "Concesion de beneficio")
+    private var creditLevelTitle: String {
+        switch totalAvailableCredits {
+        case 300...:
+            return appState.uiText("积分 Lv.3", "Credit Lv.3")
+        case 80...:
+            return appState.uiText("积分 Lv.2", "Credit Lv.2")
         default:
-            return acquireMethod
+            return appState.uiText("积分 Lv.1", "Credit Lv.1")
         }
     }
 
@@ -438,7 +397,7 @@ struct EntitlementRecordsView: View {
             page = 1
         }
         await appState.refreshEntitlementRecords(
-            serviceType: selectedServiceType == "all" ? nil : selectedServiceType,
+            serviceType: nil,
             statusFilter: selectedStatusFilter == "all" ? nil : selectedStatusFilter,
             page: page,
             pageSize: 20,

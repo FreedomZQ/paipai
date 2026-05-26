@@ -29,8 +29,7 @@ struct Plan: Codable, Hashable, Identifiable {
     var isPopular: Bool { highlight ?? false }
 
     static let defaultPlans: [Plan] = [
-        Plan(code: "free", displayName: "免费版", childLimit: 1, dailyLocalOcrLimit: 3, localCardLimit: 20, advancedVoiceEnabled: false, appStoreProductId: nil, highlight: false, displayPrice: "¥0", originalPrice: nil, badgeText: nil, historyEnabled: false, supportedLocales: AppLocaleCatalog.supportedInterfaceLocales, supportedLearningTrackCodes: ["zh_to_en", "en_to_zh"]),
-        Plan(code: "family_multi_child_lifetime", displayName: "高级版", childLimit: 5, dailyLocalOcrLimit: 50, localCardLimit: 800, advancedVoiceEnabled: true, appStoreProductId: "com.paipai.readalong.family.multi_child.lifetime", highlight: true, displayPrice: "¥68", originalPrice: "¥98", badgeText: "推荐", historyEnabled: true, supportedLocales: AppLocaleCatalog.supportedInterfaceLocales, supportedLearningTrackCodes: ["zh_to_en", "en_to_zh"])
+        Plan(code: "free", displayName: "本机免费版", childLimit: 1, dailyLocalOcrLimit: 3, localCardLimit: 20, advancedVoiceEnabled: false, appStoreProductId: nil, highlight: false, displayPrice: "¥0", originalPrice: nil, badgeText: nil, historyEnabled: false, supportedLocales: AppLocaleCatalog.supportedInterfaceLocales, supportedLearningTrackCodes: ["zh_to_en", "en_to_zh"])
     ]
 
     init(
@@ -219,6 +218,7 @@ struct CreditProduct: Codable, Hashable, Identifiable {
     let currency: String?
     let priceAmountCents: Int?
     let validDays: Int
+    let appStoreProductId: String?
     let enabled: Bool
     let status: String?
     let sortOrder: Int?
@@ -227,6 +227,10 @@ struct CreditProduct: Codable, Hashable, Identifiable {
 
     var localizedCategoryName: String {
         switch packageType ?? serviceType {
+        case "local_device":
+            return "本机功能积分"
+        case "cloud_feature", "api_call_credits":
+            return "云端功能积分"
         case "voice_count_pack", "local_tts", "cloud_tts":
             return "语音朗读"
         case "image_recognition_pack", "local_ocr", "cloud_ocr":

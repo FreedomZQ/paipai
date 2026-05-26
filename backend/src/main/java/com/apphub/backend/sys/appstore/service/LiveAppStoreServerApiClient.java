@@ -34,8 +34,8 @@ import java.util.Map;
 @Service
 public class LiveAppStoreServerApiClient implements AppStoreServerApiClient {
 
-    private static final String PRODUCTION_BASE_URL = "https://api.storekit.itunes.apple.com";
-    private static final String SANDBOX_BASE_URL = "https://api.storekit-sandbox.itunes.apple.com";
+    private static final String PRODUCTION_BASE_URL = "https://api.storekit.apple.com";
+    private static final String SANDBOX_BASE_URL = "https://api.storekit-sandbox.apple.com";
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(8);
 
@@ -154,6 +154,117 @@ public class LiveAppStoreServerApiClient implements AppStoreServerApiClient {
             null,
             diagnostics
         );
+    }
+
+    @Override
+    public ConsumptionSendResult sendConsumptionInformation(
+        String transactionId,
+        ConsumptionRequestBody body,
+        AppStoreConfiguration configuration
+    ) {
+        Map<String, String> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("configuredEnvironment", normalizeEnvironment(configuration.environment()));
+        diagnostics.put("allowSandbox", String.valueOf(Boolean.TRUE.equals(configuration.allowSandbox())));
+        diagnostics.put("bundleId", configuration.bundleId());
+        diagnostics.put("transactionId", transactionId);
+
+        if (!configuration.isReadyForServerApi()) {
+            return new ConsumptionSendResult(
+                "not_configured",
+                false,
+                null,
+                true,
+                "App Store Server API credentials are incomplete; consumption information was not sent.",
+                diagnostics
+            );
+        }
+        if (!hasText(transactionId)) {
+            return new ConsumptionSendResult(
+                "failed_missing_transaction_identifier",
+                false,
+                null,
+                false,
+                "transactionId is required before sending App Store consumption information.",
+                diagnostics
+            );
+        }
+        if (body == null) {
+            return new ConsumptionSendResult(
+                "failed_missing_payload",
+                false,
+                null,
+                false,
+                "Consumption request body is required.",
+                diagnostics
+            );
+        }
+
+        List<String> environments = resolveCandidateEnvironments(configuration.environment(), configuration);
+        if (environments.isEmpty()) {
+            return new ConsumptionSendResult(
+                "rejected_environment_not_allowed",
+                false,
+                null,
+                false,
+                "Sandbox App Store consumption replies are not allowed in this runtime.",
+                diagnostics
+            );
+        }
+
+        String bearer = appleJwtTokenFactory.createAppStoreServerApiToken(
+            configuration.issuerId(),
+            configuration.bundleId(),
+            configuration.keyId(),
+            configuration.privateKey()
+        );
+
+        ConsumptionSendResult lastFailure = null;
+        for (String environment : environments) {
+            String path = baseUrl(environment) + "/inApps/v2/transactions/consumption/" + url(transactionId);
+            diagnostics.put("endpoint", path);
+            diagnostics.put("sendEnvironment", environment);
+            try {
+                ResponseEntity<String> response = executePut(path, bearer, body);
+                int statusCode = response.getStatusCode().value();
+                diagnostics.put("httpStatus", String.valueOf(statusCode));
+                if (statusCode == 202) {
+                    return new ConsumptionSendResult(
+                        "accepted",
+                        true,
+                        statusCode,
+                        false,
+                        "Apple accepted the App Store consumption information reply.",
+                        diagnostics
+                    );
+                }
+                lastFailure = new ConsumptionSendResult(
+                    "failed_unexpected_status",
+                    true,
+                    statusCode,
+                    statusCode == 429 || statusCode >= 500,
+                    "App Store consumption information reply returned HTTP " + statusCode + ".",
+                    diagnostics
+                );
+            } catch (HttpStatusCodeException ex) {
+                lastFailure = consumptionHttpFailure(ex, diagnostics);
+            } catch (Exception ex) {
+                diagnostics.put("transportException", ex.getClass().getSimpleName());
+                lastFailure = new ConsumptionSendResult(
+                    "failed_transport_error",
+                    true,
+                    null,
+                    true,
+                    "App Store consumption information reply failed unexpectedly.",
+                    diagnostics
+                );
+            }
+            if (lastFailure != null && !lastFailure.retryable()) {
+                return lastFailure;
+            }
+        }
+        return lastFailure == null
+            ? new ConsumptionSendResult("failed_consumption_reply", true, null, true, "App Store consumption reply did not complete.", diagnostics)
+            : lastFailure;
     }
 
     private LookupResult lookupTransaction(
@@ -277,7 +388,7 @@ public class LiveAppStoreServerApiClient implements AppStoreServerApiClient {
         diagnostics.put("resolvedOriginalTransactionId", claims.originalTransactionId());
         diagnostics.put("resolvedEnvironment", claims.environment());
         diagnostics.put("resolvedBundleId", claims.bundleId());
-        diagnostics.put("resolvedAppAccountToken", claims.appAccountToken());
+        diagnostics.put("resolvedAppAccountTokenPresent", String.valueOf(hasText(claims.appAccountToken())));
 
         if (!hasText(claims.originalTransactionId()) || !hasText(claims.productId())) {
             return new LookupResult("failed_missing_transaction_claims", true, "The authoritative App Store response is missing productId or originalTransactionId.", claims, signedTransactionInfo, signedRenewalInfo, diagnostics);
@@ -323,6 +434,15 @@ public class LiveAppStoreServerApiClient implements AppStoreServerApiClient {
                 time(payload.get("purchaseDate")),
                 time(payload.get("expiresDate")),
                 time(payload.get("revocationDate")),
+                text(payload, "revocationReason"),
+                integer(payload, "revocationPercentage"),
+                longValue(payload, "price"),
+                text(payload, "currency"),
+                text(payload, "storefront"),
+                text(payload, "webOrderLineItemId"),
+                text(payload, "transactionReason"),
+                text(payload, "inAppOwnershipType"),
+                integer(payload, "quantity"),
                 text(payload, "type")
             ),
             verifiedJws.diagnostics()
@@ -337,9 +457,31 @@ public class LiveAppStoreServerApiClient implements AppStoreServerApiClient {
         return response.getBody() == null || response.getBody().isBlank() ? objectMapper.createObjectNode() : objectMapper.readTree(response.getBody());
     }
 
+    private ResponseEntity<String> executePut(String url, String bearer, ConsumptionRequestBody body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(bearer);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("customerConsented", body.customerConsented());
+        if (body.consumptionPercentage() != null) {
+            payload.put("consumptionPercentage", body.consumptionPercentage());
+        }
+        if (hasText(body.deliveryStatus())) {
+            payload.put("deliveryStatus", body.deliveryStatus());
+        }
+        if (body.sampleContentProvided() != null) {
+            payload.put("sampleContentProvided", body.sampleContentProvided());
+        }
+        if (hasText(body.refundPreference())) {
+            payload.put("refundPreference", body.refundPreference());
+        }
+        return restOperations.exchange(url, HttpMethod.PUT, new HttpEntity<>(payload, headers), String.class);
+    }
+
     private LookupResult httpFailure(HttpStatusCodeException ex, Map<String, String> diagnostics) {
         diagnostics.put("httpStatus", String.valueOf(ex.getStatusCode().value()));
-        diagnostics.put("rawErrorBody", ex.getResponseBodyAsString());
+        diagnostics.put("rawErrorBodyLength", String.valueOf(ex.getResponseBodyAsString() == null ? 0 : ex.getResponseBodyAsString().length()));
         String status;
         if (ex.getStatusCode().value() == 404) {
             status = "failed_transaction_not_found";
@@ -353,6 +495,37 @@ public class LiveAppStoreServerApiClient implements AppStoreServerApiClient {
             status = "failed_server_api_lookup";
         }
         return new LookupResult(status, true, "App Store Server API lookup failed with HTTP " + ex.getStatusCode().value() + ".", null, null, null, diagnostics);
+    }
+
+    private ConsumptionSendResult consumptionHttpFailure(HttpStatusCodeException ex, Map<String, String> diagnostics) {
+        int statusCode = ex.getStatusCode().value();
+        diagnostics.put("httpStatus", String.valueOf(statusCode));
+        diagnostics.put("rawErrorBodyLength", String.valueOf(ex.getResponseBodyAsString() == null ? 0 : ex.getResponseBodyAsString().length()));
+        String status;
+        boolean retryable = false;
+        if (statusCode == 400) {
+            status = "failed_invalid_consumption_payload";
+        } else if (statusCode == 401 || statusCode == 403) {
+            status = "failed_server_api_auth";
+        } else if (statusCode == 404) {
+            status = "failed_transaction_not_found";
+        } else if (statusCode == 429) {
+            status = "failed_rate_limited";
+            retryable = true;
+        } else if (ex.getStatusCode().is5xxServerError()) {
+            status = "failed_apple_service_unavailable";
+            retryable = true;
+        } else {
+            status = "failed_consumption_reply";
+        }
+        return new ConsumptionSendResult(
+            status,
+            true,
+            statusCode,
+            retryable,
+            "App Store consumption information reply failed with HTTP " + statusCode + ".",
+            diagnostics
+        );
     }
 
     private SelectedLastTransaction selectLastTransaction(JsonNode body) {
@@ -448,6 +621,36 @@ public class LiveAppStoreServerApiClient implements AppStoreServerApiClient {
     private String text(JsonNode node, String field) {
         JsonNode value = node == null ? null : node.get(field);
         return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private Integer integer(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isNumber()) {
+            return value.asInt();
+        }
+        try {
+            return Integer.parseInt(value.asText());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private Long longValue(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isNumber()) {
+            return value.asLong();
+        }
+        try {
+            return Long.parseLong(value.asText());
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private String normalizeEnvironment(String value) {

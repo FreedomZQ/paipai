@@ -30,7 +30,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -43,6 +42,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(SystemController.class)
 @Import({AppDefinitionService.class, AppAppleReadinessService.class})
 class SystemControllerWebMvcTest {
+    private static final List<String> READING_APP_STORE_PRODUCT_IDS = List.of(
+        "com.paipai.readalong.local.ocr.100",
+        "com.paipai.readalong.local.ocr.300",
+        "com.paipai.readalong.local.tts.100",
+        "com.paipai.readalong.local.tts.300"
+    );
 
     @Autowired
     private MockMvc mockMvc;
@@ -86,18 +91,13 @@ class SystemControllerWebMvcTest {
                     "minimum_ios_version", "18.0",
                     "minimum_ipados_version", "18.0",
                     "bundle_identifier", "com.paipai.readalong.v2",
-                    "paipai_api_base_url", "https://api.example.com",
-                    "product_ids", List.of(
-                        "com.paipai.readalong.family.monthly",
-                        "com.paipai.readalong.family.multi_child.lifetime",
-                        "com.paipai.readalong.family.yearly"
-                    )
+                    "product_ids", READING_APP_STORE_PRODUCT_IDS
                 )
             ));
         overrideReadingDefinition(raw -> {
             raw.put("app.auth.apple.clientId", "com.paipai.readalong.v2");
             raw.put("app.billing.appstore.bundleId", "com.paipai.readalong.v2");
-            raw.put("app.auth.apple.remoteExchangeEnabled", "true");
+            raw.put("app.auth.apple.remoteExchangeEnabled", "false");
             raw.put("app.billing.appstore.allowSandbox", "false");
         });
     }
@@ -175,13 +175,25 @@ class SystemControllerWebMvcTest {
         mockMvc.perform(get("/api/v1/system/apps/paipai_readingcompanion/apple/readiness"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.appCode").value("paipai_readingcompanion"))
-            .andExpect(jsonPath("$.data.auth.required").value(true))
+            .andExpect(jsonPath("$.data.overallStatus").value("ready"))
+            .andExpect(jsonPath("$.data.auth.status").value("local_no_backend"))
+            .andExpect(jsonPath("$.data.auth.required").value(false))
+            .andExpect(jsonPath("$.data.auth.remoteExchangeEnabled").value(false))
             .andExpect(jsonPath("$.data.auth.clientIdConfigured").value(true))
             .andExpect(jsonPath("$.data.auth.revokeEndpointConfigured").value(true))
             .andExpect(jsonPath("$.data.auth.credentialEncryptionReady").value(false))
             .andExpect(jsonPath("$.data.auth.formalSessionReady").value(false))
             .andExpect(jsonPath("$.data.auth.bundleIdentityAligned").value(true))
+            .andExpect(jsonPath("$.data.appStore.status").value("local_iap_only"))
             .andExpect(jsonPath("$.data.appStore.required").value(true))
+            .andExpect(jsonPath("$.data.appStore.serverApiRequired").value(false))
+            .andExpect(jsonPath("$.data.appStore.localIapOnly").value(true))
+            .andExpect(jsonPath("$.data.appStore.localDeviceCreditsEnabled").value(true))
+            .andExpect(jsonPath("$.data.appStore.apiCreditsReservedOnly").value(true))
+            .andExpect(jsonPath("$.data.appStore.paidApiCreditsEnabled").value(false))
+            .andExpect(jsonPath("$.data.appStore.externalCloudProcessingEnabled").value(false))
+            .andExpect(jsonPath("$.data.appStore.serverWalletEnabled").value(false))
+            .andExpect(jsonPath("$.data.appStore.consumableHistoryRestoreEnabled").value(false))
             .andExpect(jsonPath("$.data.appStore.bundleIdConfigured").value(true))
             .andExpect(jsonPath("$.data.appStore.productionSandboxSafe").value(true));
     }
@@ -189,7 +201,7 @@ class SystemControllerWebMvcTest {
     @Test
     void appleTokenStorageShouldReturnFallbackCounts() throws Exception {
         org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
         org.mockito.BDDMockito.given(authDataService.countProviderTokens("paipai_readingcompanion", "apple")).willReturn(5);
         org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens("paipai_readingcompanion", "apple")).willReturn(3);
         org.mockito.BDDMockito.given(authDataService.countPlaintextRefreshTokenFallbacks("paipai_readingcompanion", "apple")).willReturn(2);
@@ -241,13 +253,14 @@ class SystemControllerWebMvcTest {
             .andExpect(jsonPath("$.data.entitlementObservability.effectiveMappingCount").value(1))
             .andExpect(jsonPath("$.data.notificationObservability.reconciled").value(4))
             .andExpect(jsonPath("$.data.checks[0].key").value("authReadiness"))
+            .andExpect(jsonPath("$.data.checks[0].status").value("local_no_backend"))
             .andExpect(jsonPath("$.data.checks[2].key").value("tokenStorage"))
             .andExpect(jsonPath("$.data.checks[2].status").value("blocked"))
-            .andExpect(jsonPath("$.data.blockers[0]").value("auth.apple.teamId missing"));
+            .andExpect(jsonPath("$.data.blockers[0]").value("auth.apple.refreshTokenPlaintextFallback present"));
     }
 
     @Test
-    void appleOpsGateShouldBlockDemoSessionForAppleOnlyApp() throws Exception {
+    void appleOpsGateShouldBlockDemoSessionForLocalOnlyApp() throws Exception {
         org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
         org.mockito.BDDMockito.given(authDataService.countProviderTokens("paipai_readingcompanion", "apple")).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens("paipai_readingcompanion", "apple")).willReturn(1);
@@ -279,9 +292,9 @@ class SystemControllerWebMvcTest {
 
         mockMvc.perform(get("/api/v1/system/apps/paipai_readingcompanion/apple/ops-gate"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.checks[3].key").value("publicDemoSession"))
+            .andExpect(jsonPath("$.data.checks[3].key").value("localOnlyPublicAuth"))
             .andExpect(jsonPath("$.data.checks[3].status").value("blocked"))
-            .andExpect(jsonPath("$.data.blockers", hasItem("public.demoSession enabled for Apple-sign-in app")));
+            .andExpect(jsonPath("$.data.blockers", hasItem("public.demoSession must be false in local-only launch mode")));
     }
 
     @Test
@@ -290,7 +303,7 @@ class SystemControllerWebMvcTest {
         ReflectionTestUtils.setField(systemController, "environment", "prod");
         try {
             org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-            org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+            org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
             org.mockito.BDDMockito.given(authDataService.countProviderTokens("paipai_readingcompanion", "apple")).willReturn(1);
             org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens("paipai_readingcompanion", "apple")).willReturn(1);
             org.mockito.BDDMockito.given(authDataService.countPlaintextRefreshTokenFallbacks("paipai_readingcompanion", "apple")).willReturn(0);
@@ -334,7 +347,7 @@ class SystemControllerWebMvcTest {
         ReflectionTestUtils.setField(systemController, "environment", "prod");
         try {
             org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-            org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+            org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
             org.mockito.BDDMockito.given(authDataService.countProviderTokens("paipai_readingcompanion", "apple")).willReturn(1);
             org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens("paipai_readingcompanion", "apple")).willReturn(1);
             org.mockito.BDDMockito.given(authDataService.countPlaintextRefreshTokenFallbacks("paipai_readingcompanion", "apple")).willReturn(0);
@@ -372,9 +385,9 @@ class SystemControllerWebMvcTest {
     }
 
     @Test
-    void appleOpsGateShouldWarnWhenNoNotificationsHaveBeenObserved() throws Exception {
+    void appleOpsGateShouldTreatNotificationsAsNotRequiredForLocalOnlyLaunch() throws Exception {
         org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
         org.mockito.BDDMockito.given(authDataService.countProviderTokens("paipai_readingcompanion", "apple")).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens("paipai_readingcompanion", "apple")).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countPlaintextRefreshTokenFallbacks("paipai_readingcompanion", "apple")).willReturn(0);
@@ -405,16 +418,16 @@ class SystemControllerWebMvcTest {
 
         mockMvc.perform(get("/api/v1/system/apps/paipai_readingcompanion/apple/ops-gate"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.status").value("blocked"))
+            .andExpect(jsonPath("$.data.status").value("ready"))
             .andExpect(jsonPath("$.data.checks[5].key").value("notificationPipeline"))
-            .andExpect(jsonPath("$.data.checks[5].status").value("warning"))
-            .andExpect(jsonPath("$.data.warnings", hasItem("appstore.notifications have not been observed in this environment yet")));
+            .andExpect(jsonPath("$.data.checks[5].status").value("not_required_local_only"))
+            .andExpect(jsonPath("$.data.warnings", hasSize(0)));
     }
 
     @Test
     void appleOpsGatesShouldReturnAllSupportedApps() throws Exception {
         org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
         org.mockito.BDDMockito.given(sysBillingService.describeEntitlementObservability(org.mockito.ArgumentMatchers.anyString()))
             .willReturn(new EntitlementObservabilityView(
                 "any",
@@ -449,7 +462,7 @@ class SystemControllerWebMvcTest {
     @Test
     void releaseGateShouldReturnAggregatedAppStatuses() throws Exception {
         org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
         org.mockito.BDDMockito.given(authDataService.countProviderTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("apple"))).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("apple"))).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countPlaintextRefreshTokenFallbacks(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq("apple"))).willReturn(0);
@@ -480,14 +493,14 @@ class SystemControllerWebMvcTest {
 
         mockMvc.perform(get("/api/v1/system/release-gate"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.status").value("blocked"))
+            .andExpect(jsonPath("$.data.status").value("warning"))
             .andExpect(jsonPath("$.data.codeStatus").value("ready"))
-            .andExpect(jsonPath("$.data.externalStatus").value("blocked"))
+            .andExpect(jsonPath("$.data.externalStatus").value("ready"))
             .andExpect(jsonPath("$.data.codeBlockers", hasSize(0)))
-            .andExpect(jsonPath("$.data.externalBlockers", hasItem("paipai_readingcompanion: auth.apple.teamId missing")))
+            .andExpect(jsonPath("$.data.externalBlockers", hasSize(0)))
             .andExpect(jsonPath("$.data.environment").value("dev"))
             .andExpect(jsonPath("$.data.appCount").value(1))
-            .andExpect(jsonPath("$.data.blockedAppCount").value(1))
+            .andExpect(jsonPath("$.data.blockedAppCount").value(0))
             .andExpect(jsonPath("$.data.checks[0].key").value("opsToken"))
             .andExpect(jsonPath("$.data.checks[0].status").value("warning"))
             .andExpect(jsonPath("$.data.checks[0].currentValue").value("missing"))
@@ -496,15 +509,32 @@ class SystemControllerWebMvcTest {
             .andExpect(jsonPath("$.data.checks[4].currentValue").value("5 endpoints"))
             .andExpect(jsonPath("$.data.checks[5].key").value("releaseScope"))
             .andExpect(jsonPath("$.data.checks[5].currentValue").value("included=[paipai_readingcompanion], excluded=[]"))
+            .andExpect(jsonPath("$.data.checks[?(@.key=='paipai_readingcompanion.release_ios.reading_api_base_url')].status", hasItem("ready")))
             .andExpect(jsonPath("$.data.apps", hasSize(1)))
             .andExpect(jsonPath("$.data.apps[0].appCode").value("paipai_readingcompanion"))
+            .andExpect(jsonPath("$.data.apps[0].status").value("ready"))
             .andExpect(jsonPath("$.data.apps[0].blockers").isArray());
     }
 
     @Test
-    void releaseGateShouldAcceptPaipaiNamedApiBaseUrlKey() throws Exception {
+    void releaseGateShouldBlockApiBaseUrlForLocalOnlyLaunch() throws Exception {
+        org.mockito.BDDMockito.given(sysRemoteConfigService.loadNamespace("paipai_readingcompanion", "release_ios"))
+            .willReturn(new RemoteConfigNamespaceView(
+                "paipai_readingcompanion",
+                "release_ios",
+                Map.of(
+                    "development_team", "TEAM123",
+                    "marketing_version", "1.0.0",
+                    "current_project_version", "1",
+                    "minimum_ios_version", "18.0",
+                    "minimum_ipados_version", "18.0",
+                    "bundle_identifier", "com.paipai.readalong.v2",
+                    "paipai_api_base_url", "https://api.example.com",
+                    "product_ids", READING_APP_STORE_PRODUCT_IDS
+                )
+            ));
         org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
         org.mockito.BDDMockito.given(authDataService.countProviderTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countPlaintextRefreshTokenFallbacks(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(0);
@@ -536,8 +566,8 @@ class SystemControllerWebMvcTest {
         mockMvc.perform(get("/api/v1/system/release-gate"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.checks[?(@.key=='paipai_readingcompanion.release_ios.bundle_identifier')].status", hasItem("ready")))
-            .andExpect(jsonPath("$.data.checks[?(@.key=='paipai_readingcompanion.release_ios.paipai_api_base_url')].status", hasItem("ready")))
-            .andExpect(jsonPath("$.data.blockers", not(hasItem("paipai_readingcompanion.release_ios.reading_api_base_url missing or placeholder"))));
+            .andExpect(jsonPath("$.data.checks[?(@.key=='paipai_readingcompanion.release_ios.paipai_api_base_url')].status", hasItem("blocked")))
+            .andExpect(jsonPath("$.data.codeBlockers", hasItem("paipai_readingcompanion.release_ios.paipai_api_base_url must be absent in local-only launch mode")));
     }
 
     @Test
@@ -553,16 +583,11 @@ class SystemControllerWebMvcTest {
                     "minimum_ios_version", "17.4",
                     "minimum_ipados_version", "18.0",
                     "bundle_identifier", "com.paipai.readalong.v2",
-                    "paipai_api_base_url", "https://api.example.com",
-                    "product_ids", List.of(
-                        "com.paipai.readalong.family.monthly",
-                        "com.paipai.readalong.family.multi_child.lifetime",
-                        "com.paipai.readalong.family.yearly"
-                    )
+                    "product_ids", READING_APP_STORE_PRODUCT_IDS
                 )
             ));
         org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
         org.mockito.BDDMockito.given(authDataService.countProviderTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countPlaintextRefreshTokenFallbacks(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(0);
@@ -612,16 +637,11 @@ class SystemControllerWebMvcTest {
                     "minimum_ios_version", "18.0",
                     "minimum_ipados_version", "18.0",
                     "bundle_identifier", "com.paipai.readalong.drift",
-                    "paipai_api_base_url", "https://api.example.com",
-                    "product_ids", List.of(
-                        "com.paipai.readalong.family.monthly",
-                        "com.paipai.readalong.family.multi_child.lifetime",
-                        "com.paipai.readalong.family.yearly"
-                    )
+                    "product_ids", READING_APP_STORE_PRODUCT_IDS
                 )
             ));
         org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
         org.mockito.BDDMockito.given(authDataService.countProviderTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countPlaintextRefreshTokenFallbacks(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(0);
@@ -671,12 +691,11 @@ class SystemControllerWebMvcTest {
                     "minimum_ios_version", "18.0",
                     "minimum_ipados_version", "18.0",
                     "bundle_identifier", "com.paipai.readalong.v2",
-                    "paipai_api_base_url", "https://api.example.com",
                     "product_ids", List.of("com.paipai.readalong.family.yearly")
                 )
             ));
         org.mockito.BDDMockito.given(publicAuthAccessPolicyService.demoSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
-        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(true);
+        org.mockito.BDDMockito.given(publicAuthAccessPolicyService.bootstrapSessionsEnabled(org.mockito.ArgumentMatchers.any())).willReturn(false);
         org.mockito.BDDMockito.given(authDataService.countProviderTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countEncryptedRefreshTokens(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(1);
         org.mockito.BDDMockito.given(authDataService.countPlaintextRefreshTokenFallbacks(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString())).willReturn(0);

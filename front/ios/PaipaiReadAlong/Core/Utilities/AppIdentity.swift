@@ -30,4 +30,8 @@ enum AppIdentity {
 
     /// Info.plist key used by this app target to inject the backend base URL.
     static let apiBaseURLInfoDictionaryKey = "PAIPAI_API_BASE_URL"
+
+    /// 首发合规模式：不依赖个人开发者自有后端、云数据库或云端钱包。
+    /// 需要重新启用云能力时，必须先完成新的儿童隐私、家长同意和服务端合规方案。
+    static let developerBackendEnabled = false
 }

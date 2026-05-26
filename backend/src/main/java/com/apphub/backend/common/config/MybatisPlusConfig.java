@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
     "com.apphub.backend.sys.auth.mapper",
     "com.apphub.backend.sys.configcenter.mapper",
     "com.apphub.backend.sys.billing.mapper",
+    "com.apphub.backend.sys.billing.privacy.mapper",
     "com.apphub.backend.sys.entitlement.mapper",
     "com.apphub.backend.sys.compensation.mapper",
     "com.apphub.backend.sys.appstore.mapper",

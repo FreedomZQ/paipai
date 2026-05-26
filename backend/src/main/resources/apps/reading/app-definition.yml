@@ -17,11 +17,16 @@ app:
   support:
     # 是否涉及法律/合规材料
     legalRequired: "true"
-    # 是否启用 Sign in with Apple
-    appleSignInRequired: "true"
+    # 无自有后端首发不创建 App 账号，也不要求 Sign in with Apple。
+    appleSignInRequired: "false"
     # 是否启用 App Store 计费能力
     billingRequired: "true"
+  launch:
+    # 首发采用 iOS 本机 StoreKit + Keychain 钱包，不启用个人开发者账号、后端钱包或购买恢复服务。
+    localNoBackendFirstRelease: "true"
   privacy:
+    # 生产口径下，开发者后端只作为历史兼容/未来预留代码存在，iOS 首发包不会依赖或访问该后端。
+    noDeveloperBackend: "true"
     # 本地匿名模式为默认入口；云能力需家长授权后再启用。
     localGuestEnabled: "true"
     # 低敏诊断默认关闭，只有家长显式同意后才可上报。
@@ -47,8 +52,9 @@ app:
     minimumIpadosVersion: "18.0"
 
   auth:
-    # Paipai reading 已收口为 Apple-only；禁止任何 demo/guest 会话入口。
+    # Paipai reading 首发按本机匿名使用收口；禁止任何 demo/guest/Apple 后端会话入口。
     demoSessionEnabled: "false"
+    bootstrapSessionEnabled: "false"
     apple:
       # Apple 登录客户端 ID（通常是 iOS bundle / service ID）
       clientId: com.paipai.readalong
@@ -68,9 +74,20 @@ app:
       jwksUrl: https://appleid.apple.com/auth/keys
       # Apple token revoke 接口
       revokeEndpoint: https://appleid.apple.com/auth/revoke
-      # 是否允许走远端 authorization-code exchange
-      remoteExchangeEnabled: "true"
+      # 无自有后端首发禁止远端 authorization-code exchange。
+      remoteExchangeEnabled: "false"
   billing:
+    # 双积分首发策略：
+    # - localDeviceCredits.enabled=true：仅本机 OCR / TTS 积分可售卖，余额在 iOS Keychain。
+    # - apiCallCredits.reservedOnly=true：数据库和本地 schema 只预留 API 积分字段，不展示、不售卖。
+    # - serverWalletEnabled=false：后端不生成个人开发者云端钱包或恢复账本。
+    localDeviceCredits:
+      enabled: "true"
+    apiCallCredits:
+      reservedOnly: "true"
+      paidEnabled: "false"
+    externalCloudProcessingEnabled: "false"
+    serverWalletEnabled: "false"
     appstore:
       # App Store bundleId，用于签名校验、Server API 及路由归属判断
       bundleId: com.paipai.readalong
@@ -79,8 +96,11 @@ app:
       # App Store 下载页 URL。生产环境拿到真实 App Apple ID 后配置，例如 https://apps.apple.com/app/id1234567890；
       # 前端设置页只能消费后端返回的该配置，不允许在 App 代码里硬编码下载页。
       appStoreUrl: ""
-      # 是否允许在当前环境接受 sandbox 数据；prod 应为 false
-      allowSandbox: "true"
+      # 正式配置不接受 sandbox 数据；本地 StoreKit 测试由 iOS 端完成。
+      allowSandbox: "false"
+      # 无自有后端首发不使用 App Store Server API、Server Notifications 或消耗型历史全量恢复。
+      serverApiEnabled: "false"
+      consumableHistoryRestoreEnabled: "false"
       # 以下为 App Store Server API 正式凭证位
       appAppleId: ""
       issuerId: ""
@@ -88,9 +108,11 @@ app:
       privateKey: ""
     entitlements:
       productMappings:
-        com.paipai.readalong.family.yearly: family_access
-        com.paipai.readalong.family.monthly: family_access
-        com.paipai.readalong.family.multi_child.lifetime: family_multi_child
+        # 仅保留与 iOS 本地钱包白名单一致的本机双积分商品；不配置会员、孩子容量或云端 API 积分。
+        com.paipai.readalong.local.ocr.100: local_ocr
+        com.paipai.readalong.local.ocr.300: local_ocr
+        com.paipai.readalong.local.tts.100: local_tts
+        com.paipai.readalong.local.tts.300: local_tts
       refreshPolicy:
         # 单次 entitlement refresh 最多挑选多少候选交易进行回源
         candidateLimit: "20"

@@ -10,6 +10,7 @@ import com.apphub.backend.sys.billing.mapper.SysPurchaseTransactionMapper;
 import com.apphub.backend.sys.billing.model.EntitlementObservabilityView;
 import com.apphub.backend.sys.billing.model.EntitlementRefreshResultView;
 import com.apphub.backend.sys.billing.model.PurchaseVerifyRequest;
+import com.apphub.backend.sys.billing.privacy.service.SysPrivacyConsentService;
 import com.apphub.backend.sys.configcenter.model.RemoteConfigNamespaceView;
 import com.apphub.backend.sys.configcenter.service.SysRemoteConfigService;
 import com.apphub.backend.sys.entitlement.service.SysEntitlementCenterService;
@@ -65,6 +66,9 @@ class SysBillingServiceTest {
     @Mock
     private SysEntitlementCenterService sysEntitlementCenterService;
 
+    @Mock
+    private SysPrivacyConsentService sysPrivacyConsentService;
+
     private SysBillingService sysBillingService;
 
     @BeforeEach
@@ -78,7 +82,8 @@ class SysBillingServiceTest {
             appStoreServerApiClient,
             appDefinitionService,
             sysRemoteConfigService,
-            sysEntitlementCenterService
+            sysEntitlementCenterService,
+            sysPrivacyConsentService
         );
     }
 
@@ -103,6 +108,15 @@ class SysBillingServiceTest {
             null,
             OffsetDateTime.parse("2026-04-16T00:00:00Z"),
             OffsetDateTime.parse("2026-05-16T00:00:00Z"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
             null,
             "Auto-Renewable Subscription"
         );
@@ -144,6 +158,10 @@ class SysBillingServiceTest {
                 null,
                 null,
                 "signed-jws",
+                null,
+                null,
+                null,
+                null,
                 null
             )
         );
@@ -183,6 +201,15 @@ class SysBillingServiceTest {
             null,
             OffsetDateTime.parse("2026-04-16T00:00:00Z"),
             OffsetDateTime.parse("2026-05-16T00:00:00Z"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
             null,
             "Auto-Renewable Subscription"
         );
@@ -403,6 +430,15 @@ class SysBillingServiceTest {
             OffsetDateTime.parse("2026-04-16T00:00:00Z"),
             OffsetDateTime.parse("2026-05-16T00:00:00Z"),
             null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
             "Auto-Renewable Subscription"
         );
 
@@ -448,6 +484,15 @@ class SysBillingServiceTest {
             OffsetDateTime.parse("2026-04-16T00:00:00Z"),
             OffsetDateTime.parse("2026-05-16T00:00:00Z"),
             null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
             "Auto-Renewable Subscription"
         );
 
@@ -485,6 +530,10 @@ class SysBillingServiceTest {
                 null,
                 null,
                 "signed-jws",
+                null,
+                null,
+                null,
+                null,
                 null
             )
         );

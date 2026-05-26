@@ -1,4 +1,3 @@
-import AuthenticationServices
 import SwiftUI
 
 struct OnboardingView: View {
@@ -12,8 +11,8 @@ struct OnboardingView: View {
                 icon: "🌍",
                 title: appState.uiText("先选择界面语言", "Choose your display language first"),
                 description: appState.uiText(
-                    "后续引导页、登录页、家长区和主要功能页会优先使用这里选择的展示语言。",
-                    "Onboarding, sign-in, parent settings, and main app screens will use this selected display language."
+                    "后续引导页、家长区和主要功能页会优先使用这里选择的展示语言。",
+                    "Onboarding, parent settings, and main app screens will use this selected display language."
                 ),
                 kind: .language
             ),
@@ -36,9 +35,9 @@ struct OnboardingView: View {
                 ),
                 kind: .features([
                     OnboardingFeature(icon: "📋", title: appState.uiText("最小必要", "Minimal collection"), description: appState.uiText("默认本地使用，不上传孩子图片、原文、录音或诊断日志。", "Local use is the default; child images, text, audio, and diagnostics are not uploaded.")),
-                    OnboardingFeature(icon: "☁️", title: appState.uiText("家长开启云能力", "Parent-enabled cloud"), description: appState.uiText("购买恢复和可选云端识图/朗读需要家长授权后才启用。", "Purchase restore and optional cloud OCR/speech require parent authorization.")),
-                    OnboardingFeature(icon: "🛡️", title: appState.uiText("第三方处理受控", "Controlled processors"), description: appState.uiText("可选云端处理会按能力单独同意，并避免业务后端保存儿童内容。", "Optional cloud processing requires separate consent and avoids storing child content on the business backend.")),
-                    OnboardingFeature(icon: "⚙️", title: appState.uiText("自主可控", "Full control"), description: appState.uiText("家长可查看和删除账号数据；本机学习数据由设备内删除入口控制。", "Parents can view and delete account data; local learning data is controlled on device."))
+                    OnboardingFeature(icon: "📱", title: appState.uiText("仅当前设备", "This device only"), description: appState.uiText("学习数据和本机积分默认保存在此设备，不同步到开发者服务器。", "Learning data and local credits stay on this device by default and are not synced to a developer server.")),
+                    OnboardingFeature(icon: "🛡️", title: appState.uiText("无广告跟踪", "No ad tracking"), description: appState.uiText("不接入第三方广告、第三方分析、IDFA 或跨 App 跟踪。", "No third-party ads, analytics, IDFA, or cross-app tracking are integrated.")),
+                    OnboardingFeature(icon: "⚙️", title: appState.uiText("自主可控", "Full control"), description: appState.uiText("家长可在本机删除学习数据，或重置本机积分钱包。", "Parents can delete local learning data or reset the local credit wallet on device."))
                 ])
             ),
             OnboardingPage(
@@ -49,7 +48,7 @@ struct OnboardingView: View {
                     "This is a parent-led read-along tool—participation together yields the best results."
                 ),
                 kind: .features([
-                    OnboardingFeature(icon: "👨‍💻", title: appState.uiText("家长主导", "Parent-led"), description: appState.uiText("设置、购买、账号相关操作需要家长进入。", "Settings, purchases, and account operations require parent access.")),
+                    OnboardingFeature(icon: "👨‍💻", title: appState.uiText("家长主导", "Parent-led"), description: appState.uiText("设置、购买、恢复和数据重置需要家长进入。", "Settings, purchases, restore, and data reset require parent access.")),
                     OnboardingFeature(icon: "👧", title: appState.uiText("孩子使用", "Child use"), description: appState.uiText("孩子主要使用学习练习相关功能。", "Children mainly use learning and practice features.")),
                     OnboardingFeature(icon: "❤️", title: appState.uiText("亲子互动", "Family interaction"), description: appState.uiText("家长可以参与孩子的学习过程，共同进步。", "Parents can participate in the child's learning journey and grow together."))
                 ])
@@ -58,13 +57,13 @@ struct OnboardingView: View {
                 icon: "🔒",
                 title: appState.uiText("低打扰、低收集，本地优先", "Low interruption, low collection, local-first"),
                 description: appState.uiText(
-                    "相机/相册只用于你主动拍摄或选择内容；学习内容优先保存在设备本地。云端 OCR 和会员权益都会经过后端校验。",
-                    "Camera/photo access is used only when you capture or select content. Learning content is local-first. Cloud OCR and paid entitlements are verified by the backend."
+                    "相机/相册只用于你主动拍摄或选择内容；识字、朗读和学习内容默认在设备本地处理。",
+                    "Camera/photo access is used only when you capture or select content. OCR, read-aloud, and learning content are processed locally by default."
                 ),
                 kind: .features([
                     OnboardingFeature(icon: "📱", title: appState.uiText("多设备适配", "Adaptive layout"), description: appState.uiText("页面按 iPhone、iPad 和 Mac 窗口宽度自动收拢或居中展示。", "Screens adapt to iPhone, iPad, and Mac window widths.")),
-                    OnboardingFeature(icon: "🛡️", title: appState.uiText("家长账号", "Parent account"), description: appState.uiText("本地使用和补偿权益无需登录；删除云端账号时再使用 Apple 登录。", "Local use and compensation benefits do not require sign-in; Apple sign-in is only used for cloud account deletion.")),
-                    OnboardingFeature(icon: "💳", title: appState.uiText("权益校验", "Entitlements"), description: appState.uiText("免费/付费权益以后端返回为准，扣款金额以 Apple 确认弹窗为准。", "Free/paid entitlements follow the backend result; Apple confirms final charges."))
+                    OnboardingFeature(icon: "🛡️", title: appState.uiText("家长门", "Parental gate"), description: appState.uiText("购买、恢复、外链和数据重置都需要家长验证。", "Purchases, restore, external links, and data reset require parent verification.")),
+                    OnboardingFeature(icon: "💳", title: appState.uiText("本机积分", "Local credits"), description: appState.uiText("购买由 Apple 确认，消耗型本机积分不支持跨设备自动恢复。", "Apple confirms purchases; consumable local credits do not restore automatically across devices."))
                 ])
             )
         ]
@@ -100,7 +99,7 @@ struct OnboardingView: View {
                             HStack(spacing: 3) {
                                 Image(systemName: "apple.logo")
                                     .font(AppTypography.scaledFont(size: isWide ? 12 : 10, weight: .semibold))
-                                Text(appState.uiText("完成告知确认后，需要使用 Apple ID 登录才能进入 App", "Sign in with Apple is required after confirming the notices"))
+                                Text(appState.uiText("完成告知确认后即可本地使用，无需创建账号", "After confirming the notices, you can use the app locally without creating an account"))
                                     .font(AppTypography.scaledFont(size: isWide ? 11 : 10, weight: .medium))
                                     .lineLimit(2)
                             }
@@ -476,17 +475,18 @@ struct PrivacyConsentView: View {
     let onAccept: () -> Void
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedLegalDocument: LegalDocument?
 
-    private var privacyURL: URL? {
+    private var privacyDocument: LegalDocument? {
         let preferredLanguage = AppLocaleCatalog.normalize(appState.interfaceLocaleCode).hasPrefix("zh") ? "zh" : "en"
-        return appState.legalDocs.first(where: { $0.type == "privacy" && $0.locale.lowercased().contains(preferredLanguage) })?.resolvedURL
-            ?? appState.legalDocs.first(where: { $0.type == "privacy" })?.resolvedURL
+        return appState.legalDocs.first(where: { $0.type == "privacy" && $0.locale.lowercased().contains(preferredLanguage) && $0.resolvedURL != nil })
+            ?? appState.legalDocs.first(where: { $0.type == "privacy" && $0.resolvedURL != nil })
     }
 
-    private var termsURL: URL? {
+    private var termsDocument: LegalDocument? {
         let preferredLanguage = AppLocaleCatalog.normalize(appState.interfaceLocaleCode).hasPrefix("zh") ? "zh" : "en"
-        return appState.legalDocs.first(where: { $0.type == "terms" && $0.locale.lowercased().contains(preferredLanguage) })?.resolvedURL
-            ?? appState.legalDocs.first(where: { $0.type == "terms" })?.resolvedURL
+        return appState.legalDocs.first(where: { $0.type == "terms" && $0.locale.lowercased().contains(preferredLanguage) && $0.resolvedURL != nil })
+            ?? appState.legalDocs.first(where: { $0.type == "terms" && $0.resolvedURL != nil })
     }
 
     var body: some View {
@@ -508,24 +508,24 @@ struct PrivacyConsentView: View {
                             SectionView(
                                 title: appState.uiText("数据收集说明", "What we collect"),
                                 content: appState.uiText(
-                                    "默认本地模式不创建后端账号，不上传孩子图片、OCR 原文、录音、句卡正文或诊断日志。\n\n家长开启账号能力后，仅为账号、安全、权益、购买恢复、删除请求处理必要数据；低敏诊断需要家长单独开启。",
-                                    "The default local mode does not create a backend account or upload child images, OCR text, audio, card text, or diagnostics.\n\nAfter a parent enables account features, only data needed for account, security, entitlements, purchase restore, deletion requests is processed. Low-sensitivity diagnostics require separate parent opt-in."
+                                    "默认本地模式不创建后端账号，不上传孩子图片、OCR 原文、录音、句卡正文或诊断日志。\n\n购买由 Apple App 内购买处理；本 App 只在当前设备 Keychain 保存本机积分余额和已处理交易的本地记录。",
+                                    "The default local mode does not create a backend account or upload child images, OCR text, audio, card text, or diagnostics.\n\nPurchases are handled by Apple In-App Purchase; this app stores local credit balances and processed transaction records only in this device's Keychain."
                                 )
                             )
 
                             SectionView(
                                 title: appState.uiText("数据存储", "Storage"),
                                 content: appState.uiText(
-                                    "• 学习内容默认保存在本机\n• Apple 登录只代表家长账号，不创建孩子登录身份\n• 删除账号不会自动擦除本机学习数据，可在设备内单独清理",
-                                    "• Learning content is saved on this device by default\n• Apple sign-in represents the parent account, not a child identity\n• Account deletion does not automatically erase local learning data; clear it separately on device"
+                                    "• 学习内容默认保存在本机\n• 本机积分保存在当前设备 Keychain\n• 家长可在家长区删除学习数据或重置本机积分钱包",
+                                    "• Learning content is saved on this device by default\n• Local credits are stored in this device's Keychain\n• Parents can delete learning data or reset the local credit wallet in Parents"
                                 )
                             )
 
                             SectionView(
                                 title: appState.uiText("离线与权益", "Offline & entitlements"),
                                 content: appState.uiText(
-                                    "• 默认使用设备端 OCR、翻译与朗读能力\n• 后端不可用时，本地识别、朗读、句卡和本机记录仍可使用\n• 云端 OCR / 云端朗读首发暂未开放；未来必须先经家长同意和后端能力令牌\n• 购买和恢复购买以后端校验为准，扣款金额以 Apple 确认弹窗为准",
-                                    "• On-device OCR, translation, and speech are used by default\n• If the backend is unavailable, local OCR, speech, cards, and records continue to work\n• Cloud OCR / cloud speech are not enabled at launch; future use requires parent consent and backend capability tokens\n• Purchases and restores follow backend verification; Apple confirms the final charge"
+                                    "• 默认使用设备端 OCR、翻译与朗读能力\n• 今日免费次数先扣减，本机积分其次\n• 本机积分不按日期过期，但使用后会扣减\n• 消耗型本机积分不支持跨设备自动恢复，扣款金额以 Apple 确认弹窗为准",
+                                    "• On-device OCR, translation, and speech are used by default\n• Free daily uses are consumed first, then local credits\n• Local credits do not expire by date, but are consumed when used\n• Consumable local credits do not restore automatically across devices; Apple confirms the final charge"
                                 )
                             )
                         }
@@ -553,23 +553,29 @@ struct PrivacyConsentView: View {
                             .buttonStyle(.plain)
 
                             HStack(spacing: 14) {
-                                if let privacyURL {
-                                    Link(destination: privacyURL) {
+                                if let privacyDocument {
+                                    Button {
+                                        selectedLegalDocument = privacyDocument
+                                    } label: {
                                         Text(appState.uiText("隐私政策", "Privacy Policy"))
                                             .font(AppTypography.body)
                                             .foregroundColor(AppColors.primary)
                                             .frame(minHeight: AppLayout.minimumTapTarget)
                                             .contentShape(Rectangle())
                                     }
+                                    .buttonStyle(.plain)
                                 }
-                                if let termsURL {
-                                    Link(destination: termsURL) {
+                                if let termsDocument {
+                                    Button {
+                                        selectedLegalDocument = termsDocument
+                                    } label: {
                                         Text(appState.uiText("用户协议", "Terms"))
                                             .font(AppTypography.body)
                                             .foregroundColor(AppColors.primary)
                                             .frame(minHeight: AppLayout.minimumTapTarget)
                                             .contentShape(Rectangle())
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
@@ -581,6 +587,13 @@ struct PrivacyConsentView: View {
                 }
             }
             .background(AppColors.background)
+            .navigationDestination(item: $selectedLegalDocument) { document in
+                if let url = document.resolvedURL {
+                    LegalDocumentWebView(url: url)
+                        .navigationTitle(legalDocumentTitle(for: document.type))
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -593,175 +606,14 @@ struct PrivacyConsentView: View {
             }
         }
     }
-}
 
-struct AppleSignInRequiredView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var appleSignInRequestContext: AppleSignInRequestContext?
-    @State private var isSigningIn = false
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                OnboardingBackground()
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: proxy.size.width >= 700 ? 24 : 18) {
-                        VStack(spacing: 12) {
-                            Text(appState.uiText("本地可直接使用，家长能力再登录", "Use locally first; sign in for parent features"))
-                                .font(proxy.size.width >= 700 ? AppTypography.title1 : AppTypography.title2)
-                                .foregroundColor(AppColors.textPrimary)
-                                .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            Text(appState.uiText(
-                                "拍拍伴读默认使用本地匿名模式，不上传儿童内容。补偿权益无需登录；删除云端账号时，再由家长使用 Apple 登录授权。",
-                                "Paipai uses local anonymous mode by default and does not upload child content. Compensation benefits do not require sign-in; Apple sign-in is only used for cloud account deletion."
-                            ))
-                            .font(AppTypography.bodyLarge)
-                            .foregroundColor(AppColors.textSecondary)
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(4)
-                            .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label(appState.uiText("Apple 登录成功后自动拉取账号状态和免费权益。", "After Apple sign-in, account state and free entitlement are fetched automatically."), systemImage: "checkmark.shield.fill")
-                            Label(appState.uiText("购买、恢复购买和云端能力继续以后端校验结果为准。", "Purchases, restores, and cloud features continue to follow backend verification."), systemImage: "server.rack")
-                            Label(appState.uiText("iPhone、iPad 和 Mac 窗口都会使用自适应安全布局。", "iPhone, iPad, and Mac windows use adaptive safe-area layouts."), systemImage: "rectangle.3.group")
-                        }
-                        .font(AppTypography.bodySmall)
-                        .foregroundColor(AppColors.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(18)
-                        .background(Color.white.opacity(0.92))
-                        .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadiusXL, style: .continuous))
-                        .shadow(color: Color.black.opacity(0.08), radius: 18, x: 0, y: 8)
-
-                        SignInWithAppleButton(.signIn, onRequest: configureAppleRequest, onCompletion: handleAppleSignInCompletion)
-                            .signInWithAppleButtonStyle(.black)
-                            .frame(height: 52)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .disabled(isSigningIn)
-
-                        #if DEBUG
-                        Button {
-                            isSigningIn = true
-                            Task {
-                                _ = await appState.completeDevelopmentSignIn()
-                                isSigningIn = false
-                            }
-                        } label: {
-                            Text(appState.uiText("本地开发登录（模拟器）", "Local development sign-in"))
-                                .font(AppTypography.button)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                                .background(AppColors.primary)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isSigningIn)
-                        #endif
-
-                        Button {
-                            appState.hasCompletedOnboarding = false
-                        } label: {
-                            Text(appState.uiText("重新选择语言 / 查看说明", "Choose language / review intro"))
-                                .font(AppTypography.buttonSmall)
-                                .foregroundColor(AppColors.textSecondary)
-                                .frame(minHeight: AppLayout.minimumTapTarget)
-                                .padding(.horizontal, 14)
-                                .background(Color.white.opacity(0.82))
-                                .clipShape(Capsule())
-                                .contentShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-
-                        if isSigningIn {
-                            ProgressView(appState.uiText("正在登录并初始化权益…", "Signing in and initializing entitlement…"))
-                                .font(AppTypography.caption)
-                                .foregroundColor(AppColors.textSecondary)
-                        }
-
-                        if let error = appState.errorMessage, !error.isEmpty {
-                            Text(error)
-                                .font(AppTypography.footnote)
-                                .foregroundColor(AppColors.error)
-                                .multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(12)
-                                .background(Color.white.opacity(0.9))
-                                .clipShape(RoundedRectangle(cornerRadius: AppLayout.cornerRadiusM, style: .continuous))
-                        }
-                    }
-                    .frame(maxWidth: proxy.size.width >= 700 ? 620 : 430)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, proxy.size.width >= 700 ? 48 : 20)
-                    .padding(.top, proxy.size.width >= 700 ? 40 : 24)
-                    .padding(.bottom, max(proxy.safeAreaInsets.bottom + 24, 42))
-                }
-            }
+    private func legalDocumentTitle(for type: String) -> String {
+        switch type {
+        case "privacy": return appState.uiText("隐私政策", "Privacy Policy")
+        case "terms": return appState.uiText("用户协议", "Terms of Service")
+        case "child_data": return appState.uiText("儿童信息处理说明", "Child Data Policy")
+        default: return type
         }
-        .task {
-            await appState.bootstrapIfNeeded()
-        }
-    }
-
-    private func configureAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
-        let context = AppleSignInRequestContext.make()
-        appleSignInRequestContext = context
-        request.requestedScopes = [.fullName]
-        request.state = context.state
-        request.nonce = context.requestNonce
-    }
-
-    private func handleAppleSignInCompletion(_ result: Result<ASAuthorization, Error>) {
-        defer { appleSignInRequestContext = nil }
-        switch result {
-        case let .success(authorization):
-            guard let requestContext = appleSignInRequestContext else {
-                appState.errorMessage = appState.uiText("Apple 登录请求上下文丢失，请重试。", "Apple sign-in request context was lost. Please try again.")
-                return
-            }
-            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-                appState.errorMessage = appState.uiText("Apple 登录返回了无法识别的凭据类型。", "Apple sign-in returned an unsupported credential type.")
-                return
-            }
-            guard let authorizationCodeData = credential.authorizationCode,
-                  let authorizationCode = String(data: authorizationCodeData, encoding: .utf8),
-                  !authorizationCode.isEmpty else {
-                appState.errorMessage = appState.uiText("Apple 没有返回可用的 authorizationCode。", "Apple did not return a usable authorizationCode.")
-                return
-            }
-            guard let identityTokenData = credential.identityToken,
-                  let identityToken = String(data: identityTokenData, encoding: .utf8),
-                  !identityToken.isEmpty else {
-                appState.errorMessage = appState.uiText("Apple 没有返回可用的 identityToken。", "Apple did not return a usable identityToken.")
-                return
-            }
-            isSigningIn = true
-            Task {
-                _ = await appState.completeAppleSignIn(
-                    authorizationCode: authorizationCode,
-                    identityToken: identityToken,
-                    state: requestContext.state,
-                    nonce: requestContext.backendNonce,
-                    givenName: credential.fullName?.normalizedGivenName,
-                    familyName: credential.fullName?.normalizedFamilyName
-                )
-                isSigningIn = false
-            }
-        case let .failure(error):
-            if isAppleSignInCancellation(error) {
-                isSigningIn = false
-                return
-            }
-            appState.errorMessage = error.localizedDescription
-        }
-    }
-
-    private func isAppleSignInCancellation(_ error: Error) -> Bool {
-        let nsError = error as NSError
-        return nsError.domain == ASAuthorizationError.errorDomain && nsError.code == ASAuthorizationError.canceled.rawValue
     }
 }
 

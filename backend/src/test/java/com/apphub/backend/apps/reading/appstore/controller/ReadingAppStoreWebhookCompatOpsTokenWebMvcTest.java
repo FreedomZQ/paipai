@@ -1,6 +1,7 @@
 package com.apphub.backend.apps.reading.appstore.controller;
 
 import com.apphub.backend.apps.common.AppCompatControllerSupport;
+import com.apphub.backend.apps.reading.compat.service.ReadingCompatService;
 import com.apphub.backend.sys.app.model.AppDefinition;
 import com.apphub.backend.sys.app.service.AppDefinitionService;
 import com.apphub.backend.sys.appstore.model.AppStoreNotificationAcceptedView;
@@ -40,6 +41,9 @@ class ReadingAppStoreWebhookCompatOpsTokenWebMvcTest {
 
     @MockBean
     private SysAppStoreNotificationService sysAppStoreNotificationService;
+
+    @MockBean
+    private ReadingCompatService readingCompatService;
 
     @Test
     void readingWebhookShouldRemainPublicEvenWhenOpsTokenIsConfigured() throws Exception {

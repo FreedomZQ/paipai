@@ -22,6 +22,15 @@ struct CloudQuotaState: Codable {
     let updatedAt: String
 }
 
+struct DailyLoginGiftConfig: Codable, Hashable {
+    let appCode: String
+    let planCode: String
+    let featureCode: String
+    let dailyGiftCredits: Int
+    let recordMode: String
+    let fetchedAt: String
+}
+
 struct EntitlementUsageSummary: Codable, Hashable {
     let serviceType: String
     let totalCount: Int
@@ -219,6 +228,9 @@ struct DailyQuota: Codable {
     let localTtsLimit: Int
     let localTtsUsed: Int
     let localTtsRemaining: Int
+    let dailyLoginGiftLimit: Int
+    let dailyLoginGiftUsed: Int
+    let dailyLoginGiftRemaining: Int
 
     init(
         quotaDate: String,
@@ -227,7 +239,10 @@ struct DailyQuota: Codable {
         localOcrRemaining: Int,
         localTtsLimit: Int,
         localTtsUsed: Int,
-        localTtsRemaining: Int
+        localTtsRemaining: Int,
+        dailyLoginGiftLimit: Int? = nil,
+        dailyLoginGiftUsed: Int? = nil,
+        dailyLoginGiftRemaining: Int? = nil
     ) {
         self.quotaDate = quotaDate
         self.localOcrLimit = localOcrLimit
@@ -236,6 +251,11 @@ struct DailyQuota: Codable {
         self.localTtsLimit = localTtsLimit
         self.localTtsUsed = localTtsUsed
         self.localTtsRemaining = localTtsRemaining
+        let fallbackLimit = max(localOcrLimit, localTtsLimit)
+        let fallbackUsed = min(max(localOcrUsed + localTtsUsed, 0), fallbackLimit)
+        self.dailyLoginGiftLimit = dailyLoginGiftLimit ?? fallbackLimit
+        self.dailyLoginGiftUsed = dailyLoginGiftUsed ?? fallbackUsed
+        self.dailyLoginGiftRemaining = dailyLoginGiftRemaining ?? max(self.dailyLoginGiftLimit - self.dailyLoginGiftUsed, 0)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -246,6 +266,9 @@ struct DailyQuota: Codable {
         case localTtsLimit
         case localTtsUsed
         case localTtsRemaining
+        case dailyLoginGiftLimit
+        case dailyLoginGiftUsed
+        case dailyLoginGiftRemaining
         case captureLimit
         case captureUsed
         case captureRemaining
@@ -287,6 +310,12 @@ struct DailyQuota: Codable {
             ?? container.decodeIfPresent(Int.self, forKey: .ttsRemaining)
             ?? container.decodeIfPresent(Int.self, forKey: .readAloudRemaining)
             ?? max(localTtsLimit - localTtsUsed, 0)
+        // 中文说明：新版后端返回统一每日登录赠送积分；旧后端缺字段时用旧 OCR/TTS 字段合成，保证降级可用。
+        let fallbackGiftLimit = max(localOcrLimit, localTtsLimit)
+        let fallbackGiftUsed = min(max(localOcrUsed + localTtsUsed, 0), fallbackGiftLimit)
+        dailyLoginGiftLimit = try container.decodeIfPresent(Int.self, forKey: .dailyLoginGiftLimit) ?? fallbackGiftLimit
+        dailyLoginGiftUsed = try container.decodeIfPresent(Int.self, forKey: .dailyLoginGiftUsed) ?? fallbackGiftUsed
+        dailyLoginGiftRemaining = try container.decodeIfPresent(Int.self, forKey: .dailyLoginGiftRemaining) ?? max(dailyLoginGiftLimit - dailyLoginGiftUsed, 0)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -298,6 +327,9 @@ struct DailyQuota: Codable {
         try container.encode(localTtsLimit, forKey: .localTtsLimit)
         try container.encode(localTtsUsed, forKey: .localTtsUsed)
         try container.encode(localTtsRemaining, forKey: .localTtsRemaining)
+        try container.encode(dailyLoginGiftLimit, forKey: .dailyLoginGiftLimit)
+        try container.encode(dailyLoginGiftUsed, forKey: .dailyLoginGiftUsed)
+        try container.encode(dailyLoginGiftRemaining, forKey: .dailyLoginGiftRemaining)
     }
 }
 

@@ -15,43 +15,33 @@ struct HomeView: View {
         appState.textSizeOption.multiplier
     }
 
-    private var membershipStatus: String {
-        appState.localizedPlanName(
-            planCode: appState.accountState?.entitlement.planCode,
-            planName: appState.accountState?.entitlement.planName
-        )
+    private var localDeviceSummary: EntitlementUsageSummary {
+        // 中文说明：首页只展示本机功能总积分，不再拆分识字/朗读余额。
+        appState.entitlementDisplaySummary(serviceType: "local_device")
     }
 
-    private var localOcrUsed: Int {
-        appState.entitlementDisplaySummary(serviceType: "local_ocr").usedCount
+    private var totalAvailableCredits: Int { localDeviceSummary.remainingCount }
+
+    private var creditLevelTitle: String {
+        switch totalAvailableCredits {
+        case 300...:
+            return appState.uiText("积分 Lv.3", "Credit Lv.3")
+        case 80...:
+            return appState.uiText("积分 Lv.2", "Credit Lv.2")
+        default:
+            return appState.uiText("积分 Lv.1", "Credit Lv.1")
+        }
     }
 
-    private var localOcrTotal: Int {
-        appState.entitlementDisplaySummary(serviceType: "local_ocr").totalCount
-    }
-
-    private var localTtsUsed: Int {
-        appState.entitlementDisplaySummary(serviceType: "local_tts").usedCount
-    }
-
-    private var localTtsTotal: Int {
-        appState.entitlementDisplaySummary(serviceType: "local_tts").totalCount
-    }
-
-    private var ocrEntitlementSummary: (used: Int, total: Int) {
-        return (localOcrUsed, localOcrTotal)
-    }
-
-    private var localTtsEntitlementSummary: (used: Int, total: Int) {
-        return (localTtsUsed, localTtsTotal)
-    }
-
-    private var childEntitlementSummary: (used: Int, total: Int) {
-        let localCount = appState.children.count
-        let entitlementCount = appState.accountState?.entitlement.childCount ?? 0
-        let used = max(localCount, entitlementCount)
-        let configuredLimit = appState.accountState?.entitlement.childLimit ?? max(used, 1)
-        return (used, max(configuredLimit, used, 1))
+    private var creditLevelDescription: String {
+        switch totalAvailableCredits {
+        case 300...:
+            return appState.uiText("余量充足，适合连续伴读", "Plenty for steady read-aloud")
+        case 80...:
+            return appState.uiText("余量稳定，适合日常使用", "Ready for daily use")
+        default:
+            return appState.uiText("优先使用今日免费积分", "Daily free credits are used first")
+        }
     }
 
     private var learningCardCount: Int {
@@ -160,9 +150,21 @@ struct HomeView: View {
         Button {
             showEntitlementInfo = true
         } label: {
-            VStack(spacing: AppLayout.spacingXS) {
+            VStack(alignment: .leading, spacing: AppLayout.spacingS) {
                 HStack(alignment: .center) {
-                    MembershipBadge(status: membershipStatus, expiryDate: nil, textScale: textScale)
+                    HStack(spacing: AppLayout.spacingS) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: entitlementIconSize * textScale, weight: .bold))
+                            .foregroundColor(.white)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(appState.uiText("本机积分", "Local credits"))
+                                .font(.system(size: 12 * textScale, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text(creditLevelTitle)
+                                .font(.system(size: 9 * textScale, weight: .medium))
+                                .foregroundColor(.white.opacity(0.86))
+                        }
+                    }
                     Spacer(minLength: AppLayout.spacingS)
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.right.circle.fill")
@@ -175,28 +177,44 @@ struct HomeView: View {
                     .foregroundColor(.white.opacity(0.92))
                 }
 
+                HStack(alignment: .firstTextBaseline, spacing: AppLayout.spacingS) {
+                    Text("\(totalAvailableCredits)")
+                        .font(.system(size: 30 * textScale, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.65)
+                    Text(appState.uiText("可用积分", "available credits"))
+                        .font(.system(size: 11 * textScale, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.9))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Spacer(minLength: AppLayout.spacingS)
+                    Text(creditLevelDescription)
+                        .font(.system(size: 9 * textScale, weight: .medium))
+                        .foregroundColor(.white.opacity(0.86))
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                }
+
                 HStack(spacing: 5) {
                     CompactUsageItem(
-                        icon: "camera.fill",
-                        label: appState.uiText("文字识别", "OCR"),
-                        used: ocrEntitlementSummary.used,
-                        total: max(ocrEntitlementSummary.total, 1),
+                        icon: "bolt.fill",
+                        label: appState.uiText("本机功能积分", "Local feature credits"),
+                        value: "\(totalAvailableCredits)",
+                        detail: appState.uiText("识字/朗读共用", "shared by OCR/read"),
                         textScale: textScale
                     )
-                    CompactUsageItem(
-                        icon: "speaker.wave.2.fill",
-                        label: appState.uiText("朗读", "Read"),
-                        used: localTtsEntitlementSummary.used,
-                        total: max(localTtsEntitlementSummary.total, 1),
-                        textScale: textScale
-                    )
-                    CompactUsageItem(
-                        icon: "person.2.fill",
-                        label: appState.uiText("孩子数", "Children"),
-                        used: childEntitlementSummary.used,
-                        total: childEntitlementSummary.total,
-                        textScale: textScale
-                    )
+                    // 中文说明：云端功能积分入口已预留，当前版本不展示；云端识别上线后再打开 UI。
+                    if false {
+                        CompactUsageItem(
+                            icon: "cloud.fill",
+                            label: appState.uiText("云端功能积分", "Cloud feature credits"),
+                            value: "0",
+                            detail: appState.uiText("暂未开放", "not enabled"),
+                            textScale: textScale
+                        )
+                    }
                 }
             }
             .padding(.horizontal, 12)
@@ -471,8 +489,8 @@ struct HomeView: View {
 struct CompactUsageItem: View {
     let icon: String
     let label: String
-    let used: Int
-    let total: Int
+    let value: String
+    let detail: String
     let textScale: CGFloat
     @ScaledMetric(relativeTo: .caption) private var iconSize: CGFloat = 11
     @ScaledMetric(relativeTo: .caption2) private var labelSize: CGFloat = 9
@@ -491,7 +509,7 @@ struct CompactUsageItem: View {
                     .foregroundColor(.white.opacity(0.9))
                     .lineLimit(1)
                     .minimumScaleFactor(0.55)
-                Text("\(used)/\(total)")
+                Text(value + " · " + detail)
                     .font(.system(size: valueSize * textScale, weight: .semibold))
                     .foregroundColor(.white)
                     .lineLimit(1)

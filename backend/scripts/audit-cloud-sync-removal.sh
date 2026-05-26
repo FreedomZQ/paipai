@@ -25,6 +25,7 @@ matches="$(
     -g '!**/target/**' \
     -g '!**/*.docx' \
     -g '!backend/scripts/audit-cloud-sync-removal.sh' \
+    -g '!backend/scripts/audit-db-four-table-init-files.sh' \
     -g '!front/ios/scripts/p0_static_preflight.sh' \
     -g '!front/ios/scripts/p0_archive_preflight.sh' \
     || true

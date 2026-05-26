@@ -36,6 +36,7 @@ public class AppAppleReadinessService {
         List<String> warnings
     ) {
         boolean required = definition.support().appleSignInRequired();
+        boolean localOnlyLaunchMode = localOnlyLaunchMode(definition);
         boolean remoteExchangeEnabled = bool(definition, "app.auth.apple.remoteExchangeEnabled");
         boolean clientId = configured(definition, "app.auth.apple.clientId");
         boolean jwksUrl = configured(definition, "app.auth.apple.jwksUrl");
@@ -49,8 +50,15 @@ public class AppAppleReadinessService {
         boolean bundleIdentityAligned = bundleIdentityAligned(definition);
 
         if (!required) {
+            String status = localOnlyLaunchMode ? "local_no_backend" : "not_required";
+            if (localOnlyLaunchMode && remoteExchangeEnabled) {
+                // 中文说明：无自有后端首发不能留下远端 Apple code exchange，
+                // 否则会重新形成账号/凭证服务器路径，和儿童数据最小化口径冲突。
+                blockers.add("auth.apple.remoteExchangeEnabled must be false in local-only launch mode");
+                status = "blocked";
+            }
             return new AppAppleReadinessView.AppleAuthReadiness(
-                "not_required",
+                status,
                 false,
                 remoteExchangeEnabled,
                 clientId,
@@ -122,6 +130,24 @@ public class AppAppleReadinessService {
         List<String> warnings
     ) {
         boolean required = definition.support().billingRequired();
+        boolean localOnlyLaunchMode = localOnlyLaunchMode(definition);
+        boolean localDeviceCreditsEnabled = bool(definition, "app.billing.localDeviceCredits.enabled");
+        boolean apiCreditsReservedOnly = bool(definition, "app.billing.apiCallCredits.reservedOnly");
+        boolean paidApiCreditsEnabled = bool(definition, "app.billing.apiCallCredits.paidEnabled");
+        boolean externalCloudProcessingEnabled = bool(definition, "app.privacy.cloudContentProcessingEnabled")
+            || bool(definition, "app.billing.externalCloudProcessingEnabled");
+        boolean serverWalletEnabled = bool(definition, "app.billing.serverWalletEnabled");
+        boolean appStoreServerApiEnabled = bool(definition, "app.billing.appstore.serverApiEnabled");
+        boolean consumableHistoryRestoreEnabled = bool(definition, "app.billing.appstore.consumableHistoryRestoreEnabled");
+        boolean localIapOnly = required
+            && localOnlyLaunchMode
+            && localDeviceCreditsEnabled
+            && !paidApiCreditsEnabled
+            && !externalCloudProcessingEnabled
+            && !serverWalletEnabled
+            && !appStoreServerApiEnabled
+            && !consumableHistoryRestoreEnabled;
+        boolean serverApiRequired = required && !localIapOnly;
         boolean bundleId = configured(definition, "app.billing.appstore.bundleId");
         boolean environment = configured(definition, "app.billing.appstore.environment");
         boolean allowSandbox = bool(definition, "app.billing.appstore.allowSandbox");
@@ -135,6 +161,14 @@ public class AppAppleReadinessService {
             return new AppAppleReadinessView.AppStoreReadiness(
                 "not_required",
                 false,
+                false,
+                false,
+                localDeviceCreditsEnabled,
+                apiCreditsReservedOnly,
+                paidApiCreditsEnabled,
+                externalCloudProcessingEnabled,
+                serverWalletEnabled,
+                consumableHistoryRestoreEnabled,
                 bundleId,
                 environment,
                 allowSandbox,
@@ -148,11 +182,37 @@ public class AppAppleReadinessService {
 
         require(blockers, bundleId, "billing.appstore.bundleId missing");
         require(blockers, environment, "billing.appstore.environment missing");
-        require(blockers, issuerId, "billing.appstore.issuerId missing");
-        require(blockers, keyId, "billing.appstore.keyId missing");
-        require(blockers, privateKey, "billing.appstore.privateKey missing");
+        if (localOnlyLaunchMode) {
+            require(blockers, localDeviceCreditsEnabled, "billing.localDeviceCredits.enabled must be true in local-only launch mode");
+            require(blockers, apiCreditsReservedOnly, "billing.apiCallCredits.reservedOnly must be true in local-only launch mode");
+            if (paidApiCreditsEnabled) {
+                blockers.add("billing.apiCallCredits.paidEnabled must be false in local-only launch mode");
+            }
+            if (externalCloudProcessingEnabled) {
+                blockers.add("cloud content processing must be false in local-only launch mode");
+            }
+            if (serverWalletEnabled) {
+                blockers.add("billing.serverWalletEnabled must be false in local-only launch mode");
+            }
+            if (appStoreServerApiEnabled) {
+                blockers.add("billing.appstore.serverApiEnabled must be false in local-only launch mode");
+            }
+            if (consumableHistoryRestoreEnabled) {
+                blockers.add("billing.appstore.consumableHistoryRestoreEnabled must be false without server reconciliation");
+            }
+            validateLocalOnlyProductMappings(definition, blockers);
+        }
+        if (serverApiRequired) {
+            require(blockers, issuerId, "billing.appstore.issuerId missing");
+            require(blockers, keyId, "billing.appstore.keyId missing");
+            require(blockers, privateKey, "billing.appstore.privateKey missing");
+        } else if (issuerId || keyId || privateKey || appAppleId) {
+            warnings.add("App Store Server API credentials are configured but ignored in local-only launch mode");
+        }
         if (!appAppleId) {
-            warnings.add("billing.appstore.appAppleId missing; direct transaction/subscription lookup can still work, but ops/readiness is incomplete");
+            if (serverApiRequired) {
+                warnings.add("billing.appstore.appAppleId missing; direct transaction/subscription lookup can still work, but ops/readiness is incomplete");
+            }
         }
         if (allowSandbox) {
             String message = "billing.appstore.allowSandbox is true; verify this is intended for the target runtime";
@@ -163,10 +223,25 @@ public class AppAppleReadinessService {
             }
         }
 
-        String status = bundleId && environment && issuerId && keyId && privateKey && productionSandboxSafe ? "ready" : "blocked";
+        String status;
+        if (!bundleId || !environment || !productionSandboxSafe) {
+            status = "blocked";
+        } else if (localIapOnly) {
+            status = "local_iap_only";
+        } else {
+            status = issuerId && keyId && privateKey ? "ready" : "blocked";
+        }
         return new AppAppleReadinessView.AppStoreReadiness(
             status,
             true,
+            serverApiRequired,
+            localIapOnly,
+            localDeviceCreditsEnabled,
+            apiCreditsReservedOnly,
+            paidApiCreditsEnabled,
+            externalCloudProcessingEnabled,
+            serverWalletEnabled,
+            consumableHistoryRestoreEnabled,
             bundleId,
             environment,
             allowSandbox,
@@ -176,6 +251,30 @@ public class AppAppleReadinessService {
             appAppleId,
             productionSandboxSafe
         );
+    }
+
+    private boolean localOnlyLaunchMode(AppDefinition definition) {
+        return bool(definition, "app.launch.localNoBackendFirstRelease")
+            || bool(definition, "app.privacy.noDeveloperBackend");
+    }
+
+    private void validateLocalOnlyProductMappings(AppDefinition definition, List<String> blockers) {
+        List<String> values = definition.raw().entrySet().stream()
+            .filter(entry -> String.valueOf(entry.getKey()).startsWith("app.billing.entitlements.productMappings."))
+            .map(entry -> String.valueOf(entry.getValue()).trim())
+            .filter(value -> !value.isBlank())
+            .toList();
+        if (values.isEmpty()) {
+            blockers.add("billing.entitlements.productMappings must include local OCR/TTS products for local-only launch mode");
+            return;
+        }
+        if (!values.contains("local_ocr") || !values.contains("local_tts")) {
+            blockers.add("billing.entitlements.productMappings must include both local_ocr and local_tts in local-only launch mode");
+        }
+        values.stream()
+            .filter(value -> !"local_ocr".equals(value) && !"local_tts".equals(value))
+            .findFirst()
+            .ifPresent(value -> blockers.add("local-only productMappings may only map to local_ocr/local_tts, found " + value));
     }
 
     private boolean credentialEncryptionReady() {

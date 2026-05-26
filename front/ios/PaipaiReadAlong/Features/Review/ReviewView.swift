@@ -690,13 +690,8 @@ struct ResultButton: View {
 
 struct ReviewCompletionView: View {
     @EnvironmentObject var appState: AppState
-    @State private var showPaywall = false
     let count: Int
     let onComplete: () -> Void
-
-    private var shouldShowFamilyUpgradeHint: Bool {
-        appState.accountState?.entitlement.backendVerifiedPremiumActive != true
-    }
 
     var body: some View {
         ScrollView {
@@ -712,25 +707,6 @@ struct ReviewCompletionView: View {
                     StatRow(icon: "star.fill", title: appState.uiText("陪读节奏", "Rhythm"), value: appState.uiText("持续建立中", "Still building"), color: AppColors.accentYellow)
                 }
                 .padding(.horizontal, 40)
-
-                if shouldShowFamilyUpgradeHint {
-                    MainCard {
-                        VStack(alignment: .leading, spacing: AppLayout.spacingS) {
-                            Label(appState.uiText("想把复习节奏延续下去？", "Want to keep this rhythm going?"), systemImage: "chart.line.uptrend.xyaxis")
-                                .font(AppTypography.headline)
-                                .foregroundColor(AppColors.textPrimary)
-                            Text(appState.uiText("高级版可解锁更多句卡、多个孩子档案和周报历史。具体价格以 Apple 确认弹窗为准。", "Premium unlocks more cards, multiple child profiles and weekly report history. Apple confirms the final price."))
-                                .font(AppTypography.footnote)
-                                .foregroundColor(AppColors.textSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            SecondaryButton(title: appState.uiText("查看高级版权益", "View premium benefits"), icon: "sparkles") {
-                                showPaywall = true
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.horizontal)
-                }
 
                 VStack(spacing: AppLayout.spacingM) {
                     PrimaryButton(title: appState.uiText("回首页看今日进度", "Back to home progress"), icon: "house.fill") {
@@ -755,10 +731,6 @@ struct ReviewCompletionView: View {
         }
         .background(AppColors.background)
         .appScrollDismissesKeyboardInteractively()
-        .sheet(isPresented: $showPaywall) {
-            PaywallView()
-                .environmentObject(appState)
-        }
     }
 }
 

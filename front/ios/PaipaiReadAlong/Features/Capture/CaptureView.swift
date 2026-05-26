@@ -1866,8 +1866,10 @@ struct OCRConfirmView: View {
         let ocrService = appState.ocrService
         do {
             let preparedImage = try await prepareImageIfNeeded()
+            // 本地积分成本只能来自 App 内置版本化规则；找不到规则时抛错，不按 0 积分放行。
+            let requiredCredits = try appState.localOcrCreditCost()
 
-            let quotaValidation = await appState.validateLocalOcrQuotaBeforeRecognition(requiredAmount: 1)
+            let quotaValidation = await appState.validateLocalOcrQuotaBeforeRecognition(requiredAmount: requiredCredits)
             guard quotaValidation.isAllowed else {
                 await MainActor.run {
                     errorMessage = quotaValidation.message
@@ -1884,12 +1886,6 @@ struct OCRConfirmView: View {
                 try await ocrService.recognizeText(from: imageData, recognitionLanguages: recognitionLanguages, recognitionLevel: .accurate)
             }.value
             let normalizedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            await MainActor.run {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    recognizedText = normalizedText
-                }
-            }
-            await refreshLanguageSnapshotNow(text: normalizedText)
             guard !normalizedText.isEmpty else {
                 await MainActor.run {
                     errorMessage = appState.uiText("未识别到文字，请重新拍摄或上传更清晰的图片。", "No text was recognized. Please retake or upload a clearer image.")
@@ -1897,7 +1893,20 @@ struct OCRConfirmView: View {
                 }
                 return
             }
-            _ = await appState.recordLocalOcrUsage(source: "device_ocr")
+            guard await appState.recordLocalOcrUsage(source: "device_ocr", amount: requiredCredits) else {
+                await MainActor.run {
+                    errorMessage = appState.uiText("本机功能积分扣减失败，请稍后重试。", "Local feature credit consumption failed. Please try again shortly.")
+                    isQuotaInsufficient = true
+                    isRecognizing = false
+                }
+                return
+            }
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    recognizedText = normalizedText
+                }
+            }
+            await refreshLanguageSnapshotNow(text: normalizedText)
         } catch {
             await MainActor.run {
                 switch error {

@@ -7,6 +7,7 @@ import com.apphub.backend.sys.appstore.service.crud.SysAppStoreNotificationCrudS
 import com.apphub.backend.sys.appstore.model.AppStoreNotificationAcceptedView;
 import com.apphub.backend.sys.appstore.model.AppStoreNotificationIngestRequest;
 import com.apphub.backend.sys.appstore.model.AppStoreNotificationObservabilityView;
+import com.apphub.backend.sys.billing.privacy.service.SysAppStoreRefundService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -38,6 +40,7 @@ public class SysAppStoreNotificationService {
     private final ObjectMapper objectMapper;
     private final AppStoreJwsVerificationService appStoreJwsVerificationService;
     private final SysBillingService sysBillingService;
+    private final SysAppStoreRefundService appStoreRefundService;
 
     @Autowired
     public SysAppStoreNotificationService(
@@ -45,13 +48,15 @@ public class SysAppStoreNotificationService {
         Sha256HashService sha256HashService,
         ObjectMapper objectMapper,
         AppStoreJwsVerificationService appStoreJwsVerificationService,
-        SysBillingService sysBillingService
+        SysBillingService sysBillingService,
+        SysAppStoreRefundService appStoreRefundService
     ) {
         this.appStoreNotificationCrudService = appStoreNotificationCrudService;
         this.sha256HashService = sha256HashService;
         this.objectMapper = objectMapper;
         this.appStoreJwsVerificationService = appStoreJwsVerificationService;
         this.sysBillingService = sysBillingService;
+        this.appStoreRefundService = appStoreRefundService;
     }
 
     public AppStoreNotificationObservabilityView describeObservability(String appCode) {
@@ -94,9 +99,13 @@ public class SysAppStoreNotificationService {
             return toView(existing, true);
         }
 
+        Map<String, Object> minimizedPayload = payloadBody(request);
         SysBillingService.NotificationReconcileResult reconcileResult = verificationResult.claims() == null || !"verified".equalsIgnoreCase(verificationResult.verificationStatus())
             ? new SysBillingService.NotificationReconcileResult("skipped_notification_not_verified", false, null, null, null)
-            : sysBillingService.reconcileVerifiedNotification(appCode, verificationResult.claims(), payloadBody(request));
+            : sysBillingService.reconcileVerifiedNotification(appCode, verificationResult.claims(), minimizedPayload);
+        SysAppStoreRefundService.NotificationRefundResult refundResult = verificationResult.claims() == null || !"verified".equalsIgnoreCase(verificationResult.verificationStatus())
+            ? new SysAppStoreRefundService.NotificationRefundResult("skipped_notification_not_verified", null, null)
+            : appStoreRefundService.handleVerifiedNotification(appCode, verificationResult.claims(), reconcileResult.userId());
         Map<String, Object> appSpecificGrant = Map.of("status", "skipped");
 
         OffsetDateTime now = now();
@@ -115,7 +124,7 @@ public class SysAppStoreNotificationService {
                 "detailStatus", verificationResult.detailStatus(),
                 "note", verificationResult.note(),
                 "diagnostics", verificationResult.diagnostics(),
-                "claims", verificationResult.claims()
+                "claims", minimizeNotificationClaims(verificationResult.claims())
             ),
             "reconcile", mapOfNonNull(
                 "status", reconcileResult.status(),
@@ -123,6 +132,11 @@ public class SysAppStoreNotificationService {
                 "userId", reconcileResult.userId(),
                 "originalTransactionId", reconcileResult.originalTransactionId(),
                 "note", reconcileResult.note()
+            ),
+            "refund", mapOfNonNull(
+                "status", refundResult.status(),
+                "consumptionRequestId", refundResult.consumptionRequestId(),
+                "refundCaseId", refundResult.refundCaseId()
             ),
             "appSpecificGrant", appSpecificGrant
         )));
@@ -147,15 +161,77 @@ public class SysAppStoreNotificationService {
     }
 
     private Map<String, Object> payloadBody(AppStoreNotificationIngestRequest request) {
+        // Apple 入站通知的完整 signedPayload 只允许进入哈希/密文审计域；普通 raw_payload_json 只保存可检索摘要。
         if (request.payload() != null && !request.payload().isEmpty()) {
-            return request.payload();
+            return sanitizePayloadMap(request.payload());
         }
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("signedPayload", request.signedPayload());
+        payload.put("signedPayloadHash", sha256HashService.hash(request.signedPayload()));
+        payload.put("signedPayloadPresent", request.signedPayload() != null && !request.signedPayload().isBlank());
         payload.put("notificationUuid", request.notificationUuid());
         payload.put("notificationType", request.notificationType());
         payload.put("subtype", request.subtype());
         return payload;
+    }
+
+    private Map<String, Object> minimizeNotificationClaims(AppStoreJwsVerificationService.NotificationClaims claims) {
+        if (claims == null) {
+            return null;
+        }
+        return mapOfNonNull(
+            "notificationUuid", claims.notificationUuid(),
+            "notificationType", claims.notificationType(),
+            "subtype", claims.subtype(),
+            "environment", claims.environment(),
+            "originalTransactionId", claims.originalTransactionId(),
+            "transactionId", claims.transactionId(),
+            "productId", claims.productId(),
+            "signedTransactionInfoHash", sha256HashService.hash(claims.signedTransactionInfo()),
+            "signedRenewalInfoHash", sha256HashService.hash(claims.signedRenewalInfo()),
+            "signedTransactionInfoPresent", claims.signedTransactionInfo() != null && !claims.signedTransactionInfo().isBlank(),
+            "signedRenewalInfoPresent", claims.signedRenewalInfo() != null && !claims.signedRenewalInfo().isBlank()
+        );
+    }
+
+    private Map<String, Object> sanitizePayloadMap(Map<String, Object> payload) {
+        Map<String, Object> sanitized = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : payload.entrySet()) {
+            sanitized.put(entry.getKey(), sanitizePayloadValue(entry.getKey(), entry.getValue()));
+        }
+        return sanitized;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object sanitizePayloadValue(String key, Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (isSensitivePayloadKey(key)) {
+            String raw = String.valueOf(value);
+            return mapOfNonNull(
+                "present", !raw.isBlank(),
+                "hash", sha256HashService.hash(raw),
+                "length", raw.length()
+            );
+        }
+        if (value instanceof Map<?, ?> nested) {
+            Map<String, Object> nestedMap = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> nestedEntry : nested.entrySet()) {
+                String nestedKey = String.valueOf(nestedEntry.getKey());
+                nestedMap.put(nestedKey, sanitizePayloadValue(nestedKey, nestedEntry.getValue()));
+            }
+            return nestedMap;
+        }
+        return value;
+    }
+
+    private boolean isSensitivePayloadKey(String key) {
+        String normalized = key == null ? "" : key.toLowerCase(Locale.ROOT);
+        return normalized.contains("signedpayload")
+            || normalized.contains("signedtransactioninfo")
+            || normalized.contains("signedrenewalinfo")
+            || normalized.contains("authorization")
+            || normalized.contains("privatekey");
     }
 
     private String resolveNotificationUuid(AppStoreNotificationIngestRequest request, AppStoreJwsVerificationService.NotificationVerificationResult verificationResult) {

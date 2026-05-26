@@ -20,6 +20,7 @@ import com.apphub.backend.apps.reading.domain.mapper.ReadingOcrAuditMapper;
 import com.apphub.backend.apps.reading.domain.mapper.ReadingResourcePackCatalogMapper;
 import com.apphub.backend.apps.reading.domain.mapper.ReadingReviewCardMapper;
 import com.apphub.backend.apps.reading.domain.mapper.ReadingReviewEventV2Mapper;
+import com.apphub.backend.sys.app.model.AppDefinition;
 import com.apphub.backend.sys.app.service.AppDefinitionService;
 import com.apphub.backend.sys.app.service.AppAppleReadinessService;
 import com.apphub.backend.sys.auth.entity.SysUserDeviceEventEntity;
@@ -36,6 +37,8 @@ import com.apphub.backend.sys.auth.service.SysAppleAuthService;
 import com.apphub.backend.sys.auth.service.SysEmailVerificationService;
 import com.apphub.backend.sys.billing.model.EntitlementOverviewView;
 import com.apphub.backend.sys.billing.model.PurchasePermissionDecision;
+import com.apphub.backend.sys.billing.privacy.entity.SysEntitlementLedgerEventEntity;
+import com.apphub.backend.sys.billing.privacy.mapper.SysEntitlementLedgerEventMapper;
 import com.apphub.backend.sys.billing.service.SysBillingService;
 import com.apphub.backend.sys.billing.service.SysPurchasePermissionService;
 import com.apphub.backend.sys.entitlement.entity.SysUserFeatureOverrideEntity;
@@ -43,6 +46,7 @@ import com.apphub.backend.sys.entitlement.mapper.SysUserFeatureOverrideMapper;
 import com.apphub.backend.sys.entitlement.model.FeatureAccessView;
 import com.apphub.backend.sys.entitlement.model.UserEntitlementDecisionView;
 import com.apphub.backend.sys.entitlement.service.SysEntitlementCenterService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -123,6 +127,7 @@ public class ReadingCompatService {
     private final SysEntitlementCenterService sysEntitlementCenterService;
     private final ReadingDailyQuotaConfigService dailyQuotaConfigService;
     private final ReadingCloudUsageService cloudUsageService;
+    private final SysEntitlementLedgerEventMapper entitlementLedgerEventMapper;
     private final ObjectMapper objectMapper;
 
     @Value("${backend.apps.paipai_readingcompanion.public.supportEmail:support@paipai.app}")
@@ -172,6 +177,7 @@ public class ReadingCompatService {
         SysEntitlementCenterService sysEntitlementCenterService,
         ReadingDailyQuotaConfigService dailyQuotaConfigService,
         ReadingCloudUsageService cloudUsageService,
+        SysEntitlementLedgerEventMapper entitlementLedgerEventMapper,
         ObjectMapper objectMapper
     ) {
         this.childProfileMapper = childProfileMapper;
@@ -201,6 +207,7 @@ public class ReadingCompatService {
         this.sysEntitlementCenterService = sysEntitlementCenterService;
         this.dailyQuotaConfigService = dailyQuotaConfigService;
         this.cloudUsageService = cloudUsageService;
+        this.entitlementLedgerEventMapper = entitlementLedgerEventMapper;
         this.objectMapper = objectMapper;
     }
 
@@ -253,6 +260,18 @@ public class ReadingCompatService {
      * @param locale 前端界面语言，用于从数据库配置中选择对应提示文案。
      */
     public BillingHealthView billingHealth(String locale) {
+        if (isLocalOnlyLaunchMode()) {
+            // 中文说明：无自有后端首发时，商品白名单和价格展示由 iOS StoreKit 本地实现。
+            // 后端购买配置即使存在也不能成为生产包的远程商品/钱包来源。
+            return new BillingHealthView(
+                "local_only_backend_disabled",
+                false,
+                localizedJsonText("""
+                    {"zh-Hans":"本机积分由 App 内 StoreKit 本地白名单处理，后端购买配置已关闭。","en":"Local credits are handled by the app's StoreKit allowlist; backend purchase configuration is disabled."}
+                    """, locale, "本机积分由 App 内 StoreKit 本地白名单处理，后端购买配置已关闭。"),
+                purchasePermissionService.checkedAt()
+            );
+        }
         PurchasePermissionDecision globalPermission = purchasePermissionService.decide(APP_CODE, null, locale);
         List<CreditProductView> products = creditProducts(locale);
         boolean hasEnabledProduct = products.stream().anyMatch(item -> Boolean.TRUE.equals(item.enabled()));
@@ -283,6 +302,9 @@ public class ReadingCompatService {
      * @param locale 前端界面语言，用于返回本地化商品文案和禁用原因。
      */
     public List<CreditProductView> creditProducts(String locale) {
+        if (isLocalOnlyLaunchMode()) {
+            return List.of();
+        }
         try {
             PurchasePermissionDecision globalPermission = purchasePermissionService.decide(APP_CODE, null, locale);
             return resourcePackCatalogMapper.selectConfigured(APP_CODE).stream()
@@ -292,6 +314,23 @@ public class ReadingCompatService {
         } catch (Exception ignored) {
             return List.of();
         }
+    }
+
+    public DailyLoginGiftConfigView dailyLoginGiftConfig(String planCode) {
+        // 中文说明：每日登录赠送积分只读取 local_device 配置，作为识字和朗读共享的单一日赠总额。
+        String safePlanCode = firstNonBlank(planCode, FREE_PLAN);
+        int configuredLimit = dailyQuotaConfigService.dailyLimit(
+            safePlanCode,
+            ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE
+        );
+        return new DailyLoginGiftConfigView(
+            APP_CODE,
+            safePlanCode,
+            ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE,
+            Math.max(configuredLimit, 0),
+            "single_daily_login_gift",
+            OffsetDateTime.now(ZoneOffset.UTC).toString()
+        );
     }
 
     @Transactional
@@ -316,6 +355,9 @@ public class ReadingCompatService {
             .filter(item -> Boolean.TRUE.equals(item.enabled()))
             .findFirst()
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
+        if (!isInternalPurchaseEnabled(product)) {
+            throw new ResponseStatusException(HttpStatus.GONE, "Internal purchase is disabled for App Store products");
+        }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         OffsetDateTime dayStart = now.toLocalDate().atStartOfDay().atOffset(ZoneOffset.UTC);
         int purchasedToday = 0;
@@ -349,6 +391,119 @@ public class ReadingCompatService {
         );
     }
 
+    @Transactional
+    public void grantAppStoreProductPurchase(Long userId, String appStoreProductId, String transactionId) {
+        if (userId == null || appStoreProductId == null || appStoreProductId.isBlank() || transactionId == null || transactionId.isBlank()) {
+            return;
+        }
+        CreditProductView product = creditProducts("zh-Hans").stream()
+            .filter(item -> appStoreProductId.equals(item.appStoreProductId()))
+            .findFirst()
+            .orElse(null);
+        if (product == null) {
+            return;
+        }
+        if (isSameDeviceLocalWalletProduct(product)) {
+            // 首发无后端方案：本机双积分只写入 iOS Keychain 钱包。
+            // 即使旧客户端误把交易提交到后端，也不能在服务端创建云端钱包或补发记录。
+            return;
+        }
+        if (isCreditGrantProduct(product)) {
+            cloudUsageService.grantAppStorePurchase(
+                userId,
+                product.serviceType(),
+                product.productCode(),
+                product.amount() == null ? 0 : product.amount(),
+                product.validDays() == null ? 30 : product.validDays(),
+                transactionId
+            );
+        } else {
+            grantCapacityExtension(userId, product, transactionId);
+        }
+        writeAppStoreGrantLedgerEvent(userId, product, transactionId);
+    }
+
+    private void writeAppStoreGrantLedgerEvent(Long userId, CreditProductView product, String transactionId) {
+        if (entitlementLedgerEventMapper == null || userId == null || product == null || transactionId == null || transactionId.isBlank()) {
+            return;
+        }
+        Long existing = entitlementLedgerEventMapper.selectCount(
+            new LambdaQueryWrapper<SysEntitlementLedgerEventEntity>()
+                .eq(SysEntitlementLedgerEventEntity::getAppCode, APP_CODE)
+                .eq(SysEntitlementLedgerEventEntity::getUserId, userId)
+                .eq(SysEntitlementLedgerEventEntity::getTransactionId, transactionId)
+                .eq(SysEntitlementLedgerEventEntity::getEventType, "grant")
+        );
+        if (existing != null && existing > 0) {
+            return;
+        }
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        SysEntitlementLedgerEventEntity event = new SysEntitlementLedgerEventEntity();
+        event.setAppCode(APP_CODE);
+        event.setUserId(userId);
+        event.setEventId(UUID.randomUUID());
+        event.setEventType("grant");
+        event.setEntitlementCode(firstNonBlank(product.serviceType(), product.packageType(), product.productCode(), "appstore_resource_pack"));
+        event.setTransactionId(transactionId);
+        event.setRefundStatus("none");
+        event.setRefundEffectType("none");
+        event.setRefundedQuantity(0);
+        event.setQuantityDelta(Math.max(product.amount() == null ? 0 : product.amount(), 0));
+        event.setEntitlementVersion(System.currentTimeMillis());
+        event.setReasonCode("appstore_resource_pack_grant");
+        event.setSourceType("appstore_purchase");
+        event.setSourceRef(transactionId);
+        event.setMetadataJson(jsonString(Map.of(
+            "productCode", firstNonBlank(product.productCode(), ""),
+            "appStoreProductId", firstNonBlank(product.appStoreProductId(), ""),
+            "packageType", firstNonBlank(product.packageType(), ""),
+            "quantityUnit", firstNonBlank(product.quantityUnit(), ""),
+            "childrenDataExcluded", true
+        )));
+        event.setCreatedAt(now);
+        entitlementLedgerEventMapper.insert(event);
+    }
+
+    private boolean isInternalPurchaseEnabled(CreditProductView product) {
+        return product != null && Boolean.TRUE.equals(boolValue(jsonMap(metadataJsonForProduct(product.productCode())), "internalPurchaseEnabled", false));
+    }
+
+    private boolean isSameDeviceLocalWalletProduct(CreditProductView product) {
+        if (product == null) {
+            return false;
+        }
+        String packageType = firstNonBlank(product.packageType(), "").toLowerCase(Locale.ROOT);
+        if ("local_device_credit_pack".equals(packageType)) {
+            return true;
+        }
+        Map<String, Object> metadata = jsonMap(metadataJsonForProduct(product.productCode()));
+        return Boolean.TRUE.equals(boolValue(metadata, "sameDeviceKeychainOnly", false))
+            || Boolean.TRUE.equals(boolValue(metadata, "serverWalletDisabled", false));
+    }
+
+    private boolean isLocalOnlyLaunchMode(AppDefinition definition) {
+        Map<String, Object> raw = definition.raw();
+        boolean explicitlyLocalOnly = boolValue(raw, "app.launch.localNoBackendFirstRelease", false)
+            || boolValue(raw, "app.privacy.noDeveloperBackend", false);
+        boolean localGuestEnabled = boolValue(raw, "app.privacy.localGuestEnabled", true);
+        boolean cloudProcessingEnabled = boolValue(raw, "app.privacy.cloudContentProcessingEnabled", false);
+        boolean remoteAppleExchangeEnabled = boolValue(raw, "app.auth.apple.remoteExchangeEnabled", false);
+        boolean demoSessionEnabled = boolValue(raw, "app.auth.demoSessionEnabled", false);
+        // 中文说明：`app.launch.localNoBackendFirstRelease` / `app.privacy.noDeveloperBackend`
+        // 是无自有后端首发的显式门闩。只要被配置为 true，服务端购买、恢复、
+        // 云端钱包、退款消费上报和补偿码路径都必须失败关闭，不能依赖其他开关组合推断。
+        return explicitlyLocalOnly || (localGuestEnabled
+            && !definition.support().appleSignInRequired()
+            && !cloudProcessingEnabled
+            && !remoteAppleExchangeEnabled
+            && !demoSessionEnabled);
+    }
+
+    private String metadataJsonForProduct(String productCode) {
+        ReadingResourcePackCatalogEntity entity = resourcePackCatalogMapper.selectByPackageCode(APP_CODE, productCode);
+        return entity == null ? null : entity.getMetadataJson();
+    }
+
     /**
      * 实时校验某个购买项是否允许购买。
      *
@@ -356,7 +511,34 @@ public class ReadingCompatService {
      * @param locale 前端界面语言，用于返回数据库中的多语言提示。
      */
     public PurchasePermissionDecision purchasePermission(String productCode, String locale) {
+        if (isLocalOnlyLaunchMode()) {
+            String message = localizedJsonText("""
+                {"zh-Hans":"本机积分购买由 App 内 StoreKit 本地流程处理，后端购买路径已关闭。","en":"Local credit purchases are handled by the app's StoreKit flow; backend purchase paths are disabled."}
+                """, locale, "本机积分购买由 App 内 StoreKit 本地流程处理，后端购买路径已关闭。");
+            return new PurchasePermissionDecision(
+                APP_CODE,
+                productCode,
+                false,
+                "local_only_backend_disabled",
+                "local_only_backend_disabled",
+                "local_only_backend_disabled",
+                Map.of("zh-Hans", "本机积分购买由 App 内 StoreKit 本地流程处理，后端购买路径已关闭。", "en", "Local credit purchases are handled by the app's StoreKit flow; backend purchase paths are disabled."),
+                message
+            );
+        }
         return purchasePermissionService.decide(APP_CODE, productCode, locale);
+    }
+
+    /**
+     * 判断当前运行配置是否是“本机匿名、无自有后端权益”的首发模式。
+     *
+     * <p>为降低个人开发者儿童 App 风险，该模式下后端只能作为未来预留和运维配置存在，
+     * 不能承接购买恢复、云端钱包、退款消费上报或补偿兑换等会形成服务端权益账本的链路。</p>
+     */
+    public boolean isLocalOnlyLaunchMode() {
+        return appDefinitionService.get(APP_CODE)
+            .map(this::isLocalOnlyLaunchMode)
+            .orElse(false);
     }
 
     public EntitlementRecordPageView entitlementRecords(ReadingAuthenticatedUser user, String serviceType, int page, int pageSize) {
@@ -369,13 +551,9 @@ public class ReadingCompatService {
         int safePage = Math.max(page, 1);
         int safePageSize = Math.min(Math.max(pageSize, 1), 50);
         List<ReadingCloudUsageService.ActiveEntitlementView> records = new ArrayList<>();
-        if (normalizedServiceType == null || ReadingCloudUsageService.LOCAL_OCR.equals(normalizedServiceType)) {
-            records.add(localDailyEntitlementRecord(user.userId(), ReadingCloudUsageService.LOCAL_OCR, clientZone));
+        if (normalizedServiceType == null || ReadingCloudUsageService.LOCAL_DEVICE.equals(normalizedServiceType)) {
+            records.add(localDailyEntitlementRecord(user.userId(), clientZone));
         }
-        if (normalizedServiceType == null || ReadingCloudUsageService.LOCAL_TTS.equals(normalizedServiceType)) {
-            records.add(localDailyEntitlementRecord(user.userId(), ReadingCloudUsageService.LOCAL_TTS, clientZone));
-        }
-        records.addAll(cloudUsageService.recentCreditEntitlements(user.userId(), normalizedServiceType, 60));
         records = records.stream()
             .filter(item -> item.totalCount() > 0)
             .sorted((left, right) -> {
@@ -397,10 +575,10 @@ public class ReadingCompatService {
         }
         String normalized = serviceType.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
+            case "local_device", "local_credits", "local_feature", "daily_login_gift" -> ReadingCloudUsageService.LOCAL_DEVICE;
             case "local_ocr", "ocr", "text_recognition", "image_ocr", "picture_ocr", "photo_ocr", "device_ocr" -> ReadingCloudUsageService.LOCAL_OCR;
             case "local_tts", "tts", "voice_reading", "text_to_speech", "speech_synthesis", "device_tts" -> ReadingCloudUsageService.LOCAL_TTS;
-            case "cloud_ocr" -> ReadingCloudUsageService.CLOUD_OCR;
-            case "cloud_tts" -> ReadingCloudUsageService.CLOUD_TTS;
+            case "cloud_ocr", "cloud_tts" -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Historical count entitlements are no longer exposed");
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported serviceType");
         };
     }
@@ -416,30 +594,17 @@ public class ReadingCompatService {
         }
     }
 
-    private ReadingCloudUsageService.ActiveEntitlementView localDailyEntitlementRecord(Long userId, String serviceType, ZoneId clientZone) {
+    private ReadingCloudUsageService.ActiveEntitlementView localDailyEntitlementRecord(Long userId, ZoneId clientZone) {
         AccountEntitlementView entitlement = resolveEntitlement(userId);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         LocalDate clientDate = now.atZoneSameInstant(clientZone).toLocalDate();
         OffsetDateTime dayStart = clientDate.atStartOfDay(clientZone).toOffsetDateTime();
         OffsetDateTime dayEnd = clientDate.plusDays(1).atStartOfDay(clientZone).toOffsetDateTime();
         OffsetDateTime expiresAt = dayEnd.minusSeconds(1);
-        boolean localTts = ReadingCloudUsageService.LOCAL_TTS.equals(serviceType);
-        String eventType = localTts ? "local_tts" : "local_ocr";
-        String featureCode = localTts ? ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS : ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR;
-        int total = dailyQuotaLimit(entitlement, featureCode);
-        int used = Math.min(deviceEventMapper.countByUserEventBetween(APP_CODE, userId, eventType, dayStart, dayEnd), total);
-        return new ReadingCloudUsageService.ActiveEntitlementView(
-            "daily-" + serviceType + "-" + clientDate,
-            serviceType,
-            "daily_gift",
-            "每日赠送",
-            total,
-            used,
-            Math.max(total - used, 0),
-            dayStart.toString(),
-            expiresAt.toString(),
-            null
-        );
+        int total = dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE);
+        int used = Math.min(localDeviceDailyUsed(userId, dayStart, dayEnd), total);
+        // 中文说明：后端查询权益记录时同步落库/更新当天单条赠送记录，保证数据库和接口呈现一致。
+        return cloudUsageService.ensureDailyLoginGiftGrant(userId, total, used, dayStart, expiresAt, clientDate.toString());
     }
 
     public List<LegalDocView> legalDocs() {
@@ -988,8 +1153,13 @@ public class ReadingCompatService {
         OffsetDateTime dayStart = now.toLocalDate().atStartOfDay().atOffset(ZoneOffset.UTC);
         int localOcrUsed = deviceEventMapper.countByUserEventBetween(APP_CODE, userId, "local_ocr", dayStart, dayStart.plusDays(1));
         int localTtsUsed = deviceEventMapper.countByUserEventBetween(APP_CODE, userId, "local_tts", dayStart, dayStart.plusDays(1));
-        int baseLocalOcrLimit = dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR);
-        int baseLocalTtsLimit = dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS);
+        int dailyLoginGiftLimit = dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE);
+        int dailyLoginGiftUsed = Math.min(localOcrUsed + localTtsUsed, dailyLoginGiftLimit);
+        int dailyLoginGiftRemaining = Math.max(dailyLoginGiftLimit - dailyLoginGiftUsed, 0);
+        // 中文说明：打开 App 查询账号状态时按后端配置发放当天唯一一条本机功能积分赠送记录。
+        cloudUsageService.ensureDailyLoginGiftGrant(userId, dailyLoginGiftLimit, dailyLoginGiftUsed, dayStart, dayStart.plusDays(1).minusSeconds(1), now.toLocalDate().toString());
+        int baseLocalOcrLimit = dailyLoginGiftLimit;
+        int baseLocalTtsLimit = dailyLoginGiftLimit;
         ReadingCloudUsageService.CreditGrantBalance localOcrCredits = activeCreditBalance(userId, ReadingCloudUsageService.LOCAL_OCR);
         ReadingCloudUsageService.CreditGrantBalance localTtsCredits = activeCreditBalance(userId, ReadingCloudUsageService.LOCAL_TTS);
         int localOcrPlanUsed = Math.min(localOcrUsed, baseLocalOcrLimit);
@@ -1004,7 +1174,7 @@ public class ReadingCompatService {
         localTtsUsed = Math.min(localTtsPlanUsed + localTtsCreditUsed, localTtsLimit);
         int remaining = Math.max(baseLocalOcrLimit - localOcrPlanUsed, 0) + Math.max(localOcrCredits.remainingCount(), 0);
         int localTtsRemaining = Math.max(baseLocalTtsLimit - localTtsPlanUsed, 0) + Math.max(localTtsCredits.remainingCount(), 0);
-        return accountStateView(userId, provider, entitlement, childCount, now.toLocalDate(), localOcrLimit, localOcrUsed, remaining, localTtsLimit, localTtsUsed, localTtsRemaining);
+        return accountStateView(userId, provider, entitlement, childCount, now.toLocalDate(), localOcrLimit, localOcrUsed, remaining, localTtsLimit, localTtsUsed, localTtsRemaining, dailyLoginGiftLimit, dailyLoginGiftUsed, dailyLoginGiftRemaining);
     }
 
     private ReadingCloudUsageService.CreditGrantBalance activeCreditBalance(Long userId, String serviceType) {
@@ -1040,7 +1210,6 @@ public class ReadingCompatService {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         OffsetDateTime dayStart = now.toLocalDate().atStartOfDay().atOffset(ZoneOffset.UTC);
         String eventType = localTtsQuota ? "local_tts" : "local_ocr";
-        String featureCode = localTtsQuota ? ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS : ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR;
         int duplicateCount = deviceEventMapper.countByUserEventAndIdempotencyBetween(
             APP_CODE,
             user.userId(),
@@ -1052,9 +1221,9 @@ public class ReadingCompatService {
         if (duplicateCount > 0) {
             return accountState(user);
         }
-        int used = deviceEventMapper.countByUserEventBetween(APP_CODE, user.userId(), eventType, dayStart, dayStart.plusDays(1));
-        int baseLimit = dailyQuotaLimit(entitlement, featureCode);
-        if (used >= baseLimit && !cloudUsageService.consumeGiftCreditIfAvailable(user.userId(), localTtsQuota ? ReadingCloudUsageService.LOCAL_TTS : ReadingCloudUsageService.LOCAL_OCR)) {
+        int baseLimit = dailyQuotaLimit(entitlement, ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE);
+        int used = localDeviceDailyUsed(user.userId(), dayStart, dayStart.plusDays(1));
+        if (used >= baseLimit) {
             throw new ResponseStatusException(HttpStatus.PAYMENT_REQUIRED, localTtsQuota ? "Read-aloud quota exhausted" : "OCR quota exhausted");
         }
         if (duplicateCount <= 0) {
@@ -1067,8 +1236,16 @@ public class ReadingCompatService {
             event.setPayloadJson("{\"idempotencyKey\":\"" + idempotencyKey.replace("\"", "") + "\"}");
             event.setCreatedAt(now);
             deviceEventMapper.insert(event);
+            // 中文说明：日赠积分是识字/朗读共享总池，消耗后立即回写当天唯一赠送记录的 used_count。
+            cloudUsageService.ensureDailyLoginGiftGrant(user.userId(), baseLimit, used + 1, dayStart, dayStart.plusDays(1).minusSeconds(1), now.toLocalDate().toString());
         }
         return accountState(user);
+    }
+
+    private int localDeviceDailyUsed(Long userId, OffsetDateTime dayStart, OffsetDateTime dayEnd) {
+        int localOcrUsed = deviceEventMapper.countByUserEventBetween(APP_CODE, userId, "local_ocr", dayStart, dayEnd);
+        int localTtsUsed = deviceEventMapper.countByUserEventBetween(APP_CODE, userId, "local_tts", dayStart, dayEnd);
+        return Math.max(localOcrUsed, 0) + Math.max(localTtsUsed, 0);
     }
 
     private AccountStateView accountStateView(
@@ -1082,7 +1259,10 @@ public class ReadingCompatService {
         int remaining,
         int localTtsLimit,
         int localTtsUsed,
-        int localTtsRemaining
+        int localTtsRemaining,
+        int dailyLoginGiftLimit,
+        int dailyLoginGiftUsed,
+        int dailyLoginGiftRemaining
     ) {
         return new AccountStateView(
             String.valueOf(userId),
@@ -1111,7 +1291,7 @@ public class ReadingCompatService {
                 entitlement.verificationSource(),
                 entitlement.accessProof()
             ),
-            new DailyQuotaView(quotaDate.toString(), localOcrLimit, used, remaining, localTtsLimit, localTtsUsed, localTtsRemaining)
+            new DailyQuotaView(quotaDate.toString(), localOcrLimit, used, remaining, localTtsLimit, localTtsUsed, localTtsRemaining, dailyLoginGiftLimit, dailyLoginGiftUsed, dailyLoginGiftRemaining)
         );
     }
 
@@ -1364,16 +1544,16 @@ public class ReadingCompatService {
 
     private PaywallView defaultPaywallConfig() {
         return new PaywallView(
-            FAMILY_PLAN,
+            "local_ocr_100",
             false,
-            "解锁家庭伴读节奏",
-            "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。",
+            "本机积分",
+            "用于当前设备的本地识字和朗读。购买由 Apple 确认，余额只保存在本机 Keychain。",
             List.of(
-                "一次开通当前家庭版权益，具体扣款以 Apple 确认弹窗为准。",
-                "学习内容保存在本机，账号能力以后端校验结果为准。",
-                "账号删除、法务文档和客服入口均在 App 内可访问。"
+                "购买或赠送的积分不按日期过期，使用后按页面显示的消耗值扣减。",
+                "学习内容和本机积分默认只保存在当前设备，不上传到开发者服务器。",
+                "消耗型本机积分不支持跨设备自动恢复。"
             ),
-            "权益以后端校验结果为准；价格与扣款以 Apple 确认弹窗为准。"
+            "价格与扣款以 Apple 确认弹窗为准；换机、抹掉设备或重置本机钱包后余额可能无法恢复。"
         );
     }
 
@@ -1432,6 +1612,7 @@ public class ReadingCompatService {
             firstNonBlank(entity.getCurrencyCode(), "CNY"),
             entity.getPriceAmountCents() == null ? 0 : entity.getPriceAmountCents(),
             entity.getValidDays() == null ? 30 : entity.getValidDays(),
+            firstNonBlank(entity.getAppStoreProductId(), metadataString(entity.getMetadataJson(), "appStoreProductId"), productCode),
             "active".equalsIgnoreCase(firstNonBlank(entity.getStatus(), "")),
             firstNonBlank(entity.getStatus(), "inactive"),
             entity.getSortOrder() == null ? 100 : entity.getSortOrder(),
@@ -1464,6 +1645,7 @@ public class ReadingCompatService {
             product.currency(),
             product.priceAmountCents(),
             product.validDays(),
+            product.appStoreProductId(),
             Boolean.TRUE.equals(product.enabled()) && allowed,
             Boolean.TRUE.equals(product.enabled()) && allowed ? "active" : "disabled",
             product.sortOrder(),
@@ -1559,6 +1741,11 @@ public class ReadingCompatService {
             stringValue(values, "default", null),
             fallback
         );
+    }
+
+    private String metadataString(String rawJson, String key) {
+        Map<String, Object> values = jsonMap(rawJson);
+        return stringValue(values, key, null);
     }
 
     private List<String> localeKeys(String locale) {
@@ -2235,6 +2422,14 @@ public class ReadingCompatService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    private String jsonString(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (Exception ex) {
+            return "{}";
+        }
+    }
+
     private String normalizeAgeBand(String value) {
         String normalized = value == null || value.isBlank() ? "age_5_7" : value.trim();
         return normalized.startsWith("age_") ? normalized : "age_" + normalized;
@@ -2396,11 +2591,21 @@ public class ReadingCompatService {
         String currency,
         Integer priceAmountCents,
         Integer validDays,
+        String appStoreProductId,
         Boolean enabled,
         String status,
         Integer sortOrder,
         String disabledMessage,
         String messageKey
+    ) {}
+
+    public record DailyLoginGiftConfigView(
+        String appCode,
+        String planCode,
+        String featureCode,
+        Integer dailyGiftCredits,
+        String recordMode,
+        String fetchedAt
     ) {}
 
     @Schema(description = "内部购买受理请求体。")
@@ -2463,8 +2668,35 @@ public class ReadingCompatService {
         Integer localOcrRemaining,
         Integer localTtsLimit,
         Integer localTtsUsed,
-        Integer localTtsRemaining
-    ) {}
+        Integer localTtsRemaining,
+        Integer dailyLoginGiftLimit,
+        Integer dailyLoginGiftUsed,
+        Integer dailyLoginGiftRemaining
+    ) {
+        public DailyQuotaView(
+            String quotaDate,
+            Integer localOcrLimit,
+            Integer localOcrUsed,
+            Integer localOcrRemaining,
+            Integer localTtsLimit,
+            Integer localTtsUsed,
+            Integer localTtsRemaining
+        ) {
+            // 中文说明：兼容旧测试和旧接口构造路径；没有统一日赠字段时，用旧 OCR/TTS 中较大的额度做降级展示。
+            this(
+                quotaDate,
+                localOcrLimit,
+                localOcrUsed,
+                localOcrRemaining,
+                localTtsLimit,
+                localTtsUsed,
+                localTtsRemaining,
+                Math.max(localOcrLimit == null ? 0 : localOcrLimit, localTtsLimit == null ? 0 : localTtsLimit),
+                Math.max(localOcrUsed == null ? 0 : localOcrUsed, localTtsUsed == null ? 0 : localTtsUsed),
+                Math.max(localOcrRemaining == null ? 0 : localOcrRemaining, localTtsRemaining == null ? 0 : localTtsRemaining)
+            );
+        }
+    }
     public record QuotaUsageRequest(
         @Schema(description = "权益类型：local_tts/tts/voice_reading/text_to_speech/speech_synthesis 或 ocr/local_ocr/text_recognition。", example = "local_tts") String kind,
         @Schema(description = "触发来源。", example = "device_tts") String source,

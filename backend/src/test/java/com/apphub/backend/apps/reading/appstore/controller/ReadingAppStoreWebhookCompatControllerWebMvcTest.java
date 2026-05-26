@@ -1,6 +1,7 @@
 package com.apphub.backend.apps.reading.appstore.controller;
 
 import com.apphub.backend.apps.common.AppCompatControllerSupport;
+import com.apphub.backend.apps.reading.compat.service.ReadingCompatService;
 import com.apphub.backend.sys.app.model.AppDefinition;
 import com.apphub.backend.sys.app.service.AppDefinitionService;
 import com.apphub.backend.sys.appstore.model.AppStoreNotificationAcceptedView;
@@ -20,6 +21,8 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,6 +49,9 @@ class ReadingAppStoreWebhookCompatControllerWebMvcTest {
     @MockBean
     private SysAuthSessionService sysAuthSessionService;
 
+    @MockBean
+    private ReadingCompatService readingCompatService;
+
     @Test
     void notificationsShouldAcceptReadingWebhookPayload() throws Exception {
         when(appDefinitionService.get("paipai_readingcompanion")).thenReturn(Optional.of(appDefinition()));
@@ -63,6 +69,24 @@ class ReadingAppStoreWebhookCompatControllerWebMvcTest {
                     """))
             .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.data.notificationUuid").value("notify-2"));
+    }
+
+    @Test
+    void notificationsShouldBeGoneInLocalOnlyLaunchMode() throws Exception {
+        when(appDefinitionService.get("paipai_readingcompanion")).thenReturn(Optional.of(appDefinition()));
+        when(readingCompatService.isLocalOnlyLaunchMode()).thenReturn(true);
+
+        mockMvc.perform(post("/api/v1/webhooks/app-store/notifications")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "signedPayload": "signed-jws",
+                      "notificationUuid": "notify-2"
+                    }
+                    """))
+            .andExpect(status().isGone());
+
+        verify(sysAppStoreNotificationService, never()).ingest(eq("paipai_readingcompanion"), any());
     }
 
     private AppDefinition appDefinition() {

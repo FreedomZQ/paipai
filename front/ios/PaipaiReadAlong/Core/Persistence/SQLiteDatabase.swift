@@ -93,6 +93,33 @@ final class LocalDatabase {
         }
     }
 
+    func executeTransaction(statements: [(sql: String, parameters: [Any?])]) async throws {
+        try executeTransactionSync(statements: statements)
+    }
+
+    private func executeTransactionSync(statements: [(sql: String, parameters: [Any?])]) throws {
+        guard !statements.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+
+        var db: OpaquePointer?
+        guard sqlite3_open(dbPath, &db) == SQLITE_OK else {
+            throw SQLiteDatabaseError.openFailed(message(for: db))
+        }
+        defer { sqlite3_close(db) }
+        try executeBootstrap(on: db)
+        try executeRaw(sql: "BEGIN IMMEDIATE TRANSACTION", on: db)
+        do {
+            for statement in statements {
+                try executePrepared(sql: statement.sql, parameters: statement.parameters, on: db)
+            }
+            try executeRaw(sql: "COMMIT", on: db)
+        } catch {
+            _ = sqlite3_exec(db, "ROLLBACK", nil, nil, nil)
+            throw error
+        }
+    }
+
     private func query<T>(sql: String, parameters: [Any?], map: (SQLiteCursorProtocol) throws -> T, one: Bool) throws -> [T] {
         try withStatement(sql: sql, parameters: parameters) { statement, db in
             var results: [T] = []
@@ -127,6 +154,24 @@ final class LocalDatabase {
         defer { sqlite3_finalize(statement) }
         try bind(parameters, to: statement)
         return try body(statement, db)
+    }
+
+    private func executePrepared(sql: String, parameters: [Any?], on db: OpaquePointer?) throws {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw SQLiteDatabaseError.prepareFailed(message(for: db))
+        }
+        defer { sqlite3_finalize(statement) }
+        try bind(parameters, to: statement)
+        if sqlite3_step(statement) != SQLITE_DONE {
+            throw SQLiteDatabaseError.executeFailed(message(for: db))
+        }
+    }
+
+    private func executeRaw(sql: String, on db: OpaquePointer?) throws {
+        if sqlite3_exec(db, sql, nil, nil, nil) != SQLITE_OK {
+            throw SQLiteDatabaseError.executeFailed(message(for: db))
+        }
     }
 
     private func bind(_ parameters: [Any?], to statement: OpaquePointer?) throws {

@@ -451,7 +451,7 @@ public class SystemController {
             addReleaseMinimumPlatformVersionCheck(checks, blockers, warnings, items, definition, "minimum_ios_version", "app.release.minimumIosVersion", "iOS");
             addReleaseMinimumPlatformVersionCheck(checks, blockers, warnings, items, definition, "minimum_ipados_version", "app.release.minimumIpadosVersion", "iPadOS");
             addReleaseBundleIdentifierCheck(checks, blockers, items, definition);
-            addReleaseApiBaseUrlCheck(checks, blockers, module, items);
+            addReleaseApiBaseUrlCheck(checks, blockers, module, items, definition);
             addBundleConsistencyCheck(checks, blockers, definition);
             addReleaseProductIdConsistencyCheck(checks, blockers, items, definition);
             addAppleRemoteExchangeCheck(checks, blockers, definition);
@@ -615,7 +615,8 @@ public class SystemController {
         List<SystemReleaseGateView.ReleaseGateCheckView> checks,
         List<String> blockers,
         AppModule module,
-        Map<String, Object> items
+        Map<String, Object> items,
+        AppDefinition definition
     ) {
         String key = releaseApiBaseUrlKeys(module).stream()
             .filter(items::containsKey)
@@ -623,6 +624,29 @@ public class SystemController {
             .orElse(module.internalDomain() + "_api_base_url");
         String apiBaseUrl = normalizeConfigValue(items.get(key));
         String checkKey = module.appCode() + ".release_ios." + key;
+        if (localOnlyLaunchMode(definition)) {
+            // 中文说明：拍拍伴读首发 iOS 包是无自有后端模式，release_ios 不能再配置 API base URL。
+            // 否则 XcodeGen/CI 很容易把它渲染进包内环境，形成与隐私政策不一致的个人开发者后端路径。
+            if (apiBaseUrl != null) {
+                blockers.add(checkKey + " must be absent in local-only launch mode");
+                checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
+                    checkKey,
+                    "blocked",
+                    "Local-only no-backend iOS release must not configure a developer API base URL.",
+                    apiBaseUrl,
+                    "absent"
+                ));
+            } else {
+                checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
+                    checkKey,
+                    "ready",
+                    "Developer API base URL is intentionally absent for the local-only no-backend iOS release.",
+                    "absent",
+                    "absent"
+                ));
+            }
+            return;
+        }
         if (apiBaseUrl == null) {
             blockers.add(checkKey + " missing or placeholder");
             checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
@@ -874,6 +898,27 @@ public class SystemController {
     ) {
         String checkKey = definition.code() + ".apple.remoteExchangeEnabled";
         boolean enabled = Boolean.parseBoolean(String.valueOf(definition.raw().getOrDefault("app.auth.apple.remoteExchangeEnabled", "false")));
+        if (localOnlyLaunchMode(definition)) {
+            if (enabled) {
+                blockers.add(checkKey + " must be false in local-only launch mode");
+                checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
+                    checkKey,
+                    "blocked",
+                    "Local-only Kids Category launch must not enable developer-operated Apple code exchange.",
+                    "true",
+                    "false"
+                ));
+            } else {
+                checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
+                    checkKey,
+                    "ready",
+                    "Apple code exchange is disabled for the local-only no-backend launch.",
+                    "false",
+                    "false"
+                ));
+            }
+            return;
+        }
         if (!enabled) {
             blockers.add(checkKey + " must be true");
             checks.add(new SystemReleaseGateView.ReleaseGateCheckView(
@@ -1013,6 +1058,7 @@ public class SystemController {
         AppAppleTokenStorageView tokenStorage = buildTokenStorage(appCode);
         EntitlementObservabilityView entitlementObservability = sysBillingService.describeEntitlementObservability(appCode);
         AppStoreNotificationObservabilityView notificationObservability = sysAppStoreNotificationService.describeObservability(appCode);
+        boolean localOnlyLaunchMode = localOnlyLaunchMode(definition);
 
         java.util.ArrayList<String> blockers = new java.util.ArrayList<>(readiness.blockers());
         java.util.ArrayList<String> warnings = new java.util.ArrayList<>(readiness.warnings());
@@ -1020,7 +1066,7 @@ public class SystemController {
 
         checks.add(new AppAppleOpsGateView.OpsGateCheckView(
             "authReadiness",
-            readiness.auth().required() ? readiness.auth().status() : "not_required",
+            readiness.auth().status(),
             readiness.auth().required() ? "Sign in with Apple runtime readiness." : "This app does not require Sign in with Apple."
         ));
         checks.add(new AppAppleOpsGateView.OpsGateCheckView(
@@ -1074,7 +1120,13 @@ public class SystemController {
             blockers.add("billing.appstore.allowSandbox must be false in production");
         }
 
-        if (notificationObservability.failed() > 0 || notificationObservability.rejected() > 0) {
+        if (localOnlyLaunchMode) {
+            checks.add(new AppAppleOpsGateView.OpsGateCheckView(
+                "notificationPipeline",
+                "not_required_local_only",
+                "Local-only launch does not use App Store Server Notifications for consumable credit recovery."
+            ));
+        } else if (notificationObservability.failed() > 0 || notificationObservability.rejected() > 0) {
             warnings.add("appstore.notifications recent failures or rejections present");
             checks.add(new AppAppleOpsGateView.OpsGateCheckView(
                 "notificationPipeline",
@@ -1127,6 +1179,26 @@ public class SystemController {
         List<String> warnings
     ) {
         boolean demoEnabled = publicAuthAccessPolicyService.demoSessionsEnabled(definition);
+        boolean bootstrapEnabled = publicAuthAccessPolicyService.bootstrapSessionsEnabled(definition);
+        if (localOnlyLaunchMode(definition)) {
+            boolean blocked = false;
+            if (demoEnabled) {
+                blockers.add("public.demoSession must be false in local-only launch mode");
+                blocked = true;
+            }
+            if (bootstrapEnabled) {
+                blockers.add("public.bootstrapSession must be false in local-only launch mode");
+                blocked = true;
+            }
+            checks.add(new AppAppleOpsGateView.OpsGateCheckView(
+                "localOnlyPublicAuth",
+                blocked ? "blocked" : "ready",
+                blocked
+                    ? "Local-only no-backend launch must not expose developer-operated session entry points."
+                    : "Developer-operated demo/bootstrap session entry points are disabled for local-only launch."
+            ));
+            return;
+        }
         if (definition.support().appleSignInRequired()) {
             if (demoEnabled) {
                 blockers.add("public.demoSession enabled for Apple-sign-in app");
@@ -1145,7 +1217,6 @@ public class SystemController {
             return;
         }
 
-        boolean bootstrapEnabled = publicAuthAccessPolicyService.bootstrapSessionsEnabled(definition);
         if (!bootstrapEnabled) {
             blockers.add("public.bootstrapSession disabled");
             checks.add(new AppAppleOpsGateView.OpsGateCheckView(
@@ -1173,6 +1244,11 @@ public class SystemController {
             plaintext,
             plaintext > 0
         );
+    }
+
+    private boolean localOnlyLaunchMode(AppDefinition definition) {
+        return Boolean.parseBoolean(String.valueOf(definition.raw().getOrDefault("app.launch.localNoBackendFirstRelease", "false")))
+            || Boolean.parseBoolean(String.valueOf(definition.raw().getOrDefault("app.privacy.noDeveloperBackend", "false")));
     }
 
     @ResponseStatus(HttpStatus.NOT_FOUND)

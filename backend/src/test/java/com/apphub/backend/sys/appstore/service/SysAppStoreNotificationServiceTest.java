@@ -6,6 +6,7 @@ import com.apphub.backend.sys.appstore.service.crud.SysAppStoreNotificationCrudS
 import com.apphub.backend.sys.appstore.model.AppStoreNotificationAcceptedView;
 import com.apphub.backend.sys.appstore.model.AppStoreNotificationIngestRequest;
 import com.apphub.backend.sys.billing.service.SysBillingService;
+import com.apphub.backend.sys.billing.privacy.service.SysAppStoreRefundService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,9 @@ class SysAppStoreNotificationServiceTest {
     @Mock
     private SysBillingService sysBillingService;
 
+    @Mock
+    private SysAppStoreRefundService sysAppStoreRefundService;
+
     private SysAppStoreNotificationService sysAppStoreNotificationService;
 
     @BeforeEach
@@ -50,7 +54,8 @@ class SysAppStoreNotificationServiceTest {
             sha256HashService,
             new ObjectMapper(),
             appStoreJwsVerificationService,
-            sysBillingService
+            sysBillingService,
+            sysAppStoreRefundService
         );
     }
 

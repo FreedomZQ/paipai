@@ -15,7 +15,7 @@ struct AppBootstrap: Codable {
 
     static let placeholder = AppBootstrap(
         appName: "拍拍伴读",
-        kidsCategoryEnabled: false,
+        kidsCategoryEnabled: true,
         captureCharLimit: 120,
         defaultLocale: "zh-Hans",
         supportedLocales: AppLocaleCatalog.supportedInterfaceLocales,
@@ -24,20 +24,20 @@ struct AppBootstrap: Codable {
             AppLearningTrack(code: "en_to_zh", label: "English families learn Chinese")
         ],
         paywall: PaywallConfig(
-            defaultHighlight: "family_multi_child_lifetime",
+            defaultHighlight: "local_ocr_100",
             trialEnabled: false,
-            headline: "解锁家庭伴读节奏",
-            subtitle: "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。",
+            headline: "本机积分",
+            subtitle: "用于当前设备的本地识字和朗读。购买由 Apple 确认，余额只保存在本机 Keychain。",
             trustBullets: [
-                "一次开通当前高级版权益，具体扣款以 Apple 确认弹窗为准。",
-                "学习内容默认优先保存在本机。",
-                "账号删除、法务文档和客服入口均在 App 内可访问。"
+                "购买或赠送的积分不按日期过期，使用后按页面显示的消耗值扣减。",
+                "学习内容和本机积分默认只保存在当前设备，不上传到开发者服务器。",
+                "消耗型本机积分不支持跨设备自动恢复。"
             ],
-            legalNotice: "权益以后端校验结果为准；价格与扣款以 Apple 确认弹窗为准。"
+            legalNotice: "价格与扣款以 Apple 确认弹窗为准；换机、抹掉设备或重置本机钱包后余额可能无法恢复。"
         ),
         usagePolicy: .default,
-        supportEmail: nil,
-        supportUrl: nil,
+        supportEmail: "support@paipai.app",
+        supportUrl: "https://www.paipai.app/support",
         deleteAccountUrl: nil
     )
 }
@@ -76,14 +76,14 @@ struct PaywallConfig: Codable {
     init(
         defaultHighlight: String,
         trialEnabled: Bool,
-        headline: String = "解锁家庭伴读节奏",
-        subtitle: String = "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。",
+        headline: String = "本机积分",
+        subtitle: String = "用于当前设备的本地识字和朗读。购买由 Apple 确认，余额只保存在本机 Keychain。",
         trustBullets: [String] = [
-            "一次开通当前高级版权益，具体扣款以 Apple 确认弹窗为准。",
-            "学习内容默认优先保存在本机。",
-            "账号删除、法务文档和客服入口均在 App 内可访问。"
+            "购买或赠送的积分不按日期过期，使用后按页面显示的消耗值扣减。",
+            "学习内容和本机积分默认只保存在当前设备，不上传到开发者服务器。",
+            "消耗型本机积分不支持跨设备自动恢复。"
         ],
-        legalNotice: String = "权益以后端校验结果为准；价格与扣款以 Apple 确认弹窗为准。"
+        legalNotice: String = "价格与扣款以 Apple 确认弹窗为准；换机、抹掉设备或重置本机钱包后余额可能无法恢复。"
     ) {
         self.defaultHighlight = defaultHighlight
         self.trialEnabled = trialEnabled
@@ -104,15 +104,15 @@ struct PaywallConfig: Codable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        defaultHighlight = try container.decodeIfPresent(String.self, forKey: .defaultHighlight) ?? "family_multi_child_lifetime"
+        defaultHighlight = try container.decodeIfPresent(String.self, forKey: .defaultHighlight) ?? "local_ocr_100"
         trialEnabled = try container.decodeIfPresent(Bool.self, forKey: .trialEnabled) ?? false
-        headline = try container.decodeIfPresent(String.self, forKey: .headline) ?? "解锁高级版伴读节奏"
-        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle) ?? "多孩子档案、更多拍读额度和周报历史，帮助家长长期看到孩子的进步。"
+        headline = try container.decodeIfPresent(String.self, forKey: .headline) ?? "本机积分"
+        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle) ?? "用于当前设备的本地识字和朗读。购买由 Apple 确认，余额只保存在本机 Keychain。"
         trustBullets = try container.decodeIfPresent([String].self, forKey: .trustBullets) ?? [
-            "一次开通当前高级版权益，具体扣款以 Apple 确认弹窗为准。",
-            "学习内容默认优先保存在本机。",
-            "账号删除、法务文档和客服入口均在 App 内可访问。"
+            "购买或赠送的积分不按日期过期，使用后按页面显示的消耗值扣减。",
+            "学习内容和本机积分默认只保存在当前设备，不上传到开发者服务器。",
+            "消耗型本机积分不支持跨设备自动恢复。"
         ]
-        legalNotice = try container.decodeIfPresent(String.self, forKey: .legalNotice) ?? "权益以后端校验结果为准；价格与扣款以 Apple 确认弹窗为准。"
+        legalNotice = try container.decodeIfPresent(String.self, forKey: .legalNotice) ?? "价格与扣款以 Apple 确认弹窗为准；换机、抹掉设备或重置本机钱包后余额可能无法恢复。"
     }
 }

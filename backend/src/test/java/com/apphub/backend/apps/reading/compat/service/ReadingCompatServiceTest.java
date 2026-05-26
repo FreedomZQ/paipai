@@ -28,6 +28,7 @@ import com.apphub.backend.sys.billing.mapper.SysPurchaseTransactionMapper;
 import com.apphub.backend.sys.billing.model.EntitlementItemView;
 import com.apphub.backend.sys.billing.model.EntitlementObservabilityView;
 import com.apphub.backend.sys.billing.model.EntitlementOverviewView;
+import com.apphub.backend.sys.billing.privacy.mapper.SysEntitlementLedgerEventMapper;
 import com.apphub.backend.sys.billing.service.SysBillingService;
 import com.apphub.backend.sys.billing.service.SysPurchasePermissionService;
 import com.apphub.backend.sys.configcenter.model.RemoteConfigNamespaceView;
@@ -81,6 +82,7 @@ class ReadingCompatServiceTest {
     @Mock private ReadingUsagePolicyService usagePolicyService;
     @Mock private ReadingDailyQuotaConfigService dailyQuotaConfigService;
     @Mock private ReadingCloudUsageService cloudUsageService;
+    @Mock private SysEntitlementLedgerEventMapper entitlementLedgerEventMapper;
 
     @Mock private ReadingWeeklyReportSnapshotService weeklyReportSnapshotService;
     @Mock private SysEntitlementCenterService sysEntitlementCenterService;
@@ -122,6 +124,7 @@ class ReadingCompatServiceTest {
             sysEntitlementCenterService,
             dailyQuotaConfigService,
             cloudUsageService,
+            entitlementLedgerEventMapper,
             new ObjectMapper()
         );
         org.mockito.Mockito.lenient().when(usagePolicyService.currentPolicy())
@@ -130,14 +133,47 @@ class ReadingCompatServiceTest {
             .thenReturn(12);
         org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("premium_lite_monthly"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS)))
             .thenReturn(24);
+        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("premium_lite_monthly"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE)))
+            .thenReturn(12);
         org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("family_multi_child_lifetime"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR)))
             .thenReturn(50);
         org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("family_multi_child_lifetime"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS)))
             .thenReturn(100);
+        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("family_multi_child_lifetime"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE)))
+            .thenReturn(10);
         org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("free"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_OCR)))
             .thenReturn(5);
         org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("free"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_TTS)))
             .thenReturn(10);
+        org.mockito.Mockito.lenient().when(dailyQuotaConfigService.dailyLimit(eq("free"), eq(ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE)))
+            .thenReturn(10);
+        org.mockito.Mockito.lenient().when(cloudUsageService.ensureDailyLoginGiftGrant(
+            eq(42L),
+            org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyInt(),
+            any(OffsetDateTime.class),
+            any(OffsetDateTime.class),
+            any(String.class)
+        )).thenAnswer(invocation -> {
+            int total = invocation.getArgument(1);
+            int used = invocation.getArgument(2);
+            OffsetDateTime dayStart = invocation.getArgument(3);
+            OffsetDateTime expiresAt = invocation.getArgument(4);
+            String quotaDate = invocation.getArgument(5);
+            // 中文说明：测试统一日赠记录时，模拟后端只返回 local_device 单条记录。
+            return new ReadingCloudUsageService.ActiveEntitlementView(
+                "daily-local_device-" + quotaDate,
+                ReadingCloudUsageService.LOCAL_DEVICE,
+                "daily_gift",
+                "每日赠送",
+                total,
+                used,
+                Math.max(total - used, 0),
+                dayStart.toString(),
+                expiresAt.toString(),
+                "daily_login_gift"
+            );
+        });
         org.mockito.Mockito.lenient().when(weeklyReportSnapshotService.load(any(), any(), any(), any(), any()))
             .thenReturn(Optional.empty());
         org.mockito.Mockito.lenient().when(sysRemoteConfigService.loadNamespace("paipai_readingcompanion", "reading_plan_catalog"))
@@ -192,9 +228,9 @@ class ReadingCompatServiceTest {
 
         ReadingCompatService.AccountStateView state = service.accountState(42L, "apple");
 
-        assertThat(state.quota().localOcrLimit()).isEqualTo(15);
+        assertThat(state.quota().localOcrLimit()).isEqualTo(20);
         assertThat(state.quota().localOcrUsed()).isEqualTo(6);
-        assertThat(state.quota().localOcrRemaining()).isEqualTo(9);
+        assertThat(state.quota().localOcrRemaining()).isEqualTo(14);
         assertThat(state.quota().localTtsLimit()).isEqualTo(16);
         assertThat(state.quota().localTtsUsed()).isEqualTo(1);
         assertThat(state.quota().localTtsRemaining()).isEqualTo(15);
@@ -216,16 +252,26 @@ class ReadingCompatServiceTest {
 
         ReadingCompatService.AccountStateView state = service.accountState(42L, "apple");
 
-        assertThat(state.quota().localOcrLimit()).isEqualTo(8);
+        assertThat(state.quota().localOcrLimit()).isEqualTo(13);
         assertThat(state.quota().localOcrUsed()).isEqualTo(5);
-        assertThat(state.quota().localOcrRemaining()).isEqualTo(3);
+        assertThat(state.quota().localOcrRemaining()).isEqualTo(8);
         assertThat(state.quota().localTtsLimit()).isEqualTo(14);
         assertThat(state.quota().localTtsUsed()).isEqualTo(2);
         assertThat(state.quota().localTtsRemaining()).isEqualTo(12);
     }
 
     @Test
-    void entitlementRecordsShouldKeepDailyGiftSeparateFromAdminGiftCredits() {
+    void dailyLoginGiftConfigShouldReadUnifiedLocalDeviceLimit() {
+        ReadingCompatService.DailyLoginGiftConfigView config = service.dailyLoginGiftConfig("free");
+
+        assertThat(config.appCode()).isEqualTo("paipai_readingcompanion");
+        assertThat(config.featureCode()).isEqualTo(ReadingDailyQuotaConfigService.FEATURE_LOCAL_DEVICE);
+        assertThat(config.dailyGiftCredits()).isEqualTo(10);
+        assertThat(config.recordMode()).isEqualTo("single_daily_login_gift");
+    }
+
+    @Test
+    void entitlementRecordsShouldExposeOnlyUnifiedDailyGiftRecord() {
         given(sysBillingService.getEntitlements("paipai_readingcompanion", 42L))
             .willReturn(new EntitlementOverviewView(
                 "paipai_readingcompanion",
@@ -233,42 +279,17 @@ class ReadingCompatServiceTest {
                 0,
                 List.of()
             ));
-        given(cloudUsageService.recentCreditEntitlements(42L, ReadingCloudUsageService.LOCAL_TTS, 60))
-            .willReturn(List.of(new ReadingCloudUsageService.ActiveEntitlementView(
-                "gift-1",
-                ReadingCloudUsageService.LOCAL_TTS,
-                "gift",
-                "后台赠送",
-                6,
-                1,
-                5,
-                "2026-05-04T00:00:00Z",
-                "2026-06-03T00:00:00Z",
-                null
-            )));
+        ReadingCompatService.EntitlementRecordPageView page = service.entitlementRecords(user(), "local_device", 1, 20);
 
-        ReadingCompatService.EntitlementRecordPageView page = service.entitlementRecords(user(), "local_tts", 1, 20);
-
-        assertThat(page.records()).hasSize(2);
-        assertThat(page.records())
-            .filteredOn(record -> "daily_gift".equals(record.grantType()))
-            .singleElement()
-            .satisfies(record -> {
-                assertThat(record.acquireMethod()).isEqualTo("每日赠送");
-                assertThat(record.totalCount()).isEqualTo(10);
-                assertThat(record.usedCount()).isEqualTo(0);
-                assertThat(record.remainingCount()).isEqualTo(10);
-                assertThat(record.expiresAt()).contains("T23:59:59Z");
-            });
-        assertThat(page.records())
-            .filteredOn(record -> "gift".equals(record.grantType()))
-            .singleElement()
-            .satisfies(record -> {
-                assertThat(record.acquireMethod()).isEqualTo("后台赠送");
-                assertThat(record.totalCount()).isEqualTo(6);
-                assertThat(record.usedCount()).isEqualTo(1);
-                assertThat(record.remainingCount()).isEqualTo(5);
-            });
+        assertThat(page.records()).singleElement().satisfies(record -> {
+            assertThat(record.serviceType()).isEqualTo(ReadingCloudUsageService.LOCAL_DEVICE);
+            assertThat(record.grantType()).isEqualTo("daily_gift");
+            assertThat(record.acquireMethod()).isEqualTo("每日赠送");
+            assertThat(record.totalCount()).isEqualTo(10);
+            assertThat(record.usedCount()).isEqualTo(4);
+            assertThat(record.remainingCount()).isEqualTo(6);
+            assertThat(record.expiresAt()).contains("T23:59:59Z");
+        });
     }
 
     @Test
@@ -281,12 +302,12 @@ class ReadingCompatServiceTest {
                 List.of()
             ));
 
-        ReadingCompatService.EntitlementRecordPageView page = service.entitlementRecords(user(), "local_tts", "Asia/Shanghai", 1, 20);
+        ReadingCompatService.EntitlementRecordPageView page = service.entitlementRecords(user(), "local_device", "Asia/Shanghai", 1, 20);
 
         ReadingCloudUsageService.ActiveEntitlementView record = page.records().get(0);
         OffsetDateTime acquiredAt = OffsetDateTime.parse(record.acquiredAt());
         OffsetDateTime expiresAt = OffsetDateTime.parse(record.expiresAt());
-        assertThat(record.id()).isEqualTo("daily-local_tts-" + java.time.LocalDate.now(ZoneId.of("Asia/Shanghai")));
+        assertThat(record.id()).isEqualTo("daily-local_device-" + java.time.LocalDate.now(ZoneId.of("Asia/Shanghai")));
         assertThat(acquiredAt.getOffset().toString()).isEqualTo("+08:00");
         assertThat(acquiredAt.toLocalTime().toString()).isEqualTo("00:00");
         assertThat(expiresAt.getOffset().toString()).isEqualTo("+08:00");
@@ -669,6 +690,14 @@ class ReadingCompatServiceTest {
             new AppAppleReadinessView.AppStoreReadiness(
                 "ready",
                 true,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
                 true,
                 true,
                 false,

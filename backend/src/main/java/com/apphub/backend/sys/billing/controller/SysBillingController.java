@@ -10,6 +10,14 @@ import com.apphub.backend.sys.billing.model.PurchaseIntakeAcceptedView;
 import com.apphub.backend.sys.billing.model.PurchaseRestoreAcceptedView;
 import com.apphub.backend.sys.billing.model.PurchaseRestoreRequest;
 import com.apphub.backend.sys.billing.model.PurchaseVerifyRequest;
+import com.apphub.backend.sys.billing.privacy.model.EntitlementEventReportRequest;
+import com.apphub.backend.sys.billing.privacy.model.EntitlementEventReportView;
+import com.apphub.backend.sys.billing.privacy.model.PrivacyConsentRequest;
+import com.apphub.backend.sys.billing.privacy.model.PrivacyConsentView;
+import com.apphub.backend.sys.billing.privacy.model.RefundTicketView;
+import com.apphub.backend.sys.billing.privacy.service.SysAppStoreRefundService;
+import com.apphub.backend.sys.billing.privacy.service.SysEntitlementConsumptionReportService;
+import com.apphub.backend.sys.billing.privacy.service.SysPrivacyConsentService;
 import com.apphub.backend.sys.billing.service.SysBillingService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -38,13 +46,22 @@ public class SysBillingController {
 
     private final AppCompatControllerSupport appCompatControllerSupport;
     private final SysBillingService sysBillingService;
+    private final SysPrivacyConsentService privacyConsentService;
+    private final SysEntitlementConsumptionReportService consumptionReportService;
+    private final SysAppStoreRefundService appStoreRefundService;
 
     public SysBillingController(
         AppCompatControllerSupport appCompatControllerSupport,
-        SysBillingService sysBillingService
+        SysBillingService sysBillingService,
+        SysPrivacyConsentService privacyConsentService,
+        SysEntitlementConsumptionReportService consumptionReportService,
+        SysAppStoreRefundService appStoreRefundService
     ) {
         this.appCompatControllerSupport = appCompatControllerSupport;
         this.sysBillingService = sysBillingService;
+        this.privacyConsentService = privacyConsentService;
+        this.consumptionReportService = consumptionReportService;
+        this.appStoreRefundService = appStoreRefundService;
     }
 
     @Operation(summary = "查询权益", description = "查询当前用户在指定应用下的权益快照。")
@@ -92,6 +109,61 @@ public class SysBillingController {
         return ApiResponse.success(
             currentRequestId(),
             sysBillingService.restore(appCode, session.user().userId(), request)
+        );
+    }
+
+    @Operation(summary = "更新隐私同意", description = "记录或撤回付款客户/监护人的独立同意。支付退款消费信息共享必须使用该接口或购买 intake 中的同意字段。")
+    @PostMapping("/apps/{appCode}/privacy/consents")
+    public ApiResponse<PrivacyConsentView> updateConsent(
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
+        @Valid @RequestBody PrivacyConsentRequest request,
+        @Parameter(hidden = true) HttpServletRequest httpServletRequest
+    ) {
+        AuthenticatedSessionView session = requireSession(appCode, httpServletRequest);
+        return ApiResponse.success(
+            currentRequestId(),
+            privacyConsentService.updateConsent(appCode, session.user().userId(), request)
+        );
+    }
+
+    @Operation(summary = "查询隐私同意", description = "查询当前用户某类隐私同意的最新状态。")
+    @GetMapping("/apps/{appCode}/privacy/consents/{consentType}")
+    public ApiResponse<PrivacyConsentView> latestConsent(
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
+        @PathVariable String consentType,
+        @Parameter(hidden = true) HttpServletRequest httpServletRequest
+    ) {
+        AuthenticatedSessionView session = requireSession(appCode, httpServletRequest);
+        return ApiResponse.success(
+            currentRequestId(),
+            privacyConsentService.latestView(appCode, session.user().userId(), consentType)
+        );
+    }
+
+    @Operation(summary = "报送权益消费事件", description = "只接收父账号维度的交易和聚合消耗次数；禁止上传儿童姓名、图片、音频、OCR 原文或学习正文。")
+    @PostMapping("/apps/{appCode}/entitlement-events/report")
+    public ApiResponse<EntitlementEventReportView> reportEntitlementEvents(
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
+        @Valid @RequestBody EntitlementEventReportRequest request,
+        @Parameter(hidden = true) HttpServletRequest httpServletRequest
+    ) {
+        AuthenticatedSessionView session = requireSession(appCode, httpServletRequest);
+        return ApiResponse.success(
+            currentRequestId(),
+            consumptionReportService.report(appCode, session.user().userId(), request)
+        );
+    }
+
+    @Operation(summary = "查询退款票据", description = "按当前用户查询本地最小化 App Store 交易票据和聚合使用统计。")
+    @GetMapping("/apps/{appCode}/refunds/tickets")
+    public ApiResponse<RefundTicketView> refundTickets(
+        @Parameter(description = "应用编码，例如 paipai_readingcompanion。示例：paipai_readingcompanion", example = "paipai_readingcompanion") @PathVariable String appCode,
+        @Parameter(hidden = true) HttpServletRequest httpServletRequest
+    ) {
+        AuthenticatedSessionView session = requireSession(appCode, httpServletRequest);
+        return ApiResponse.success(
+            currentRequestId(),
+            appStoreRefundService.lookupTicketsByUser(appCode, session.user().userId())
         );
     }
 

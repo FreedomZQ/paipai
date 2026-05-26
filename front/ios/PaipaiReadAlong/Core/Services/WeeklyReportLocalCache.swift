@@ -73,13 +73,17 @@ final class WeeklyReportLocalCache {
     }
 
     func clear(accountId: String) {
+        try? clearOrThrow(accountId: accountId)
+    }
+
+    func clearOrThrow(accountId: String) throws {
         do {
             let root = try rootDirectory().appendingPathComponent(safe(accountId), isDirectory: true)
             if fileManager.fileExists(atPath: root.path) {
                 try fileManager.removeItem(at: root)
             }
         } catch {
-            // 清理失败不影响退出登录；下次同账号写入会覆盖对应缓存。
+            throw error
         }
     }
 
@@ -219,6 +223,13 @@ final class LocalWeeklyReportRepository {
                 WHERE id = ?
                 """,
             parameters: [now, now, reportId]
+        )
+    }
+
+    func clear() async {
+        _ = try? await database.execute(
+            sql: "DELETE FROM \(ReadingLocalTableName.weeklyReport)",
+            parameters: []
         )
     }
 

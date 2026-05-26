@@ -184,6 +184,15 @@ public class SignedAppStoreJwsVerificationService implements AppStoreJwsVerifica
             time(payload.get("purchaseDate")),
             time(payload.get("expiresDate")),
             time(payload.get("revocationDate")),
+            text(payload, "revocationReason"),
+            integer(payload, "revocationPercentage"),
+            longValue(payload, "price"),
+            text(payload, "currency"),
+            text(payload, "storefront"),
+            text(payload, "webOrderLineItemId"),
+            text(payload, "transactionReason"),
+            text(payload, "inAppOwnershipType"),
+            integer(payload, "quantity"),
             text(payload, "type")
         );
     }
@@ -219,6 +228,36 @@ public class SignedAppStoreJwsVerificationService implements AppStoreJwsVerifica
     private String text(JsonNode node, String field) {
         JsonNode value = node == null ? null : node.get(field);
         return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private Integer integer(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isNumber()) {
+            return value.asInt();
+        }
+        try {
+            return Integer.parseInt(value.asText());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private Long longValue(JsonNode node, String field) {
+        JsonNode value = node == null ? null : node.get(field);
+        if (value == null || value.isNull()) {
+            return null;
+        }
+        if (value.isNumber()) {
+            return value.asLong();
+        }
+        try {
+            return Long.parseLong(value.asText());
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private String firstNonBlank(String... values) {

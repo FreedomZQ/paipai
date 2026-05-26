@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -161,7 +162,7 @@ public interface ReadingCloudServiceCreditGrantMapper extends BaseMapper<Reading
         WHERE app_code = #{appCode}
           AND user_id = #{userId}
           AND service_type = #{serviceType}
-          AND source_type = 'internal_purchase'
+          AND source_type IN ('internal_purchase', 'appstore_purchase')
           AND created_at >= #{dayStart}
           AND created_at < #{dayEnd}
         """)
@@ -171,5 +172,21 @@ public interface ReadingCloudServiceCreditGrantMapper extends BaseMapper<Reading
         @Param("serviceType") String serviceType,
         @Param("dayStart") OffsetDateTime dayStart,
         @Param("dayEnd") OffsetDateTime dayEnd
+    );
+
+    @Update("""
+        UPDATE reading_cloud_service_credit_grant
+        SET total_count = #{totalCount},
+            used_count = #{usedCount},
+            expires_at = #{expiresAt},
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+        """)
+    int updateDailyLoginGift(
+        @Param("id") Long id,
+        @Param("totalCount") Integer totalCount,
+        @Param("usedCount") Integer usedCount,
+        @Param("expiresAt") OffsetDateTime expiresAt,
+        @Param("updatedAt") OffsetDateTime updatedAt
     );
 }

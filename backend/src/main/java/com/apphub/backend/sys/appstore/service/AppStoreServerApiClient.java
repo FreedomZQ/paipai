@@ -11,6 +11,12 @@ public interface AppStoreServerApiClient {
 
     LookupResult lookup(LookupCommand command, AppStoreConfiguration configuration);
 
+    ConsumptionSendResult sendConsumptionInformation(
+        String transactionId,
+        ConsumptionRequestBody body,
+        AppStoreConfiguration configuration
+    );
+
     record LookupCommand(
         String transactionId,
         String originalTransactionId,
@@ -48,6 +54,28 @@ public interface AppStoreServerApiClient {
     ) {
         public boolean isVerified() {
             return "verified".equalsIgnoreCase(status);
+        }
+    }
+
+    record ConsumptionRequestBody(
+        boolean customerConsented,
+        Integer consumptionPercentage,
+        String deliveryStatus,
+        Boolean sampleContentProvided,
+        String refundPreference
+    ) {
+    }
+
+    record ConsumptionSendResult(
+        String status,
+        boolean remoteCallAttempted,
+        Integer httpStatus,
+        boolean retryable,
+        String note,
+        Map<String, String> diagnostics
+    ) {
+        public boolean accepted() {
+            return "accepted".equalsIgnoreCase(status);
         }
     }
 }

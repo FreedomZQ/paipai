@@ -17,6 +17,8 @@ import com.apphub.backend.sys.billing.model.PurchaseRestoreAcceptedView;
 import com.apphub.backend.sys.billing.model.PurchaseRestoreItemRequest;
 import com.apphub.backend.sys.billing.model.PurchaseRestoreRequest;
 import com.apphub.backend.sys.billing.model.PurchaseVerifyRequest;
+import com.apphub.backend.sys.billing.privacy.model.PrivacyConsentRequest;
+import com.apphub.backend.sys.billing.privacy.service.SysPrivacyConsentService;
 import com.apphub.backend.sys.configcenter.model.RemoteConfigNamespaceView;
 import com.apphub.backend.sys.configcenter.service.SysRemoteConfigService;
 import com.apphub.backend.sys.entitlement.model.ProductEntitlementMappingView;
@@ -60,6 +62,7 @@ public class SysBillingService {
     private final AppDefinitionService appDefinitionService;
     private final SysRemoteConfigService sysRemoteConfigService;
     private final SysEntitlementCenterService sysEntitlementCenterService;
+    private final SysPrivacyConsentService privacyConsentService;
 
     public SysBillingService(
         SysPurchaseTransactionMapper sysPurchaseTransactionMapper,
@@ -70,7 +73,8 @@ public class SysBillingService {
         AppStoreServerApiClient appStoreServerApiClient,
         AppDefinitionService appDefinitionService,
         SysRemoteConfigService sysRemoteConfigService,
-        SysEntitlementCenterService sysEntitlementCenterService
+        SysEntitlementCenterService sysEntitlementCenterService,
+        SysPrivacyConsentService privacyConsentService
     ) {
         this.sysPurchaseTransactionMapper = sysPurchaseTransactionMapper;
         this.sysEntitlementSnapshotMapper = sysEntitlementSnapshotMapper;
@@ -81,10 +85,16 @@ public class SysBillingService {
         this.appDefinitionService = appDefinitionService;
         this.sysRemoteConfigService = sysRemoteConfigService;
         this.sysEntitlementCenterService = sysEntitlementCenterService;
+        this.privacyConsentService = privacyConsentService;
     }
 
     @Transactional
     public PurchaseIntakeAcceptedView verify(String appCode, Long userId, PurchaseVerifyRequest request) {
+        SysPurchaseTransactionEntity existing = findExistingIntake(appCode, "verify", request.transactionId(), request.originalTransactionId(), request.idempotencyKey());
+        if (existing != null) {
+            captureRefundDataSharingConsent(appCode, userId, request, existing);
+            return toAcceptedView(existing);
+        }
         SysPurchaseTransactionEntity entity = buildTransactionEntity(
             appCode,
             userId,
@@ -97,9 +107,11 @@ public class SysBillingService {
             request.appAccountToken(),
             request.signedTransactionInfo(),
             request.signedRenewalInfo(),
+            request.idempotencyKey(),
             request
         );
         sysPurchaseTransactionMapper.insert(entity);
+        captureRefundDataSharingConsent(appCode, userId, request, entity);
         return toAcceptedView(entity);
     }
 
@@ -107,6 +119,12 @@ public class SysBillingService {
     public PurchaseRestoreAcceptedView restore(String appCode, Long userId, PurchaseRestoreRequest request) {
         List<PurchaseIntakeAcceptedView> acceptedViews = new ArrayList<>();
         for (PurchaseRestoreItemRequest item : request.transactions()) {
+            SysPurchaseTransactionEntity existing = findExistingIntake(appCode, "restore", item.transactionId(), item.originalTransactionId(), item.idempotencyKey());
+            if (existing != null) {
+                captureRefundDataSharingConsent(appCode, userId, item, existing);
+                acceptedViews.add(toAcceptedView(existing));
+                continue;
+            }
             SysPurchaseTransactionEntity entity = buildTransactionEntity(
                 appCode,
                 userId,
@@ -119,9 +137,11 @@ public class SysBillingService {
                 item.appAccountToken(),
                 item.signedTransactionInfo(),
                 item.signedRenewalInfo(),
+                item.idempotencyKey(),
                 item
             );
             sysPurchaseTransactionMapper.insert(entity);
+            captureRefundDataSharingConsent(appCode, userId, item, entity);
             acceptedViews.add(toAcceptedView(entity));
         }
         return new PurchaseRestoreAcceptedView(appCode, userId, acceptedViews.size(), acceptedViews);
@@ -170,17 +190,19 @@ public class SysBillingService {
         entity.setOriginalTransactionId(firstNonBlank(authoritativeClaims == null ? null : authoritativeClaims.originalTransactionId(), claims.originalTransactionId()));
         entity.setStoreEnvironment(firstNonBlank(authoritativeClaims == null ? null : authoritativeClaims.environment(), claims.environment()));
         entity.setStorefront(null);
-        entity.setAppAccountToken(authoritativeClaims == null ? null : authoritativeClaims.appAccountToken());
+        entity.setAppAccountToken(null);
+        entity.setAppAccountTokenHash(sha256HashService.hash(authoritativeClaims == null ? null : authoritativeClaims.appAccountToken()));
+        populateAuthoritativeTransactionFields(entity, authoritativeClaims, lookupResult);
         entity.setSignedTransactionInfoHash(sha256HashService.hash(lookupResult.signedTransactionInfo()));
         entity.setSignedRenewalInfoHash(sha256HashService.hash(lookupResult.signedRenewalInfo()));
         entity.setVerificationStatus(lookupResult.isVerified() ? "verified" : resolveLookupVerificationStatus(lookupResult));
         entity.setProcessingStatus(resolveProcessingStatus(entity.getVerificationStatus()));
         entity.setPayloadJson(toJson(mapOfNonNull(
-            "notificationClaims", claims,
+            "notificationClaims", minimizeNotificationClaims(claims),
             "lookupStatus", lookupResult.status(),
             "lookupNote", lookupResult.note(),
-            "lookupDiagnostics", lookupResult.diagnostics(),
-            "authoritativeClaims", authoritativeClaims,
+            "lookupDiagnostics", minimizeDiagnostics(lookupResult.diagnostics()),
+            "authoritativeClaims", minimizeTransactionClaims(authoritativeClaims),
             "request", requestPayload
         )));
         entity.setCreatedAt(now);
@@ -324,9 +346,9 @@ public class SysBillingService {
                 ),
                 appStoreConfiguration(appDefinition)
             );
-            if (lookupResult != null) {
-                insertRefreshTransaction(appCode, userId, candidate, lookupResult, now);
-                insertedTransactionCount++;
+        if (lookupResult != null) {
+            insertRefreshTransaction(appCode, userId, candidate, lookupResult, now);
+            insertedTransactionCount++;
                 if (lookupResult.isVerified()) {
                     projectEntitlementSnapshot(appCode, userId, "entitlement_refresh", candidate, lookupResult, now);
                     refreshedCount++;
@@ -368,7 +390,9 @@ public class SysBillingService {
         entity.setOriginalTransactionId(firstNonBlank(authoritativeClaims == null ? null : authoritativeClaims.originalTransactionId(), candidate.getOriginalTransactionId()));
         entity.setStoreEnvironment(firstNonBlank(authoritativeClaims == null ? null : authoritativeClaims.environment(), candidate.getStoreEnvironment()));
         entity.setStorefront(candidate.getStorefront());
-        entity.setAppAccountToken(firstNonBlank(authoritativeClaims == null ? null : authoritativeClaims.appAccountToken(), candidate.getAppAccountToken()));
+        entity.setAppAccountToken(null);
+        entity.setAppAccountTokenHash(sha256HashService.hash(firstNonBlank(authoritativeClaims == null ? null : authoritativeClaims.appAccountToken(), candidate.getAppAccountToken())));
+        populateAuthoritativeTransactionFields(entity, authoritativeClaims, lookupResult);
         entity.setSignedTransactionInfoHash(sha256HashService.hash(lookupResult == null ? null : lookupResult.signedTransactionInfo()));
         entity.setSignedRenewalInfoHash(sha256HashService.hash(lookupResult == null ? null : lookupResult.signedRenewalInfo()));
         entity.setVerificationStatus(lookupResult != null && lookupResult.isVerified() ? "verified" : resolveLookupVerificationStatus(lookupResult));
@@ -377,8 +401,8 @@ public class SysBillingService {
             "refreshCandidateId", candidate.getId(),
             "lookupStatus", lookupResult == null ? null : lookupResult.status(),
             "lookupNote", lookupResult == null ? null : lookupResult.note(),
-            "lookupDiagnostics", lookupResult == null ? null : lookupResult.diagnostics(),
-            "authoritativeClaims", authoritativeClaims
+            "lookupDiagnostics", lookupResult == null ? null : minimizeDiagnostics(lookupResult.diagnostics()),
+            "authoritativeClaims", minimizeTransactionClaims(authoritativeClaims)
         )));
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
@@ -397,6 +421,7 @@ public class SysBillingService {
         String appAccountToken,
         String signedTransactionInfo,
         String signedRenewalInfo,
+        String idempotencyKey,
         Object payload
     ) {
         OffsetDateTime now = now();
@@ -428,7 +453,10 @@ public class SysBillingService {
         entity.setOriginalTransactionId(resolvedOriginalTransactionId);
         entity.setStoreEnvironment(resolvedEnvironment);
         entity.setStorefront(storefront);
-        entity.setAppAccountToken(appAccountToken);
+        entity.setAppAccountToken(null);
+        entity.setAppAccountTokenHash(sha256HashService.hash(appAccountToken));
+        entity.setIdempotencyKey(firstNonBlank(idempotencyKey, resolvedTransactionId == null ? null : sourceType + "-" + resolvedTransactionId));
+        populateAuthoritativeTransactionFields(entity, lookupResult == null ? null : lookupResult.claims(), lookupResult);
         entity.setSignedTransactionInfoHash(sha256HashService.hash(signedTransactionInfo));
         entity.setSignedRenewalInfoHash(sha256HashService.hash(signedRenewalInfo));
         entity.setVerificationStatus(finalVerificationStatus);
@@ -461,6 +489,52 @@ public class SysBillingService {
         );
     }
 
+    private void captureRefundDataSharingConsent(
+        String appCode,
+        Long userId,
+        PurchaseVerifyRequest request,
+        SysPurchaseTransactionEntity entity
+    ) {
+        if (request == null || !Boolean.TRUE.equals(request.refundDataSharingConsent())) {
+            return;
+        }
+        privacyConsentService.updateConsent(
+            appCode,
+            userId,
+            new PrivacyConsentRequest(
+                SysPrivacyConsentService.CONSENT_REFUND_CONSUMPTION_SHARING,
+                true,
+                request.consentPolicyVersion(),
+                request.consentRegion(),
+                "purchase_intake",
+                firstNonBlank(entity == null ? null : entity.getTransactionId(), request.transactionId(), request.productId())
+            )
+        );
+    }
+
+    private void captureRefundDataSharingConsent(
+        String appCode,
+        Long userId,
+        PurchaseRestoreItemRequest request,
+        SysPurchaseTransactionEntity entity
+    ) {
+        if (request == null || !Boolean.TRUE.equals(request.refundDataSharingConsent())) {
+            return;
+        }
+        privacyConsentService.updateConsent(
+            appCode,
+            userId,
+            new PrivacyConsentRequest(
+                SysPrivacyConsentService.CONSENT_REFUND_CONSUMPTION_SHARING,
+                true,
+                request.consentPolicyVersion(),
+                request.consentRegion(),
+                "restore_intake",
+                firstNonBlank(entity == null ? null : entity.getTransactionId(), request.transactionId(), request.productId())
+            )
+        );
+    }
+
     private AppStoreServerApiClient.AppStoreConfiguration appStoreConfiguration(AppDefinition appDefinition) {
         return new AppStoreServerApiClient.AppStoreConfiguration(
             rawValue(appDefinition, "app.billing.appstore.bundleId"),
@@ -480,13 +554,13 @@ public class SysBillingService {
         AppStoreServerApiClient.LookupResult lookupResult
     ) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("request", requestPayload == null ? Map.of() : requestPayload);
+        payload.put("request", minimizePurchaseRequestPayload(requestPayload));
         payload.put("verification", mapOfNonNull(
             "verificationStatus", verificationResult == null ? null : verificationResult.verificationStatus(),
             "detailStatus", verificationResult == null ? null : verificationResult.detailStatus(),
             "note", verificationResult == null ? null : verificationResult.note(),
-            "diagnostics", verificationResult == null ? null : verificationResult.diagnostics(),
-            "claims", verificationResult == null || verificationResult.claims() == null ? null : verificationResult.claims()
+            "diagnostics", verificationResult == null ? null : minimizeDiagnostics(verificationResult.diagnostics()),
+            "claims", verificationResult == null || verificationResult.claims() == null ? null : minimizeTransactionClaims(verificationResult.claims())
         ));
         AppStoreJwsVerificationService.TransactionClaims authoritativeClaims = lookupResult == null ? null : lookupResult.claims();
         ResolvedEntitlementCode entitlementResolution = resolveEntitlementCode(appCode, authoritativeClaims);
@@ -502,13 +576,179 @@ public class SysBillingService {
                 "status", lookupResult.status(),
                 "remoteLookupAttempted", lookupResult.remoteLookupAttempted(),
                 "note", lookupResult.note(),
-                "diagnostics", lookupResult.diagnostics(),
-                "claims", lookupResult.claims(),
+                "diagnostics", minimizeDiagnostics(lookupResult.diagnostics()),
+                "claims", minimizeTransactionClaims(lookupResult.claims()),
                 "signedTransactionInfoPresent", lookupResult.signedTransactionInfo() != null,
                 "signedRenewalInfoPresent", lookupResult.signedRenewalInfo() != null
             ));
         }
         return payload;
+    }
+
+    private void populateAuthoritativeTransactionFields(
+        SysPurchaseTransactionEntity entity,
+        AppStoreJwsVerificationService.TransactionClaims claims,
+        AppStoreServerApiClient.LookupResult lookupResult
+    ) {
+        if (entity == null) {
+            return;
+        }
+        if (claims != null) {
+            entity.setStorefront(firstNonBlank(claims.storefront(), entity.getStorefront()));
+            entity.setWebOrderLineItemId(claims.webOrderLineItemId());
+            entity.setPurchaseAt(claims.purchaseDate());
+            entity.setOriginalPurchaseAt(claims.purchaseDate());
+            entity.setExpiresAt(claims.expiresDate());
+            entity.setRevocationAt(claims.revocationDate());
+            entity.setRevocationReason(claims.revocationReason());
+            entity.setRevocationPercentage(claims.revocationPercentage());
+            entity.setRefundStatus(resolveRefundStatus(claims));
+            entity.setQuantity(claims.quantity() == null || claims.quantity() <= 0 ? 1 : claims.quantity());
+            entity.setPriceMilliAmount(claims.price());
+            entity.setCurrency(claims.currency());
+            entity.setTransactionReason(claims.transactionReason());
+            entity.setInAppOwnershipType(claims.inAppOwnershipType());
+            ProductEntitlementMappingView mapping = sysEntitlementCenterService.resolveProductMapping(entity.getAppCode(), claims.productId());
+            entity.setProductType(mapping == null ? normalizeProductType(claims.type()) : mapping.productType());
+        }
+        if (entity.getRefundStatus() == null) {
+            entity.setRefundStatus("none");
+        }
+        if (entity.getQuantity() == null) {
+            entity.setQuantity(1);
+        }
+        if (lookupResult != null) {
+            entity.setServerApiResponseHash(sha256HashService.hash(toJson(mapOfNonNull(
+                "status", lookupResult.status(),
+                "note", lookupResult.note(),
+                "diagnostics", minimizeDiagnostics(lookupResult.diagnostics())
+            ))));
+        }
+    }
+
+    private String resolveRefundStatus(AppStoreJwsVerificationService.TransactionClaims claims) {
+        if (claims == null || claims.revocationDate() == null) {
+            return "none";
+        }
+        return "revoked".equalsIgnoreCase(claims.revocationReason()) ? "revoked" : "refunded";
+    }
+
+    private String normalizeProductType(String type) {
+        if (type == null || type.isBlank()) {
+            return null;
+        }
+        String normalized = type.trim().toLowerCase().replace(' ', '_').replace('-', '_');
+        if (normalized.contains("consumable")) {
+            return "consumable";
+        }
+        if (normalized.contains("non_consumable")) {
+            return "non_consumable";
+        }
+        if (normalized.contains("subscription")) {
+            return "subscription";
+        }
+        return normalized;
+    }
+
+    private Object minimizePurchaseRequestPayload(Object requestPayload) {
+        if (requestPayload instanceof PurchaseVerifyRequest request) {
+            return mapOfNonNull(
+                "productId", request.productId(),
+                "transactionId", request.transactionId(),
+                "originalTransactionId", request.originalTransactionId(),
+                "environment", request.environment(),
+                "storefront", request.storefront(),
+                "appAccountTokenHash", sha256HashService.hash(request.appAccountToken()),
+                "signedTransactionInfoHash", sha256HashService.hash(request.signedTransactionInfo()),
+                "signedRenewalInfoHash", sha256HashService.hash(request.signedRenewalInfo()),
+                "idempotencyKey", request.idempotencyKey(),
+                "refundDataSharingConsent", request.refundDataSharingConsent(),
+                "consentPolicyVersion", request.consentPolicyVersion(),
+                "consentRegion", request.consentRegion()
+            );
+        }
+        if (requestPayload instanceof PurchaseRestoreItemRequest request) {
+            return mapOfNonNull(
+                "productId", request.productId(),
+                "transactionId", request.transactionId(),
+                "originalTransactionId", request.originalTransactionId(),
+                "environment", request.environment(),
+                "storefront", request.storefront(),
+                "appAccountTokenHash", sha256HashService.hash(request.appAccountToken()),
+                "signedTransactionInfoHash", sha256HashService.hash(request.signedTransactionInfo()),
+                "signedRenewalInfoHash", sha256HashService.hash(request.signedRenewalInfo()),
+                "idempotencyKey", request.idempotencyKey(),
+                "refundDataSharingConsent", request.refundDataSharingConsent(),
+                "consentPolicyVersion", request.consentPolicyVersion(),
+                "consentRegion", request.consentRegion()
+            );
+        }
+        return requestPayload == null ? Map.of() : requestPayload;
+    }
+
+    private Map<String, Object> minimizeNotificationClaims(AppStoreJwsVerificationService.NotificationClaims claims) {
+        if (claims == null) {
+            return null;
+        }
+        return mapOfNonNull(
+            "notificationUuid", claims.notificationUuid(),
+            "notificationType", claims.notificationType(),
+            "subtype", claims.subtype(),
+            "environment", claims.environment(),
+            "originalTransactionId", claims.originalTransactionId(),
+            "transactionId", claims.transactionId(),
+            "productId", claims.productId(),
+            "signedTransactionInfoHash", sha256HashService.hash(claims.signedTransactionInfo()),
+            "signedRenewalInfoHash", sha256HashService.hash(claims.signedRenewalInfo()),
+            "signedTransactionInfoPresent", claims.signedTransactionInfo() != null && !claims.signedTransactionInfo().isBlank(),
+            "signedRenewalInfoPresent", claims.signedRenewalInfo() != null && !claims.signedRenewalInfo().isBlank()
+        );
+    }
+
+    private Map<String, Object> minimizeTransactionClaims(AppStoreJwsVerificationService.TransactionClaims claims) {
+        if (claims == null) {
+            return null;
+        }
+        // 交易 claims 进入普通 JSON 审计字段前必须脱敏：appAccountToken 只保留哈希，JWS 原文只保留 hash 字段。
+        return mapOfNonNull(
+            "productId", claims.productId(),
+            "transactionId", claims.transactionId(),
+            "originalTransactionId", claims.originalTransactionId(),
+            "environment", claims.environment(),
+            "bundleId", claims.bundleId(),
+            "appAccountTokenHash", sha256HashService.hash(claims.appAccountToken()),
+            "purchaseDate", claims.purchaseDate(),
+            "expiresDate", claims.expiresDate(),
+            "revocationDate", claims.revocationDate(),
+            "revocationReason", claims.revocationReason(),
+            "revocationPercentage", claims.revocationPercentage(),
+            "price", claims.price(),
+            "currency", claims.currency(),
+            "storefront", claims.storefront(),
+            "webOrderLineItemId", claims.webOrderLineItemId(),
+            "transactionReason", claims.transactionReason(),
+            "inAppOwnershipType", claims.inAppOwnershipType(),
+            "quantity", claims.quantity(),
+            "type", claims.type()
+        );
+    }
+
+    private Map<String, String> minimizeDiagnostics(Map<String, String> diagnostics) {
+        if (diagnostics == null || diagnostics.isEmpty()) {
+            return diagnostics;
+        }
+        Map<String, String> sanitized = new LinkedHashMap<>();
+        diagnostics.forEach((key, value) -> {
+            String normalizedKey = key == null ? "" : key.toLowerCase();
+            if (normalizedKey.contains("appaccounttoken")) {
+                sanitized.put(key + "Hash", sha256HashService.hash(value));
+            } else if (normalizedKey.contains("rawerrorbody")) {
+                sanitized.put(key + "Length", value == null ? "0" : String.valueOf(value.length()));
+            } else {
+                sanitized.put(key, value);
+            }
+        });
+        return sanitized;
     }
 
     private Map<String, Object> mapOfNonNull(Object... pairs) {
@@ -575,6 +815,31 @@ public class SysBillingService {
         return null;
     }
 
+    private SysPurchaseTransactionEntity findExistingIntake(
+        String appCode,
+        String sourceType,
+        String transactionId,
+        String originalTransactionId,
+        String idempotencyKey
+    ) {
+        LambdaQueryWrapper<SysPurchaseTransactionEntity> wrapper = new LambdaQueryWrapper<SysPurchaseTransactionEntity>()
+            .eq(SysPurchaseTransactionEntity::getAppCode, appCode)
+            .eq(SysPurchaseTransactionEntity::getSourceType, sourceType)
+            .orderByDesc(SysPurchaseTransactionEntity::getUpdatedAt)
+            .orderByDesc(SysPurchaseTransactionEntity::getId)
+            .last("LIMIT 1");
+        if (hasText(idempotencyKey)) {
+            wrapper.eq(SysPurchaseTransactionEntity::getIdempotencyKey, idempotencyKey);
+        } else if (hasText(transactionId)) {
+            wrapper.eq(SysPurchaseTransactionEntity::getTransactionId, transactionId);
+        } else if (hasText(originalTransactionId)) {
+            wrapper.eq(SysPurchaseTransactionEntity::getOriginalTransactionId, originalTransactionId);
+        } else {
+            return null;
+        }
+        return sysPurchaseTransactionMapper.selectOne(wrapper);
+    }
+
     private String rawValue(AppDefinition appDefinition, String key) {
         Object value = appDefinition.raw().get(key);
         return value == null ? null : String.valueOf(value);
@@ -592,7 +857,7 @@ public class SysBillingService {
             }
         }
         if (hasText(claims.appAccountToken())) {
-            return sysPurchaseTransactionMapper.selectLatestUserIdByAppAccountToken(appCode, claims.appAccountToken());
+            return sysPurchaseTransactionMapper.selectLatestUserIdByAppAccountToken(appCode, sha256HashService.hash(claims.appAccountToken()));
         }
         return null;
     }
@@ -651,13 +916,13 @@ public class SysBillingService {
         snapshot.setStatus(resolveEntitlementStatus(claims, now));
         snapshot.setExpiresAt(claims.expiresDate());
         snapshot.setPayloadJson(toJson(mapOfNonNull(
-            "request", requestPayload,
+            "request", minimizePurchaseRequestPayload(requestPayload),
             "entitlementCode", resolvedEntitlementCode.entitlementCode(),
             "entitlementMappingSource", resolvedEntitlementCode.source(),
             "lookupStatus", lookupResult.status(),
             "lookupNote", lookupResult.note(),
-            "claims", claims,
-            "diagnostics", lookupResult.diagnostics()
+            "claims", minimizeTransactionClaims(claims),
+            "diagnostics", minimizeDiagnostics(lookupResult.diagnostics())
         )));
         snapshot.setUpdatedAt(now);
         if (isNew) {

@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>说写秒译 - 拍拍伴读</title>
+    <link rel="stylesheet" href="paipai-loading.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #FAFAFA;
+            color: #333;
+            min-height: 100vh;
+            padding-bottom: 160px;
+        }
+
+        .container {
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .back-button {
+            background: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .spacer {
+            width: 44px;
+        }
+
+        .input-mode-tabs {
+            display: flex;
+            background: white;
+            border-radius: 16px;
+            padding: 6px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+
+        .mode-tab {
+            flex: 1;
+            padding: 14px;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .mode-tab.active {
+            background: linear-gradient(135deg, #06D6A0 0%, #4ECDC4 100%);
+            color: white;
+        }
+
+        .mode-tab:not(.active) {
+            color: #666;
+        }
+
+        .mode-tab:not(.active):hover {
+            background: #F5F5F5;
+        }
+
+        .input-section {
+            background: white;
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+
+        .voice-input-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+        }
+
+        .voice-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 60px;
+            background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(255,107,107,0.4);
+            position: relative;
+        }
+
+        .voice-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 24px rgba(255,107,107,0.5);
+        }
+
+        .voice-button:active {
+            transform: scale(0.98);
+        }
+
+        .voice-button.recording {
+            background: linear-gradient(135deg, #06D6A0 0%, #4ECDC4 100%);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 4px 20px rgba(6,214,160,0.4);
+            }
+            50% {
+                box-shadow: 0 4px 40px rgba(6,214,160,0.7);
+            }
+        }
+
+        .voice-icon {
+            font-size: 48px;
+            color: white;
+        }
+
+        .recording-indicator {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 20px;
+            color: #06D6A0;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .recording-indicator.active {
+            display: flex;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .recording-dot {
+            width: 8px;
+            height: 8px;
+            background: #FF6B6B;
+            border-radius: 50%;
+            animation: recordingDot 1s ease-in-out infinite;
+        }
+
+        @keyframes recordingDot {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.5); }
+        }
+
+        .voice-hint {
+            text-align: center;
+            font-size: 13px;
+            color: #999;
+            margin-top: 16px;
+        }
+
+        .recognized-text {
+            display: none;
+            margin-top: 20px;
+            padding: 16px;
+            background: #F9F9F9;
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .recognized-text.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .recognized-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .recognized-content {
+            font-size: 16px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            color: #000000;
+        }
+
+        .clear-recognized {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 24px;
+            height: 24px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .clear-recognized:hover {
+            background: rgba(0,0,0,0.2);
+        }
+
+        .text-input-container {
+            display: none;
+        }
+
+        .text-input-container.active {
+            display: block;
+        }
+
+        .text-input-wrapper {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .text-input {
+            width: 100%;
+            min-height: 120px;
+            padding: 16px;
+            border: 2px solid #E0E0E0;
+            border-radius: 16px;
+            font-size: 16px;
+            line-height: 1.5;
+            resize: none;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .text-input:focus {
+            border-color: #06D6A0;
+        }
+
+        .text-input::placeholder {
+            color: #999;
+        }
+
+        .input-char-count {
+            position: absolute;
+            bottom: 12px;
+            right: 16px;
+            font-size: 12px;
+            color: #999;
+        }
+
+        .input-char-count.warning {
+            color: #FF6B6B;
+        }
+
+        .submit-button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #FFD166 0%, #06D6A0 100%);
+            border: none;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .submit-button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 16px rgba(6,214,160,0.4);
+        }
+
+        .submit-button:active {
+            transform: scale(0.98);
+        }
+
+        .submit-button:disabled {
+            background: #E0E0E0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .language-section {
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 24px;
+        }
+
+        .language-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .language-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            flex-shrink: 0;
+        }
+
+        .language-select {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #E0E0E0;
+            border-radius: 12px;
+            font-size: 15px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            text-align-last: center;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .language-select:focus {
+            border-color: #06D6A0;
+        }
+
+        .language-arrow {
+            font-size: 20px;
+            color: #999;
+            flex-shrink: 0;
+        }
+
+        .result-section {
+            display: none;
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            margin-bottom: 120px;
+        }
+
+        .result-section.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .result-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #666;
+        }
+
+        .result-lang-badge {
+            padding: 4px 12px;
+            background: #E8F5FF;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #118AB2;
+            font-weight: 500;
+        }
+
+        .sentence-display {
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 1.5;
+            text-align: center;
+            padding: 16px;
+            background: #F9F9F9;
+            border-radius: 12px;
+            min-height: 60px;
+            word-wrap: break-word;
+            white-space: normal;
+            margin-bottom: 16px;
+            position: relative;
+            color: #000000;
+        }
+
+        .translation-display {
+            font-size: 16px;
+            line-height: 1.5;
+            text-align: center;
+            padding: 16px;
+            background: #F5F5F5;
+            border-radius: 12px;
+            min-height: 60px;
+            word-wrap: break-word;
+            white-space: normal;
+            margin-bottom: 16px;
+            position: relative;
+            color: #000000;
+        }
+
+        .play-icon {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: rgba(0,0,0,0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+
+        .play-icon:hover {
+            background: rgba(0,0,0,0.2);
+            transform: scale(1.1);
+        }
+
+        .play-icon:active {
+            transform: scale(0.95);
+        }
+
+        .play-icon.playing {
+            background: #06D6A0;
+            color: white;
+        }
+
+        .read-aloud-controls {
+            display: flex;
+            justify-content: center;
+            margin: 16px 0;
+        }
+
+        .speed-selector {
+            width: 200px;
+            position: relative;
+        }
+
+        .speed-select {
+            width: 100%;
+            padding: 14px 20px;
+            border: 2px solid #E0E0E0;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 500;
+            background: white;
+            cursor: pointer;
+            appearance: none;
+            text-align: center;
+            text-align-last: center;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .speed-select:focus {
+            border-color: #06D6A0;
+        }
+
+        .hint {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-top: 12px;
+            margin-bottom: 24px;
+        }
+
+        .fixed-save-button {
+            position: fixed;
+            bottom: 80px;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 16px 20px;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .save-button {
+            background: #E3F2FD;
+            border: 2px solid #2196F3;
+            color: #2196F3;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .save-button:hover {
+            background: #BBDEFB;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-content {
+            background: white;
+            border-radius: 24px;
+            padding: 32px;
+            text-align: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .save-success-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .save-success-modal.active {
+            display: flex;
+        }
+
+        .save-success-content {
+            background: white;
+            border-radius: 20px;
+            padding: 32px 24px;
+            width: 85%;
+            max-width: 400px;
+            text-align: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .save-success-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .save-success-title {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .save-success-message {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                max-width: 500px;
+                margin: 0 auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="back-button" onclick="goBack()">
+                <span>←</span>
+            </div>
+            <div class="title">说写秒译</div>
+            <div class="spacer"></div>
+        </header>
+
+        <div class="input-mode-tabs">
+            <div class="mode-tab active" data-mode="voice" onclick="switchInputMode('voice')">
+                <span>🎤</span>
+                <span>语音输入</span>
+            </div>
+            <div class="mode-tab" data-mode="text" onclick="switchInputMode('text')">
+                <span>⌨️</span>
+                <span>文字输入</span>
+            </div>
+        </div>
+
+        <div class="language-section">
+            <div class="language-row">
+                <span class="language-label">源语言</span>
+                <select class="language-select" id="sourceLang" onchange="onSourceLangChange()">
+                    <option value="zh-Hans">中文</option>
+                    <option value="en-US" selected>英语</option>
+                </select>
+                <span class="language-arrow">→</span>
+                <span class="language-label">目标语言</span>
+                <select class="language-select" id="targetLang" onchange="onTargetLangChange()">
+                    <option value="zh-Hans">中文</option>
+                    <option value="en-US" selected>英语</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="input-section">
+            <div class="voice-input-container" id="voiceContainer">
+                <button class="voice-button" id="voiceButton" onclick="toggleRecording()">
+                    <span class="voice-icon" id="voiceIcon">🎤</span>
+                </button>
+                <div class="recording-indicator" id="recordingIndicator">
+                    <span class="recording-dot"></span>
+                    <span>正在聆听...</span>
+                </div>
+                <div class="voice-hint" id="voiceHint">点击麦克风开始说话</div>
+                <div class="recognized-text" id="recognizedText">
+                    <div class="recognized-label">识别内容</div>
+                    <div class="recognized-content" id="recognizedContent"></div>
+                    <div class="clear-recognized" onclick="clearRecognized()">✕</div>
+                </div>
+            </div>
+
+            <div class="text-input-container" id="textContainer">
+                <div class="text-input-wrapper">
+                    <textarea class="text-input" id="textInput" placeholder="请输入需要翻译的文字..." maxlength="500"></textarea>
+                    <div class="input-char-count" id="charCount">0/500</div>
+                </div>
+                <button class="submit-button" id="submitButton" onclick="submitText()">
+                    <span>🔍</span>
+                    <span>翻译</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="result-section" id="resultSection">
+            <div class="result-header">
+                <span class="result-title">翻译结果</span>
+                <span class="result-lang-badge" id="resultLangBadge">EN → ZH</span>
+            </div>
+            <div class="sentence-display" id="originalText">
+                <div class="play-icon" id="playOriginal" onclick="playAudio('original')">▶</div>
+                <span id="originalContent"></span>
+            </div>
+            <div class="translation-display" id="translatedText">
+                <div class="play-icon" id="playTranslation" onclick="playAudio('translation')">▶</div>
+                <span id="translationContent"></span>
+            </div>
+            <div class="read-aloud-controls">
+                <div class="speed-selector">
+                    <select class="speed-select" id="speedSelect" onchange="changeSpeed()">
+                        <option value="0.5">很慢 (0.5x)</option>
+                        <option value="1.0" selected>正常速度 (1.0x)</option>
+                        <option value="1.5">很快 (1.5x)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="hint">
+                点击句子旁的播放图标，跟着朗读练习
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="paipai-wait" role="status" aria-live="polite">
+                <div class="paipai-loader" aria-hidden="true">
+                    <div class="paipai-loader__ring"></div>
+                    <div class="paipai-loader__scan">
+                        <span class="paipai-loader__corner paipai-loader__corner--tl"></span>
+                        <span class="paipai-loader__corner paipai-loader__corner--tr"></span>
+                        <span class="paipai-loader__corner paipai-loader__corner--br"></span>
+                        <span class="paipai-loader__corner paipai-loader__corner--bl"></span>
+                        <span class="paipai-loader__spark paipai-loader__spark--one"></span>
+                        <span class="paipai-loader__spark paipai-loader__spark--two"></span>
+                    </div>
+                    <div class="paipai-loader__badge">
+                        <img src="paipai_icon.png" alt="">
+                    </div>
+                </div>
+                <div class="loading-text">正在翻译</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed-save-button" id="saveButtonContainer" style="display: none;">
+        <button class="save-button" onclick="saveAsCard()">
+            <span>📝</span>
+            <span>保存为句卡</span>
+        </button>
+    </div>
+
+    <div class="save-success-modal" id="saveSuccessModal">
+        <div class="save-success-content">
+            <div class="save-success-icon">✅</div>
+            <div class="save-success-title">保存成功</div>
+            <div class="save-success-message">句卡已保存到复习列表，快去看看吧！</div>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <a href="03-home.html" class="nav-item">
+            <div class="nav-icon">🏠</div>
+            <div class="nav-text">首页</div>
+        </a>
+        <a href="13-reading-park.html" class="nav-item active">
+            <div class="nav-icon">🎪</div>
+            <div class="nav-text">伴读乐园</div>
+        </a>
+        <a href="09-parent-area.html" class="nav-item">
+            <div class="nav-icon">👨‍👩‍👧‍👦</div>
+            <div class="nav-text">家长中心</div>
+        </a>
+    </nav>
+
+    <style>
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 12px 0;
+            z-index: 999;
+        }
+
+        .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: #666;
+            transition: all 0.3s ease;
+            padding: 8px 0;
+        }
+
+        .nav-item:hover {
+            color: #4ECDC4;
+        }
+
+        .nav-item.active {
+            color: #06D6A0;
+        }
+
+        .nav-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-item.active .nav-icon {
+            transform: scale(1.1);
+        }
+
+        .nav-text {
+            font-size: 12px;
+            font-weight: 500;
+        }
+    </style>
+
+    <script>
+        var currentMode = 'voice';
+        var isRecording = false;
+        var recognizedText = '';
+        var translatedText = '';
+        var currentPlaybackSpeed = '1.0';
+
+        function initPage() {
+            initTextInput();
+            loadSavedSpeed();
+            initLanguageSelection();
+        }
+
+        function initLanguageSelection() {
+            var sourceLang = document.getElementById('sourceLang');
+            var targetLang = document.getElementById('targetLang');
+            sourceLang.value = 'en-US';
+            targetLang.value = 'zh-Hans';
+        }
+
+        function onSourceLangChange() {
+            var sourceLang = document.getElementById('sourceLang');
+            var targetLang = document.getElementById('targetLang');
+            var selectedSource = sourceLang.value;
+
+            if (selectedSource === 'zh-Hans') {
+                targetLang.value = 'en-US';
+            } else {
+                targetLang.value = 'zh-Hans';
+            }
+        }
+
+        function onTargetLangChange() {
+            var sourceLang = document.getElementById('sourceLang');
+            var targetLang = document.getElementById('targetLang');
+            var selectedTarget = targetLang.value;
+
+            if (selectedTarget === 'zh-Hans') {
+                sourceLang.value = 'en-US';
+            } else {
+                sourceLang.value = 'zh-Hans';
+            }
+        }
+
+        function initTextInput() {
+            var textInput = document.getElementById('textInput');
+            var charCount = document.getElementById('charCount');
+
+            textInput.addEventListener('input', function() {
+                var length = this.value.length;
+                charCount.textContent = length + '/500';
+                if (length >= 450) {
+                    charCount.classList.add('warning');
+                } else {
+                    charCount.classList.remove('warning');
+                }
+            });
+        }
+
+        function loadSavedSpeed() {
+            var savedSpeed = localStorage.getItem('translationPlaybackSpeed') || '1.0';
+            var speedSelect = document.getElementById('speedSelect');
+            var hasOption = Array.prototype.some.call(speedSelect.options, function(option) {
+                return option.value === savedSpeed;
+            });
+            speedSelect.value = hasOption ? savedSpeed : '1.0';
+            currentPlaybackSpeed = speedSelect.value;
+        }
+
+        function changeSpeed() {
+            var speedSelect = document.getElementById('speedSelect');
+            currentPlaybackSpeed = speedSelect.value;
+            localStorage.setItem('translationPlaybackSpeed', currentPlaybackSpeed);
+        }
+
+        function switchInputMode(mode) {
+            currentMode = mode;
+            var tabs = document.querySelectorAll('.mode-tab');
+            tabs.forEach(function(tab) {
+                if (tab.dataset.mode === mode) {
+                    tab.classList.add('active');
+                } else {
+                    tab.classList.remove('active');
+                }
+            });
+
+            var voiceContainer = document.getElementById('voiceContainer');
+            var textContainer = document.getElementById('textContainer');
+
+            if (mode === 'voice') {
+                voiceContainer.style.display = 'flex';
+                voiceContainer.style.flexDirection = 'column';
+                voiceContainer.style.alignItems = 'center';
+                textContainer.classList.remove('active');
+            } else {
+                voiceContainer.style.display = 'none';
+                textContainer.classList.add('active');
+            }
+        }
+
+        function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        function startRecording() {
+            isRecording = true;
+            var voiceButton = document.getElementById('voiceButton');
+            var voiceIcon = document.getElementById('voiceIcon');
+            var recordingIndicator = document.getElementById('recordingIndicator');
+            var voiceHint = document.getElementById('voiceHint');
+
+            voiceButton.classList.add('recording');
+            voiceIcon.textContent = '🔴';
+            recordingIndicator.classList.add('active');
+            voiceHint.textContent = '点击麦克风停止录音';
+
+            simulateSpeechRecognition();
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            var voiceButton = document.getElementById('voiceButton');
+            var voiceIcon = document.getElementById('voiceIcon');
+            var recordingIndicator = document.getElementById('recordingIndicator');
+            var voiceHint = document.getElementById('voiceHint');
+
+            voiceButton.classList.remove('recording');
+            voiceIcon.textContent = '🎤';
+            recordingIndicator.classList.remove('active');
+            voiceHint.textContent = '点击麦克风开始说话';
+        }
+
+        function simulateSpeechRecognition() {
+            setTimeout(function() {
+                var texts = [
+                    'Hello, how are you today?',
+                    'The weather is very nice.',
+                    'I love reading books with my friends.'
+                ];
+                recognizedText = texts[Math.floor(Math.random() * texts.length)];
+
+                var recognizedTextEl = document.getElementById('recognizedText');
+                var recognizedContent = document.getElementById('recognizedContent');
+
+                recognizedContent.textContent = recognizedText;
+                recognizedTextEl.classList.add('show');
+
+                stopRecording();
+
+                setTimeout(function() {
+                    performTranslation();
+                }, 500);
+            }, 2000);
+        }
+
+        function clearRecognized() {
+            recognizedText = '';
+            var recognizedTextEl = document.getElementById('recognizedText');
+            recognizedTextEl.classList.remove('show');
+            document.getElementById('recognizedContent').textContent = '';
+        }
+
+        function submitText() {
+            var textInput = document.getElementById('textInput');
+            var text = textInput.value.trim();
+
+            if (!text) {
+                return;
+            }
+
+            recognizedText = text;
+            performTranslation();
+        }
+
+        function performTranslation() {
+            if (!recognizedText) {
+                return;
+            }
+
+            showLoading();
+
+            setTimeout(function() {
+                var translations = {
+                    'Hello, how are you today?': '你好，今天过得怎么样？',
+                    'The weather is very nice.': '今天天气非常好。',
+                    'I love reading books with my friends.': '我喜欢和朋友们一起读书。'
+                };
+
+                translatedText = translations[recognizedText] || '翻译结果（演示数据）';
+
+                hideLoading();
+                showResult(recognizedText, translatedText);
+            }, 2000);
+        }
+
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        function showResult(original, translation) {
+            var resultSection = document.getElementById('resultSection');
+            var originalContent = document.getElementById('originalContent');
+            var translationContent = document.getElementById('translationContent');
+            var resultLangBadge = document.getElementById('resultLangBadge');
+            var saveButtonContainer = document.getElementById('saveButtonContainer');
+
+            originalContent.textContent = original;
+            translationContent.textContent = translation;
+
+            var sourceLang = document.getElementById('sourceLang').value;
+            var targetLang = document.getElementById('targetLang').value;
+            var langPair = getLangPair(sourceLang, targetLang);
+            resultLangBadge.textContent = langPair;
+
+            resultSection.classList.add('show');
+            saveButtonContainer.style.display = 'block';
+        }
+
+        function getLangPair(source, target) {
+            var langMap = {
+                'zh-Hans': '中',
+                'en-US': '英'
+            };
+            return langMap[source] + ' → ' + langMap[target];
+        }
+
+        function playAudio(type) {
+            var playIcon = type === 'original' ?
+                document.getElementById('playOriginal') :
+                document.getElementById('playTranslation');
+
+            if (playIcon.classList.contains('playing')) {
+                stopAudio();
+                return;
+            }
+
+            document.querySelectorAll('.play-icon').forEach(function(icon) {
+                icon.classList.remove('playing');
+                icon.textContent = '▶';
+            });
+
+            playIcon.classList.add('playing');
+            playIcon.textContent = '⏸';
+
+            simulateTTS(type);
+        }
+
+        function stopAudio() {
+            document.querySelectorAll('.play-icon').forEach(function(icon) {
+                icon.classList.remove('playing');
+                icon.textContent = '▶';
+            });
+        }
+
+        function simulateTTS(type) {
+            setTimeout(function() {
+                stopAudio();
+            }, 2000);
+        }
+
+        function saveAsCard() {
+            var cardData = {
+                id: Date.now(),
+                originalText: recognizedText,
+                translation: translatedText,
+                sourceLang: document.getElementById('sourceLang').value,
+                targetLang: document.getElementById('targetLang').value,
+                createdAt: new Date().toISOString()
+            };
+
+            var cards = JSON.parse(localStorage.getItem('reviewCards') || '[]');
+            cards.push(cardData);
+            localStorage.setItem('reviewCards', JSON.stringify(cards));
+
+            var saveSuccessModal = document.getElementById('saveSuccessModal');
+            saveSuccessModal.classList.add('active');
+
+            setTimeout(function() {
+                saveSuccessModal.classList.remove('active');
+            }, 2000);
+        }
+
+        function goBack() {
+            window.location.href = '13-reading-park.html';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initPage();
+        });
+    </script>
+</body>
+</html>

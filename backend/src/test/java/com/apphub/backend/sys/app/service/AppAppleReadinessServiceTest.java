@@ -25,34 +25,41 @@ class AppAppleReadinessServiceTest {
     private final AppAppleReadinessService readinessService = new AppAppleReadinessService();
 
     @Test
-    void shouldMarkReadingAsBlockedWhenSecretsAreMissing() {
+    void shouldMarkReadingAsLocalOnlyReadyWhenServerSecretsAreMissing() {
         AppDefinition definition = loadReading(new MockEnvironment());
 
         AppAppleReadinessView readiness = readinessService.inspect(definition);
 
         assertThat(readiness.appCode()).isEqualTo("paipai_readingcompanion");
-        assertThat(readiness.auth().required()).isTrue();
+        assertThat(readiness.auth().required()).isFalse();
+        assertThat(readiness.auth().status()).isEqualTo("local_no_backend");
         assertThat(readiness.appStore().required()).isTrue();
-        assertThat(readiness.overallStatus()).isEqualTo("blocked");
-        assertThat(readiness.blockers()).anyMatch(item -> item.contains("teamId"));
-        assertThat(readiness.blockers()).anyMatch(item -> item.contains("issuerId"));
+        assertThat(readiness.appStore().serverApiRequired()).isFalse();
+        assertThat(readiness.appStore().localIapOnly()).isTrue();
+        assertThat(readiness.appStore().status()).isEqualTo("local_iap_only");
+        assertThat(readiness.overallStatus()).isEqualTo("ready");
+        assertThat(readiness.blockers()).isEmpty();
         assertThat(readiness.auth().bundleIdentityAligned()).isTrue();
         assertThat(readiness.auth().formalSessionReady()).isFalse();
-        assertThat(readiness.appStore().productionSandboxSafe()).isFalse();
+        assertThat(readiness.appStore().productionSandboxSafe()).isTrue();
     }
 
     @Test
-    void shouldBecomeReadyWhenAppleCredentialsAreOverridden() {
+    void shouldBecomeReadyWhenExplicitServerApplePathsAreEnabledAndConfigured() {
         String previous = System.getProperty("APP_AUTH_APPLE_CREDENTIAL_ENCRYPTION_KEY");
         System.setProperty("APP_AUTH_APPLE_CREDENTIAL_ENCRYPTION_KEY", Base64.getEncoder().encodeToString("12345678901234567890123456789012".getBytes(StandardCharsets.UTF_8)));
         try {
         MockEnvironment environment = new MockEnvironment()
+            .withProperty("backend.apps.paipai_readingcompanion.app.support.appleSignInRequired", "true")
+            .withProperty("backend.apps.paipai_readingcompanion.app.launch.localNoBackendFirstRelease", "false")
+            .withProperty("backend.apps.paipai_readingcompanion.app.privacy.noDeveloperBackend", "false")
             .withProperty("backend.apps.paipai_readingcompanion.app.auth.apple.teamId", "TEAM123")
             .withProperty("backend.apps.paipai_readingcompanion.app.auth.apple.keyId", "KEY123")
             .withProperty("backend.apps.paipai_readingcompanion.app.auth.apple.privateKey", "PRIVATEKEY")
             .withProperty("backend.apps.paipai_readingcompanion.app.auth.apple.redirectUri", "https://example.com/apple/callback")
             .withProperty("backend.apps.paipai_readingcompanion.app.auth.apple.remoteExchangeEnabled", "true")
             .withProperty("backend.apps.paipai_readingcompanion.app.auth.apple.revokeEndpoint", "https://example.com/revoke")
+            .withProperty("backend.apps.paipai_readingcompanion.app.billing.appstore.serverApiEnabled", "true")
             .withProperty("backend.apps.paipai_readingcompanion.app.billing.appstore.issuerId", "ISSUER123")
             .withProperty("backend.apps.paipai_readingcompanion.app.billing.appstore.keyId", "KEY123")
             .withProperty("backend.apps.paipai_readingcompanion.app.billing.appstore.privateKey", "PRIVATEKEY")
@@ -68,6 +75,8 @@ class AppAppleReadinessServiceTest {
         assertThat(readiness.auth().formalSessionReady()).isTrue();
         assertThat(readiness.auth().bundleIdentityAligned()).isTrue();
         assertThat(readiness.appStore().status()).isEqualTo("ready");
+        assertThat(readiness.appStore().serverApiRequired()).isTrue();
+        assertThat(readiness.appStore().localIapOnly()).isFalse();
         assertThat(readiness.appStore().productionSandboxSafe()).isTrue();
         assertThat(readiness.overallStatus()).isEqualTo("ready");
         assertThat(readiness.blockers()).isEmpty();

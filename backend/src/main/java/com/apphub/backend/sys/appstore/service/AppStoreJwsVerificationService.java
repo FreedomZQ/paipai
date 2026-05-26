@@ -33,6 +33,15 @@ public interface AppStoreJwsVerificationService {
         OffsetDateTime purchaseDate,
         OffsetDateTime expiresDate,
         OffsetDateTime revocationDate,
+        String revocationReason,
+        Integer revocationPercentage,
+        Long price,
+        String currency,
+        String storefront,
+        String webOrderLineItemId,
+        String transactionReason,
+        String inAppOwnershipType,
+        Integer quantity,
         String type
     ) {
     }
